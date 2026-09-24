@@ -1,0 +1,46 @@
+package Prototipo.Proyecto_Grado.repository;
+
+import Prototipo.Proyecto_Grado.model.entity.Estudiante;
+import Prototipo.Proyecto_Grado.model.entity.Participacion;
+import Prototipo.Proyecto_Grado.model.entity.Sesion;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Repositorio JPA para la tabla "participacion" de Supabase.
+ * Una Participacion vincula un Estudiante con una Sesion y acumula su progreso_md.
+ */
+@Repository
+public interface ParticipacionRepository extends JpaRepository<Participacion, UUID> {
+
+    /** Participaciones de un estudiante ordenadas de más reciente a más antigua. */
+    List<Participacion> findByEstudianteOrderByCreatedAtDesc(Estudiante estudiante);
+
+    /** La participación activa más reciente de un estudiante en una sesión específica. */
+    Optional<Participacion> findFirstByEstudianteAndSesionOrderByCreatedAtDesc(Estudiante estudiante, Sesion sesion);
+
+    /** Todas las participaciones de una sesión (vista docente). */
+    List<Participacion> findBySesion(Sesion sesion);
+
+    /** Cantidad de participaciones en una sesión (para métricas del dashboard). */
+    long countBySesion(Sesion sesion);
+
+    /** Estudiantes únicos que han participado en alguna sesión del docente. */
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT p.estudiante FROM Participacion p WHERE p.sesion.profesor = :profesor ORDER BY p.estudiante.nombre ASC")
+    List<Estudiante> findDistinctEstudiantesByProfesor(@org.springframework.data.repository.query.Param("profesor") Prototipo.Proyecto_Grado.model.entity.Profesor profesor);
+
+    /** Todas las participaciones de un docente con Estudiante y Sesion cargados eagerly para evitar LazyInitializationException. */
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Participacion p JOIN FETCH p.estudiante JOIN FETCH p.sesion WHERE p.sesion.profesor = :profesor ORDER BY p.createdAt DESC")
+    List<Participacion> findByProfesorWithEstudianteAndSesion(@org.springframework.data.repository.query.Param("profesor") Prototipo.Proyecto_Grado.model.entity.Profesor profesor);
+
+    /** Participaciones de un estudiante con su Sesion cargada eagerly. */
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Participacion p JOIN FETCH p.sesion WHERE p.estudiante = :estudiante ORDER BY p.createdAt DESC")
+    List<Participacion> findByEstudianteWithSesionOrderByCreatedAtDesc(@org.springframework.data.repository.query.Param("estudiante") Estudiante estudiante);
+
+    /** Comprueba si un estudiante ya está vinculado a una sesión específica. */
+    boolean existsByEstudianteAndSesion(Estudiante estudiante, Sesion sesion);
+}

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nueva Clase — Asistente IA de Prompts (CRAFT)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --puj-blue-dark: #1b345c;
+            --puj-blue: #2c5697;
+            --bg-canvas: #FFFFFF;
+            --text-main: #111111;
+            --text-muted: #5a6272;
+            --border-subtle: #D8DDE6;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            background-color: var(--bg-canvas);
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            color: var(--text-main);
+            min-height: 100vh;
+            letter-spacing: -0.01em;
+        }
+        .navbar-minimal {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 14px 28px;
+        }
+        .page-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 32px 20px 60px 20px;
+        }
+        .section-header {
+            margin-bottom: 24px;
+        }
+        .badge-academic {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #E8EFF8;
+            color: var(--puj-blue);
+            border: 1px solid #C5D5EA;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .card-panel {
+            background: #FFFFFF;
+            border: 1px solid var(--border-subtle);
+            border-radius: 18px;
+            padding: 24px 28px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(27, 52, 92, 0.03);
+            margin-bottom: 24px;
+        }
+        .card-ai {
+            background: #FAFAFC;
+            border: 1px solid #D8DDE6;
+            position: relative;
+        }
+        .craft-badge-tag {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.74rem;
+            font-weight: 700;
+        }
+        .tag-c { background: #EFF6FF; color: #1D4ED8; }
+        .tag-r { background: #ECFDF5; color: #047857; }
+        .tag-a { background: #F5F3FF; color: #6D28D9; }
+        .tag-f { background: #FFFBEB; color: #B45309; }
+        .tag-t { background: #FEF2F2; color: #B91C1C; }
+
+        .form-label {
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+        .form-control {
+            border: 1px solid #BFC7D1;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            transition: all 0.15s ease;
+        }
+        .form-control:focus {
+            border-color: var(--puj-blue);
+            box-shadow: 0 0 0 3px rgba(44, 86, 151, 0.12);
+        }
+        .btn-ai-magic {
+            background-color: var(--puj-blue-dark);
+            color: #FFFFFF;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.88rem;
+            padding: 10px 18px;
+            border: none;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-ai-magic:hover {
+            background-color: var(--puj-blue);
+            color: #FFFFFF;
+        }
+        .btn-save-class {
+            background-color: var(--puj-blue);
+            color: #FFFFFF;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 12px 28px;
+            border: none;
+            transition: all 0.15s ease;
+        }
+        .btn-save-class:hover {
+            background-color: #234A85;
+            color: #FFFFFF;
+            box-shadow: 0 4px 12px rgba(44, 86, 151, 0.2);
+        }
+        .field-highlight {
+            animation: flashHighlight 1.2s ease-out;
+        }
+        @keyframes flashHighlight {
+            0% { background-color: #FEF3C7; }
+            100% { background-color: #FFFFFF; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="navbar-minimal d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-3">
+            <a th:href="@{/docente/sesiones}" class="text-decoration-none d-flex align-items-center gap-2" style="color: var(--puj-blue-dark);">
+                <i class="bi bi-mortarboard-fill text-warning fs-5"></i>
+                <span class="fw-bold fs-6">Panel Docente</span>
+            </a>
+            <span class="text-muted">·</span>
+            <span class="small text-muted">Configuración de Sesión</span>
+        </div>
+        <a th:href="@{/docente/sesiones}" class="btn btn-outline-secondary btn-sm rounded-3">
+            <i class="bi bi-arrow-left me-1"></i>Volver a mis clases
+        </a>
+    </nav>
+
+    <div class="page-container">
+
+        <!-- Encabezado de Página -->
+        <div class="section-header">
+            <span class="badge-academic">
+                <i class="bi bi-sliders"></i> Marco Pedagógico CRAFT
+            </span>
+            <h3 class="fw-bold mb-1" style="color: var(--puj-blue-dark);">Configurar Nueva Clase Socrática</h3>
+            <p class="text-muted small mb-0">
+                Define el tema de programación y los parámetros didácticos para que el tutor inteligente formule preguntas socráticas adaptadas.
+            </p>
+        </div>
+
+        <form th:action="@{/docente/sesiones/crear}" method="post" id="formCrearSesion">
+
+            <!-- PASO 1: Tema y Asistente IA -->
+            <div class="card-panel card-ai">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-stars text-primary fs-5"></i>
+                        <h6 class="fw-bold mb-0 text-dark">Paso 1: Tema de la Clase & Asistente IA</h6>
+                    </div>
+                    <span class="small text-muted">Gemini 3 Flash</span>
+                </div>
+                <p class="text-muted small mb-3">
+                    Ingresa el tema de Programación y utiliza el asistente para generar directrices didácticas estructuradas que impidan que el tutor entregue soluciones directas de código.
+                </p>
+
+                <div class="mb-3">
+                    <label for="temaInput" class="form-label">
+                        Tema o Concepto de POO <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control" id="temaInput" name="tema" 
+                           placeholder="Ej: Polimorfismo y Clases Abstractas en Java" 
+                           th:value="${craft.temaActualPoo}" required />
+                </div>
+
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2">
+                    <button type="button" class="btn-ai-magic" id="btnAsistenteIa" onclick="generarDirectricesConIa()">
+                        <span id="btnIcon"><i class="bi bi-magic"></i></span>
+                        <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        <span id="btnText">Sugerir Directrices CRAFT con IA</span>
+                    </button>
+                    <div id="aiAlert" class="small text-success fw-semibold d-none">
+                        <i class="bi bi-check-circle-fill me-1"></i>Directrices generadas correctamente
+                    </div>
+                </div>
+            </div>
+
+            <!-- PASO 2: Directrices Pedagógicas CRAFT -->
+            <div class="card-panel">
+                <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-card-checklist text-primary fs-5"></i>
+                        <h6 class="fw-bold mb-0 text-dark">Paso 2: Parámetros Pedagógicos (CRAFT)</h6>
+                    </div>
+                    <span class="small text-muted">Capa 2 del Sistema de Prompts</span>
+                </div>
+
+                <div class="row g-3">
+                    <!-- Context -->
+                    <div class="col-md-6">
+                        <label for="craftContexto" class="form-label d-flex align-items-center gap-2">
+                            <span class="craft-badge-tag tag-c">C</span>
+                            <span>Context (Contexto de la Lección)</span>
+                        </label>
+                        <textarea class="form-control" id="craftContexto" name="craftContexto" rows="3" 
+                                  placeholder="Contexto del curso y conocimientos previos..."
+                                  th:text="${craft.context}" required></textarea>
+                    </div>
+
+                    <!-- Role -->
+                    <div class="col-md-6">
+                        <label for="craftRol" class="form-label d-flex align-items-center gap-2">
+                            <span class="craft-badge-tag tag-r">R</span>
+                            <span>Role (Rol del Tutor)</span>
+                        </label>
+                        <textarea class="form-control" id="craftRol" name="craftRol" rows="3" 
+                                  placeholder="Postura pedagógica socrática..."
+                                  th:text="${craft.role}" required></textarea>
+                    </div>
+
+                    <!-- Audience -->
+                    <div class="col-md-6">
+                        <label for="craftAudiencia" class="form-label d-flex align-items-center gap-2">
+                            <span class="craft-badge-tag tag-a">A</span>
+                            <span>Audience (Público Objetivo)</span>
+                        </label>
+                        <textarea class="form-control" id="craftAudiencia" name="craftAudiencia" rows="3" 
+                                  placeholder="Nivel de los estudiantes..."
+                                  th:text="${craft.audience}" required></textarea>
+                    </div>
+
+                    <!-- Format -->
+                    <div class="col-md-6">
+                        <label for="craftFormato" class="form-label d-flex align-items-center gap-2">
+                            <span class="craft-badge-tag tag-f">F</span>
+                            <span>Format (Estructura de Respuesta)</span>
+                        </label>
+                        <textarea class="form-control" id="craftFormato" name="craftFormato" rows="3" 
+                                  placeholder="1 analogía cotidiana + 1 pregunta orientadora..."
+                                  th:text="${craft.format}" required></textarea>
+                    </div>
+
+                    <!-- Tone -->
+                    <div class="col-12">
+                        <label for="craftTono" class="form-label d-flex align-items-center gap-2">
+                            <span class="craft-badge-tag tag-t">T</span>
+                            <span>Tone (Tono Pedagógico)</span>
+                        </label>
+                        <input type="text" class="form-control" id="craftTono" name="craftTono" 
+                               placeholder="Empático, reflexivo, paciente y motivador"
+                               th:value="${craft.tone}" required />
+                    </div>
+                </div>
+            </div>
+
+            <!-- PASO 3: Preguntas Guía del Docente -->
+            <div class="card-panel">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-signpost-split text-primary fs-5"></i>
+                        <h6 class="fw-bold mb-0 text-dark">Paso 3: Preguntas Guía de la Clase</h6>
+                    </div>
+                    <span class="badge bg-light text-muted border small">Opcional</span>
+                </div>
+                <p class="text-muted small mb-3">
+                    Formula los hitos o preguntas de reflexión que el tutor abordará secuencialmente con los estudiantes a medida que demuestren comprensión. (Escribe una pregunta por línea).
+                </p>
+                <textarea class="form-control" id="preguntasGuia" name="preguntasGuia" rows="4" 
+                          th:text="${craft.preguntasGuia}"
+                          placeholder="1. ¿Qué diferencia sustancial existe entre una clase abstracta y una interfaz en Java?&#10;2. ¿Por qué el principio de polimorfismo facilita la extensibilidad de un software?&#10;3. ¿En qué escenario convendría preferir composición en lugar de herencia múltiple?"></textarea>
+                <div class="form-text small text-muted mt-2">
+                    <i class="bi bi-info-circle me-1"></i>El tutor integrará estas preguntas de forma secuencial sin entregar respuestas directas.
+                </div>
+            </div>
+
+            <!-- Acciones Finales -->
+            <div class="d-flex align-items-center justify-content-between pt-2">
+                <a th:href="@{/docente/sesiones}" class="btn btn-outline-secondary rounded-3 px-4">
+                    Cancelar
+                </a>
+                <button type="submit" class="btn-save-class">
+                    <i class="bi bi-check2-circle me-2"></i>Guardar y Activar Clase
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function generarDirectricesConIa() {
+            const temaInput = document.getElementById('temaInput');
+            const btnAsistente = document.getElementById('btnAsistenteIa');
+            const btnIcon = document.getElementById('btnIcon');
+            const btnSpinner = document.getElementById('btnSpinner');
+            const btnText = document.getElementById('btnText');
+            const aiAlert = document.getElementById('aiAlert');
+
+            const tema = temaInput.value.trim();
+            if (!tema) {
+                alert('Por favor escribe el tema de la clase antes de invocar al asistente IA.');
+                temaInput.focus();
+                return;
+            }
+
+            btnAsistente.disabled = true;
+            btnIcon.classList.add('d-none');
+            btnSpinner.classList.remove('d-none');
+            btnText.innerText = 'Consultando con Gemini 3 Flash...';
+            aiAlert.classList.add('d-none');
+
+            try {
+                const response = await fetch('/docente/api/prompt-assistant', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tema: tema })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Respuesta no exitosa del servidor');
+                }
+
+                const data = await response.json();
+
+                if (data.success && data.craft) {
+                    const craft = data.craft;
+                    actualizarYResaltar('craftContexto', craft.context);
+                    actualizarYResaltar('craftRol', craft.role);
+                    actualizarYResaltar('craftAudiencia', craft.audience);
+                    actualizarYResaltar('craftFormato', craft.format);
+                    actualizarYResaltar('craftTono', craft.tone);
+
+                    aiAlert.classList.remove('d-none');
+                } else {
+                    alert('No se pudo generar la propuesta con IA: ' + (data.error || 'Intenta nuevamente.'));
+                }
+            } catch (err) {
+                console.error('Error al invocar asistente IA:', err);
+                alert('Ocurrió un inconveniente al consultar al Asistente IA. Puedes completar los campos manualmente.');
+            } finally {
+                btnAsistente.disabled = false;
+                btnIcon.classList.remove('d-none');
+                btnSpinner.classList.add('d-none');
+                btnText.innerText = 'Sugerir Directrices CRAFT con IA';
+            }
+        }
+
+        function actualizarYResaltar(elementId, valor) {
+            const el = document.getElementById(elementId);
+            if (el && valor) {
+                el.value = valor;
+                el.classList.remove('field-highlight');
+                void el.offsetWidth;
+                el.classList.add('field-highlight');
+            }
+        }
+    </script>
+</body>
+</html>

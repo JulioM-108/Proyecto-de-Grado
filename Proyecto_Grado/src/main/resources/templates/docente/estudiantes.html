@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directorio de Estudiantes — Javeriana Cali</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --puj-blue: #2c5697;
+            --puj-blue-dark: #1b345c;
+            --puj-black: #111111;
+            --bg-canvas: #FFFFFF;
+            --text-main: #111111;
+            --text-muted: #5a6272;
+            --border-subtle: #D8DDE6;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            background-color: var(--bg-canvas);
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            color: var(--text-main);
+            min-height: 100vh;
+            letter-spacing: -0.01em;
+        }
+        /* Navbar */
+        .navbar-minimal {
+            background-color: #FFFFFF;
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 14px 28px;
+        }
+        .nav-pill-tab {
+            font-size: 0.86rem;
+            text-decoration: none;
+            padding: 7px 16px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            transition: all 0.15s ease;
+        }
+        .nav-pill-tab.active {
+            background-color: var(--puj-blue);
+            color: #FFFFFF !important;
+            box-shadow: 0 2px 6px rgba(44, 86, 151, 0.25);
+        }
+        .nav-pill-tab.inactive {
+            background-color: #E8EFF8;
+            color: var(--puj-blue-dark) !important;
+            border: 1px solid #C5D5EA;
+        }
+        .nav-pill-tab.inactive:hover {
+            background-color: #D3E2F4;
+            color: var(--puj-blue-dark) !important;
+            transform: translateY(-1px);
+        }
+        .container-custom {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 28px 20px 60px 20px;
+        }
+        /* KPI Cards */
+        .kpi-card {
+            background: #FFFFFF;
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+            transition: all 0.15s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px -4px rgba(27, 52, 92, 0.08);
+        }
+        .kpi-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        .kpi-icon.blue {
+            background: #E8EFF8;
+            color: var(--puj-blue);
+        }
+        .kpi-icon.green {
+            background: #ECFDF5;
+            color: #059669;
+        }
+        .kpi-icon.amber {
+            background: #FFFBEB;
+            color: #D97706;
+        }
+        .kpi-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--puj-blue-dark);
+            line-height: 1.1;
+        }
+        .kpi-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        /* Search bar */
+        .search-bar {
+            position: relative;
+            max-width: 360px;
+        }
+        .search-bar input {
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 10px 14px 10px 40px;
+            font-size: 0.88rem;
+            width: 100%;
+            color: var(--puj-black);
+            transition: all 0.15s ease;
+            background: #FFFFFF;
+        }
+        .search-bar input:focus {
+            border-color: var(--puj-blue);
+            box-shadow: 0 0 0 3px rgba(44, 86, 151, 0.12);
+            outline: none;
+        }
+        .search-bar .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.92rem;
+        }
+        /* Table */
+        .card-panel {
+            background: #FFFFFF;
+            border: 1px solid var(--border-subtle);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+        .table-institutional thead {
+            background-color: var(--puj-blue-dark);
+        }
+        .table-institutional thead th {
+            color: #FFFFFF;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 14px 16px;
+            border: none;
+        }
+        .table-institutional tbody tr {
+            border-bottom: 1px solid #F0F2F5;
+            transition: all 0.12s ease;
+        }
+        .table-institutional tbody tr:last-child {
+            border-bottom: none;
+        }
+        .table-institutional tbody tr:hover {
+            background-color: #F8FAFC;
+        }
+        .table-institutional tbody td {
+            padding: 14px 16px;
+            font-size: 0.88rem;
+            vertical-align: middle;
+            border: none;
+        }
+        .avatar-initial {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: var(--puj-blue);
+            color: #FFFFFF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.88rem;
+            flex-shrink: 0;
+        }
+        .badge-active {
+            background: #ECFDF5;
+            color: #059669;
+            border: 1px solid #A7F3D0;
+            font-weight: 600;
+            font-size: 0.76rem;
+            padding: 4px 10px;
+            border-radius: 9999px;
+        }
+        .badge-classes {
+            background: #E8EFF8;
+            color: var(--puj-blue-dark);
+            font-weight: 700;
+            font-size: 0.82rem;
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid #C5D5EA;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. Navegación Superior -->
+    <nav class="navbar-minimal d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-3">
+            <a th:href="@{/docente/sesiones}" class="text-decoration-none d-flex align-items-center gap-2 me-2" style="color: var(--puj-blue-dark);">
+                <i class="bi bi-mortarboard-fill text-warning fs-5"></i>
+                <span class="fw-bold fs-6">Tutor Socrático</span>
+            </a>
+            <div class="d-flex align-items-center gap-2">
+                <a th:href="@{/docente/sesiones}" class="nav-pill-tab inactive">
+                    <i class="bi bi-collection-play-fill"></i>
+                    <span>Mis Sesiones</span>
+                </a>
+                <a th:href="@{/docente/estudiantes}" class="nav-pill-tab active">
+                    <i class="bi bi-people-fill"></i>
+                    <span>Mis Estudiantes</span>
+                </a>
+                <a th:href="@{/docente/feedback}" class="nav-pill-tab inactive">
+                    <i class="bi bi-chat-heart-fill"></i>
+                    <span>Feedback Recibido</span>
+                </a>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <span class="small text-muted d-none d-md-inline" th:text="${profesor != null ? profesor.correo : 'Docente'}">correo@javerianacali.edu.co</span>
+            <a th:href="@{/logout}" class="btn btn-outline-secondary btn-sm rounded-3 py-1 px-3">
+                <i class="bi bi-box-arrow-right me-1"></i>Salir
+            </a>
+        </div>
+    </nav>
+
+    <!-- 2. Contenedor Principal -->
+    <div class="container-custom">
+
+        <!-- Notificación de Estudiante Asignado -->
+        <div th:if="${estudianteAsignado}" class="alert alert-success alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                <div>¡Estudiante asignado exitosamente a la clase! Ahora ya podrá acceder a la tutoría desde su portal.</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+
+        <!-- Título -->
+        <div class="mb-4">
+            <h4 class="fw-bold mb-1" style="color: var(--puj-blue-dark);">
+                <i class="bi bi-people-fill me-2"></i>Directorio de Estudiantes
+            </h4>
+            <p class="text-muted small mb-0">Listado consolidado de alumnos que han interactuado con tus clases socráticas.</p>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="kpi-card d-flex align-items-center gap-3">
+                    <div class="kpi-icon blue">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                    <div>
+                        <div class="kpi-value" th:text="${directorio.size()}">0</div>
+                        <div class="kpi-label">Total Estudiantes</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="kpi-card d-flex align-items-center gap-3">
+                    <div class="kpi-icon green">
+                        <i class="bi bi-person-check-fill"></i>
+                    </div>
+                    <div>
+                        <div class="kpi-value" th:text="${directorio.size()}">0</div>
+                        <div class="kpi-label">Estudiantes Activos</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="kpi-card d-flex align-items-center gap-3">
+                    <div class="kpi-icon amber">
+                        <i class="bi bi-journal-check"></i>
+                    </div>
+                    <div>
+                        <div class="kpi-value" id="totalParticipaciones">0</div>
+                        <div class="kpi-label">Total Participaciones</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barra de Búsqueda -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+            <div class="search-bar flex-grow-1">
+                <i class="bi bi-search search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Buscar estudiante por nombre o correo..." autocomplete="off">
+            </div>
+            <span class="badge bg-light text-dark border px-3 py-2 small" id="countBadge"
+                  th:text="${directorio.size()} + ' estudiante(s)'">0 estudiantes</span>
+        </div>
+
+        <!-- Tabla de Estudiantes -->
+        <div class="card-panel">
+            <div th:if="${directorio != null and !directorio.isEmpty()}" class="table-responsive">
+                <table class="table table-institutional align-middle mb-0" id="tablaEstudiantes">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Estudiante</th>
+                            <th>Correo Institucional</th>
+                            <th class="text-center">Clases</th>
+                            <th>Última Actividad</th>
+                            <th>Estado</th>
+                            <th class="text-end pe-4">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="est : ${directorio}" class="fila-estudiante">
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="avatar-initial" th:text="${(est.nombre != null and !#strings.isEmpty(est.nombre)) ? #strings.substring(est.nombre, 0, 1).toUpperCase() : 'E'}">E</div>
+                                    <div>
+                                        <div class="fw-semibold" style="color: var(--puj-black);" th:text="${est.nombre}">Nombre Estudiante</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="text-muted" th:text="${est.correo}">correo@javerianacali.edu.co</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge-classes" th:text="${est.totalClases}">1</span>
+                            </td>
+                            <td>
+                                <span class="small" style="color: var(--text-muted);" th:text="${est.ultimaActividadFormateada}">01/01/2026</span>
+                            </td>
+                            <td>
+                                <span class="badge-active">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Registrado
+                                </span>
+                            </td>
+                            <td class="text-end pe-4">
+                                <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 fw-semibold"
+                                        th:attr="onclick='abrirModalAsignar(\'' + ${est.id} + '\', \'' + ${est.nombre} + '\')'">
+                                    <i class="bi bi-bookmark-plus me-1"></i>Asignar a Clase
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Si no hay estudiantes aún -->
+            <div th:unless="${directorio != null and !directorio.isEmpty()}" class="text-center py-5 text-muted">
+                <div style="width: 64px; height: 64px; border-radius: 16px; background: #E8EFF8; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <i class="bi bi-people fs-3" style="color: var(--puj-blue);"></i>
+                </div>
+                <h6 class="fw-bold text-dark mb-1">Aún no hay estudiantes registrados en tus clases</h6>
+                <p class="small mb-3 mx-auto" style="max-width: 420px;">
+                    Cuando los estudiantes abran tus enlaces únicos de clase o los vincules a una sesión, aparecerán listados aquí.
+                </p>
+                <a th:href="@{/docente/sesiones}" class="btn btn-sm rounded-3 px-4 py-2" style="background-color: var(--puj-blue); color: #FFFFFF; font-weight: 600;">
+                    <i class="bi bi-arrow-left me-1"></i>Ir a Mis Sesiones
+                </a>
+            </div>
+
+            <!-- Mensaje cuando la búsqueda no tiene resultados -->
+            <div id="noResultsMsg" class="text-center py-4 text-muted d-none">
+                <i class="bi bi-search fs-4 d-block mb-2 opacity-50"></i>
+                <p class="small mb-0">No se encontraron estudiantes con ese criterio de búsqueda.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Pie de página -->
+    <footer class="text-center text-muted py-4 small border-top bg-white mt-5">
+        <div>Proyecto de Grado · Ingeniería de Sistemas y Computación · Pontificia Universidad Javeriana Cali</div>
+        <div class="opacity-75" style="font-size: 0.76rem;">Tutoría Inteligente Socrática asistida por IA</div>
+    </footer>
+
+    <!-- MODAL: Asignar Estudiante a una Clase -->
+    <div class="modal fade" id="modalAsignarClase" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+                <div class="modal-header border-bottom p-3">
+                    <h6 class="modal-title fw-bold" style="color: var(--puj-blue-dark);">
+                        <i class="bi bi-bookmark-plus-fill text-primary me-2"></i>Asignar Estudiante a una Clase
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formAsignarClase" method="post" action="">
+                    <div class="modal-body p-4">
+                        <p class="text-muted small mb-3">
+                            Vincula al alumno <strong id="modalNombreEstudiante" class="text-dark">Estudiante</strong> a otra de tus sesiones socráticas activas. Una vez asignado, la clase aparecerá inmediatamente en su portal.
+                        </p>
+                        <div class="mb-3">
+                            <label for="sesionAsignarSelect" class="form-label small fw-bold">Seleccionar Clase:</label>
+                            <select id="sesionAsignarSelect" name="sesionId" class="form-select rounded-3" required>
+                                <option value="" disabled selected>-- Elige una clase --</option>
+                                <option th:each="s : ${sesiones}" th:value="${s.id}" th:text="${s.tema}">Clase de POO</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light p-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm rounded-3 px-3" style="background-color: var(--puj-blue); border-color: var(--puj-blue);">
+                            <i class="bi bi-check-lg me-1"></i>Confirmar Asignación
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function abrirModalAsignar(estId, estNombre) {
+            document.getElementById('modalNombreEstudiante').textContent = estNombre;
+            document.getElementById('formAsignarClase').action = '/docente/estudiantes/' + estId + '/asignar-sesion';
+            const modal = new bootstrap.Modal(document.getElementById('modalAsignarClase'));
+            modal.show();
+        }
+
+        // Calcular total de participaciones desde la tabla
+        document.addEventListener('DOMContentLoaded', function() {
+            const badges = document.querySelectorAll('.badge-classes');
+            let total = 0;
+            badges.forEach(b => total += parseInt(b.textContent) || 0);
+            document.getElementById('totalParticipaciones').textContent = total;
+
+            // Búsqueda en tiempo real
+            const searchInput = document.getElementById('searchInput');
+            const filas = document.querySelectorAll('.fila-estudiante');
+            const noResultsMsg = document.getElementById('noResultsMsg');
+            const countBadge = document.getElementById('countBadge');
+            const totalEstudiantes = filas.length;
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    const query = this.value.toLowerCase().trim();
+                    let visibles = 0;
+
+                    filas.forEach(fila => {
+                        const texto = fila.textContent.toLowerCase();
+                        const match = texto.includes(query);
+                        fila.style.display = match ? '' : 'none';
+                        if (match) visibles++;
+                    });
+
+                    // Mostrar/ocultar mensaje de sin resultados
+                    if (visibles === 0 && totalEstudiantes > 0) {
+                        noResultsMsg.classList.remove('d-none');
+                    } else {
+                        noResultsMsg.classList.add('d-none');
+                    }
+
+                    // Actualizar badge de conteo
+                    if (query) {
+                        countBadge.textContent = visibles + ' de ' + totalEstudiantes + ' estudiante(s)';
+                    } else {
+                        countBadge.textContent = totalEstudiantes + ' estudiante(s)';
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

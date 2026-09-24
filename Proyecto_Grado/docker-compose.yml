@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  tutor-socratico-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tutor-socratico:latest
+    container_name: tutor_socratico_app
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      - DB_URL=${DB_URL}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - SERVER_PORT=${SERVER_PORT:-8080}
