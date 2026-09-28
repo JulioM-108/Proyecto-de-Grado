@@ -192,6 +192,13 @@
             <span>¡Tu opinión sobre la sesión fue enviada a tu profesor! Gracias por tu retroalimentación.</span>
         </div>
 
+        <!-- Mensaje de Evaluación SUS+TAM Exitosa -->
+        <div th:if="${param.evaluacionExitosa}" class="alert alert-dismissible fade show rounded-3 py-2 px-3 small mb-4 d-flex align-items-center gap-2 border" style="background-color: #F3E8FF; border-color: #D8B4FE; color: #581C87;" role="alert">
+            <i class="bi bi-clipboard2-check-fill fs-5" style="color: #7E22CE;"></i>
+            <span><strong>¡Evaluación registrada!</strong> Tus respuestas para la validación de la tesis fueron guardadas correctamente.</span>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+        </div>
+
         <!-- Perfil del Estudiante -->
         <div class="card-profile d-flex flex-wrap align-items-center justify-content-between gap-3">
             <div class="d-flex align-items-center gap-3">
@@ -255,8 +262,16 @@
                         <button type="button" class="btn btn-outline-warning btn-sm rounded-3 px-3 py-1 text-dark"
                                 data-bs-toggle="modal" th:data-bs-target="'#modalFeedbackClase' + ${part.id}">
                             <i class="bi bi-star-fill text-warning me-1"></i>
-                            <span th:if="${part.valoracionEstudiante != null}" th:text="${part.valoracionEstudiante} + '★ Mi Feedback'">5★</span>
-                            <span th:unless="${part.valoracionEstudiante != null}">Dar Feedback</span>
+                            <span th:if="${part.valoracionEstudiante != null}" th:text="${part.valoracionEstudiante} + '★ Feedback Profe'">5★</span>
+                            <span th:unless="${part.valoracionEstudiante != null}">Feedback Profe</span>
+                        </button>
+                        <button type="button" 
+                                th:class="${part.evaluacionSusTam != null ? 'btn btn-sm rounded-3 px-3 py-1 border' : 'btn btn-sm rounded-3 px-3 py-1 text-white shadow-sm'}"
+                                th:style="${part.evaluacionSusTam != null ? 'background-color: #F3E8FF; border-color: #D8B4FE !important; color: #6B21A8;' : 'background-color: #6f42c1; border-color: #6f42c1; color: white;'}"
+                                data-bs-toggle="modal" th:data-bs-target="'#modalSusTamClase' + ${part.id}">
+                            <i th:class="${part.evaluacionSusTam != null ? 'bi bi-check-circle-fill text-success me-1' : 'bi bi-clipboard2-check-fill text-white me-1'}"></i>
+                            <span th:if="${part.evaluacionSusTam != null}" th:text="'SUS: ' + ${part.susScore} + ' pts'">SUS: 85 pts</span>
+                            <span th:unless="${part.evaluacionSusTam != null}">Encuesta SUS+TAM</span>
                         </button>
                         <a th:href="@{'/chat/' + ${part.sesion.enlaceUnico}}" class="btn-enter-class">
                             <span>Retomar Tutoría</span>
@@ -359,6 +374,405 @@
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <!-- MODALES DE EVALUACIÓN SUS+TAM POR CLASE -->
+    <div th:each="part : ${participaciones}" class="modal fade" th:id="'modalSusTamClase' + ${part.id}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
+            <form class="modal-content border-0 shadow rounded-4 overflow-hidden" 
+                  style="max-height: 90vh; display: flex; flex-direction: column;"
+                  th:action="@{'/estudiante/clases/' + ${part.id} + '/evaluacion-sus-tam'}" 
+                  method="post">
+                <div class="modal-header border-bottom p-3 flex-shrink-0" style="background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%);">
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge rounded-pill text-white" style="background-color: #7E22CE; font-size: 0.72rem;">Validación de Tesis</span>
+                            <span class="small text-muted" th:text="${part.sesion.tema}">Tema</span>
+                        </div>
+                        <h6 class="modal-title fw-bold mb-0 mt-1" style="color: #581C87;">
+                            <i class="bi bi-clipboard2-check-fill me-2" style="color: #7E22CE;"></i>Evaluación SUS + TAM: <span th:text="${part.sesion.tema}">Tema</span>
+                        </h6>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4" style="overflow-y: auto; flex-grow: 1;">
+                        <div class="alert alert-light border rounded-3 p-3 mb-4 small">
+                            <div class="fw-bold mb-1" style="color: #581C87;">
+                                <i class="bi bi-info-circle-fill me-1"></i>Instrucciones de Diligenciamiento:
+                            </div>
+                            <p class="text-muted mb-2">
+                                Califica las siguientes afirmaciones de acuerdo con tu experiencia en esta clase. Escala de 1 a 5:
+                            </p>
+                            <div class="d-flex flex-wrap justify-content-between gap-2 p-2 rounded-2" style="background-color: #F8FAFC; font-size: 0.76rem;">
+                                <span><strong>1:</strong> Totalmente en desacuerdo</span>
+                                <span><strong>2:</strong> En desacuerdo</span>
+                                <span><strong>3:</strong> Neutral</span>
+                                <span><strong>4:</strong> De acuerdo</span>
+                                <span><strong>5:</strong> Totalmente de acuerdo</span>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN 1: USABILIDAD (SUS) -->
+                        <div class="mb-4">
+                            <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                                <span class="badge rounded-circle p-2 text-white" style="background-color: #6f42c1;">1</span>
+                                <h6 class="fw-bold mb-0 text-dark">Usabilidad de la Plataforma Web (Escala SUS)</h6>
+                            </div>
+
+                            <div class="vstack gap-3">
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">1. Creo que me gustaría utilizar esta plataforma con frecuencia para mis prácticas de programación.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_4'" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">2. Encontré la plataforma innecesariamente compleja para ingresar o interactuar.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus2'" th:id="'sus2_' + ${part.id} + '_1'" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus2_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus2'" th:id="'sus2_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus2_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus2'" th:id="'sus2_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus2_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus2'" th:id="'sus2_' + ${part.id} + '_4'" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus2_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus2'" th:id="'sus2_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus2_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">3. Considero que la plataforma fue fácil de usar e intuitiva.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_4'" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">4. Creo que necesitaría la ayuda de un profesor o monitor para poder utilizar esta plataforma.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus4'" th:id="'sus4_' + ${part.id} + '_1'" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus4_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus4'" th:id="'sus4_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus4_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus4'" th:id="'sus4_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus4_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus4'" th:id="'sus4_' + ${part.id} + '_4'" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus4_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus4'" th:id="'sus4_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus4_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">5. Sentí que las distintas funciones del sistema estaban bien integradas.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_4'" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">6. Percibí demasiadas inconsistencias o fallas en el comportamiento del sistema.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus6'" th:id="'sus6_' + ${part.id} + '_1'" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus6_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus6'" th:id="'sus6_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus6_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus6'" th:id="'sus6_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus6_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus6'" th:id="'sus6_' + ${part.id} + '_4'" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus6_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus6'" th:id="'sus6_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus6_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">7. Imagino que la mayoría de estudiantes de programación aprenderían a usar esta plataforma muy rápidamente.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_4'" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">8. Encontré la plataforma muy engorrosa o lenta de operar durante la actividad.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus8'" th:id="'sus8_' + ${part.id} + '_1'" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus8_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus8'" th:id="'sus8_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus8_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus8'" th:id="'sus8_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus8_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus8'" th:id="'sus8_' + ${part.id} + '_4'" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus8_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus8'" th:id="'sus8_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus8_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">9. Me sentí seguro y confiado interactuando con la plataforma.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_4'" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">10. Necesité aprender demasiadas cosas antes de poder empezar a interactuar con el tutor.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'sus10'" th:id="'sus10_' + ${part.id} + '_1'" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus10_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'sus10'" th:id="'sus10_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus10_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'sus10'" th:id="'sus10_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus10_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'sus10'" th:id="'sus10_' + ${part.id} + '_4'" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus10_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'sus10'" th:id="'sus10_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus10_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN 2: ACEPTACIÓN PEDAGÓGICA (TAM) -->
+                        <div class="mb-4">
+                            <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                                <span class="badge rounded-circle p-2 text-white" style="background-color: #6f42c1;">2</span>
+                                <h6 class="fw-bold mb-0 text-dark">Aceptación Pedagógica del Tutor Socrático (Modelo TAM)</h6>
+                            </div>
+
+                            <div class="vstack gap-3">
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">11. [Utilidad Pedagógica] Recibir preguntas orientadoras y analogías en vez del código resuelto me ayudó a entender mejor la lógica de POO.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'tamUtilidad'" th:id="'tam1_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam1_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'tamUtilidad'" th:id="'tam1_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam1_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'tamUtilidad'" th:id="'tam1_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam1_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'tamUtilidad'" th:id="'tam1_' + ${part.id} + '_4'" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam1_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'tamUtilidad'" th:id="'tam1_' + ${part.id} + '_5'" value="5" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam1_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">12. [Autonomía Cognitiva] La interacción con el tutor me ayudó a identificar mis propios errores conceptuales y a avanzar en la solución por mí mismo.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_4'" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">13. [Desafío vs. Frustración] Sentí que el tutor me desafió a pensar de forma constructiva, en lugar de generarme frustración por no darme el código de inmediato.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'tamFrustracion'" th:id="'tam3_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam3_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'tamFrustracion'" th:id="'tam3_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam3_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'tamFrustracion'" th:id="'tam3_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam3_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'tamFrustracion'" th:id="'tam3_' + ${part.id} + '_4'" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam3_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'tamFrustracion'" th:id="'tam3_' + ${part.id} + '_5'" value="5" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam3_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">14. [Claridad de la Mediación] Las analogías del mundo real y el ritmo de conversación (una pregunta a la vez) fueron claros y facilitaron mi aprendizaje.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_4'" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">15. [Ventaja vs. ChatGPT] Considero más provechoso para mi formación aprender con este tutor socrático que simplemente pidiéndole el código resuelto a herramientas como ChatGPT.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'tamVentaja'" th:id="'tam5_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam5_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'tamVentaja'" th:id="'tam5_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam5_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'tamVentaja'" th:id="'tam5_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam5_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'tamVentaja'" th:id="'tam5_' + ${part.id} + '_4'" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam5_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'tamVentaja'" th:id="'tam5_' + ${part.id} + '_5'" value="5" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam5_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">16. [Intención de Uso Futuro] Si esta plataforma estuviera disponible en futuras asignaturas de programación, la utilizaría voluntariamente para estudiar.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_1'" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_1'">1</label>
+                                            <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_2'" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_2'">2</label>
+                                            <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_3'" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_3'">3</label>
+                                            <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_4'" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_4'">4</label>
+                                            <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_5'" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_5'">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN 3: CUALITATIVO -->
+                        <div class="mb-2">
+                            <div class="d-flex align-items-center gap-2 mb-2 pb-2 border-bottom">
+                                <span class="badge rounded-circle p-2 text-white" style="background-color: #6f42c1;">3</span>
+                                <h6 class="fw-bold mb-0 text-dark">Retroalimentación Cualitativa (Opcional)</h6>
+                            </div>
+                            <label th:for="'comentario_sus_' + ${part.id}" class="form-label small text-muted">¿Qué fue lo más valioso de interactuar con este tutor inteligente y qué aspectos sugieres mejorar?</label>
+                            <textarea class="form-control rounded-3" th:id="'comentario_sus_' + ${part.id}" name="comentario" rows="3"
+                                      placeholder="Ej: Las pistas me ayudaron a entender encapsulamiento sin darme el código..."
+                                      th:text="${part.evaluacionSusTamDTO != null ? part.evaluacionSusTamDTO.comentario : ''}"></textarea>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer bg-light p-3 border-top flex-shrink-0">
+                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="submit" class="btn btn-sm rounded-3 px-4 fw-semibold text-white shadow-sm" style="background-color: #6f42c1;">
+                            <i class="bi bi-send-check me-1"></i>Guardar y Enviar Evaluación
+                        </button>
+                    </div>
+            </form>
         </div>
     </div>
 

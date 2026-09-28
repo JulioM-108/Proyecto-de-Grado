@@ -1,26 +1,31 @@
 package Prototipo.Proyecto_Grado.controller;
 
 import Prototipo.Proyecto_Grado.model.dto.CraftConfigDto;
+import Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO;
 import Prototipo.Proyecto_Grado.model.entity.Estudiante;
-import Prototipo.Proyecto_Grado.model.entity.Profesor;
-import Prototipo.Proyecto_Grado.model.entity.Sesion;
-import Prototipo.Proyecto_Grado.repository.EstudianteRepository;
-import Prototipo.Proyecto_Grado.repository.ProfesorRepository;
-import Prototipo.Proyecto_Grado.repository.SesionRepository;
-import Prototipo.Proyecto_Grado.service.AnalyticsService;
-import Prototipo.Proyecto_Grado.service.PromptAssistantService;
-import jakarta.servlet.http.HttpSession;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import Prototipo.Proyecto_Grado.model.entity.Mensaje;
 import Prototipo.Proyecto_Grado.model.entity.Metrica;
 import Prototipo.Proyecto_Grado.model.entity.Participacion;
+import Prototipo.Proyecto_Grado.model.entity.Profesor;
+import Prototipo.Proyecto_Grado.model.entity.Sesion;
+import Prototipo.Proyecto_Grado.repository.EstudianteRepository;
 import Prototipo.Proyecto_Grado.repository.MensajeRepository;
 import Prototipo.Proyecto_Grado.repository.MetricaRepository;
 import Prototipo.Proyecto_Grado.repository.ParticipacionRepository;
-import org.springframework.transaction.annotation.Transactional;
+import Prototipo.Proyecto_Grado.repository.ProfesorRepository;
+import Prototipo.Proyecto_Grado.repository.SesionRepository;
+import Prototipo.Proyecto_Grado.service.AnalyticsService;
+import Prototipo.Proyecto_Grado.service.ChatService;
+import Prototipo.Proyecto_Grado.service.PromptAssistantService;
+import Prototipo.Proyecto_Grado.service.TotpService;
+import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,10 +48,11 @@ public class DocenteController {
     private final MensajeRepository mensajeRepository;
     private final MetricaRepository metricaRepository;
     private final EstudianteRepository estudianteRepository;
-    private final Prototipo.Proyecto_Grado.service.ChatService chatService;
+    private final ChatService chatService;
     private final PromptAssistantService promptAssistantService;
     private final AnalyticsService analyticsService;
-    private final Prototipo.Proyecto_Grado.service.TotpService totpService;
+    private final TotpService totpService;
+    private final PasswordEncoder passwordEncoder;
 
     private static final String CARACTERES_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private final SecureRandom random = new SecureRandom();
@@ -65,6 +71,8 @@ public class DocenteController {
             Model model) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
         List<Sesion> sesiones = sesionRepository.findByProfesorOrderByCreatedAtDesc(profesor);
 
         model.addAttribute("profesor", profesor);
@@ -90,6 +98,7 @@ public class DocenteController {
             HttpSession session) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
 
         if (nombre != null && !nombre.isBlank()) {
             profesor.setNombre(nombre.trim());
@@ -108,7 +117,7 @@ public class DocenteController {
         }
 
         if (nuevaContrasena != null && !nuevaContrasena.isBlank()) {
-            profesor.setContrasena(nuevaContrasena.trim());
+            profesor.setContrasena(passwordEncoder.encode(nuevaContrasena.trim()));
         }
 
         profesorRepository.save(profesor);
@@ -127,6 +136,7 @@ public class DocenteController {
             Model model) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
 
         CraftConfigDto craftInicial = CraftConfigDto.builder()
                 .temaActualPoo((tema != null && !tema.isBlank()) ? tema : "")
@@ -151,7 +161,14 @@ public class DocenteController {
     @PostMapping("/api/prompt-assistant")
     @ResponseBody
     public ResponseEntity<PromptAssistantResponse> invocarAsistentePrompt(
-            @RequestBody PromptAssistantRequest request) {
+            @RequestBody PromptAssistantRequest request,
+            HttpSession session) {
+
+        Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new PromptAssistantResponse(false, null, "No autorizado. Debes iniciar sesión como docente."));
+        }
 
         try {
             CraftConfigDto propuesta = promptAssistantService.generarDirectricesCraft(request.tema());
@@ -176,6 +193,7 @@ public class DocenteController {
             HttpSession session) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
 
         // Generar código alfanumérico único para privacidad del estudiante
         String codigoUnico = generarCodigoAlfanumericoUnico();
@@ -204,6 +222,8 @@ public class DocenteController {
     @PostMapping("/sesiones/{id}/estado")
     public String alternarEstadoSesion(@PathVariable UUID id, HttpSession session) {
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
         Sesion sesion = sesionRepository.findById(id).orElse(null);
 
         if (sesion != null && sesion.getProfesor().getId().equals(profesor.getId())) {
@@ -220,6 +240,8 @@ public class DocenteController {
     @PostMapping("/sesiones/{id}/eliminar")
     public String eliminarSesion(@PathVariable UUID id, HttpSession session) {
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
         Sesion sesion = sesionRepository.findById(id).orElse(null);
 
         if (sesion != null && sesion.getProfesor().getId().equals(profesor.getId())) {
@@ -252,8 +274,16 @@ public class DocenteController {
             Model model) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
         Sesion sesion = sesionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sesión no encontrada"));
+
+        // Verificación IDOR: garantizar que la sesión pertenezca al docente en sesión
+        if (!sesion.getProfesor().getId().equals(profesor.getId())) {
+            log.warn("Acceso denegado: el docente {} intentó acceder a la sesión {}", profesor.getCorreo(), id);
+            return "redirect:/docente/sesiones?error=No+autorizado";
+        }
 
         AnalyticsService.MetricasDashboard metricas = analyticsService.obtenerMetricasPorSesion(sesion);
 
@@ -279,13 +309,29 @@ public class DocenteController {
                 .average()
                 .orElse(0.0);
 
+        // Evaluaciones psicométricas SUS + TAM de los estudiantes en esta sesión
+        List<Participacion> evaluacionesSesion = participacionesSesion.stream()
+                .filter(p -> p.getEvaluacionSusTam() != null)
+                .collect(Collectors.toList());
+
+        double promedioSusSesion = evaluacionesSesion.stream()
+                .map(Participacion::getEvaluacionSusTamDTO)
+                .filter(dto -> dto != null && dto.getSusScore() != null)
+                .mapToDouble(EvaluacionSusTamDTO::getSusScore)
+                .average()
+                .orElse(0.0);
+
         model.addAttribute("profesor", profesor);
         model.addAttribute("sesion", sesion);
         model.addAttribute("metricas", metricas);
         model.addAttribute("estudiantesDisponibles", estudiantesDisponibles);
         model.addAttribute("feedbacksSesion", feedbacksSesion);
+        model.addAttribute("evaluacionesSesion", evaluacionesSesion);
         model.addAttribute("promedioValoracion", Math.round(promedioValoracion * 10.0) / 10.0);
         model.addAttribute("totalFeedbacks", feedbacksSesion.size());
+        model.addAttribute("promedioSusSesion", Math.round(promedioSusSesion * 10.0) / 10.0);
+        model.addAttribute("totalEvaluacionesSusSesion", evaluacionesSesion.size());
+        model.addAttribute("clasificacionSusSesion", EvaluacionSusTamDTO.interpretarSus(promedioSusSesion));
         model.addAttribute("craftGuardado", Boolean.TRUE.equals(craftGuardado));
         model.addAttribute("estudianteVinculado", Boolean.TRUE.equals(estudianteVinculado));
 
@@ -299,6 +345,8 @@ public class DocenteController {
             HttpSession session) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
         Sesion sesion = sesionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sesión no encontrada"));
 
@@ -328,6 +376,8 @@ public class DocenteController {
             HttpSession session) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
         Sesion sesion = sesionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sesión no encontrada"));
 
@@ -355,12 +405,19 @@ public class DocenteController {
     @ResponseBody
     public ResponseEntity<Setup2FaResponse> generarSetup2Fa(HttpSession session) {
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new Setup2FaResponse(false, null, null, null));
+        }
+
         String secreto = totpService.generarSecretoBase32();
         session.setAttribute("tempSecreto2fa", secreto);
 
         String qrUri = totpService.generarOtpAuthUri(profesor.getCorreo(), secreto);
-        String qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data="
-                + java.net.URLEncoder.encode(qrUri, java.nio.charset.StandardCharsets.UTF_8);
+        String qrUrl = totpService.generarQrBase64(qrUri, 200, 200);
+        if (qrUrl == null) {
+            qrUrl = "";
+        }
 
         return ResponseEntity.ok(new Setup2FaResponse(true, secreto, qrUri, qrUrl));
     }
@@ -372,6 +429,11 @@ public class DocenteController {
             HttpSession session) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new Activar2FaResponse(false, "No autorizado."));
+        }
+
         String tempSecreto = (String) session.getAttribute("tempSecreto2fa");
 
         if (tempSecreto == null) {
@@ -393,8 +455,14 @@ public class DocenteController {
     }
 
     @PostMapping("/2fa/desactivar")
-    public String desactivar2Fa(HttpSession session) {
+    public String desactivar2Fa(@RequestParam("contrasena") String contrasena, HttpSession session) {
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
+        if (!passwordEncoder.matches(contrasena, profesor.getContrasena())) {
+            return "redirect:/docente?error2fa=contrasenaIncorrecta";
+        }
+
         profesor.setDosFactorActivo(false);
         profesor.setSecreto2fa(null);
         profesorRepository.save(profesor);
@@ -411,6 +479,7 @@ public class DocenteController {
             String nombre,
             String correo,
             long totalClases,
+            long clasesActivas,
             String ultimaActividadFormateada
     ) {}
 
@@ -420,7 +489,9 @@ public class DocenteController {
             @RequestParam(value = "estudianteAsignado", required = false) Boolean estudianteAsignado,
             HttpSession session, Model model) {
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
 
+        // Consultar solo estudiantes vinculados a sesiones del docente autenticado (principio de mínimo privilegio)
         List<Participacion> participaciones = participacionRepository.findByProfesorWithEstudianteAndSesion(profesor);
         List<Sesion> sesiones = sesionRepository.findByProfesorOrderByCreatedAtDesc(profesor);
 
@@ -428,15 +499,28 @@ public class DocenteController {
                 .filter(p -> p.getEstudiante() != null)
                 .collect(Collectors.groupingBy(p -> p.getEstudiante().getId(), LinkedHashMap::new, Collectors.toList()));
 
+        // Extraer estudiantes únicos desde las participaciones del docente
+        Map<UUID, Estudiante> estudiantesUnicos = new LinkedHashMap<>();
+        for (Participacion p : participaciones) {
+            if (p.getEstudiante() != null) {
+                estudiantesUnicos.putIfAbsent(p.getEstudiante().getId(), p.getEstudiante());
+            }
+        }
+        List<Estudiante> estudiantesDelDocente = new ArrayList<>(estudiantesUnicos.values());
+        estudiantesDelDocente.sort(Comparator.comparing(e -> e.getNombre() != null ? e.getNombre() : ""));
+
         List<EstudianteDirectorioDto> directorio = new ArrayList<>();
         java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-        for (Map.Entry<UUID, List<Participacion>> entry : porEstudiante.entrySet()) {
-            List<Participacion> parts = entry.getValue();
-            Estudiante est = parts.get(0).getEstudiante();
+        for (Estudiante est : estudiantesDelDocente) {
+            List<Participacion> parts = porEstudiante.get(est.getId());
+            long totalClases = (parts != null) ? parts.size() : 0;
+            long clasesActivas = (parts != null) ? parts.stream()
+                    .filter(p -> p.getSesion() != null && Boolean.TRUE.equals(p.getSesion().getEstado()))
+                    .count() : 0;
+            String ultimaActividad = "Sin clases asignadas";
 
-            String ultimaActividad = "Sin registro";
-            if (!parts.isEmpty() && parts.get(0).getCreatedAt() != null) {
+            if (parts != null && !parts.isEmpty() && parts.get(0).getCreatedAt() != null) {
                 ultimaActividad = parts.get(0).getCreatedAt().format(dtf);
             }
 
@@ -444,14 +528,22 @@ public class DocenteController {
                     est.getId(),
                     est.getNombre() != null && !est.getNombre().isBlank() ? est.getNombre() : "Estudiante",
                     est.getCorreo(),
-                    parts.size(),
+                    totalClases,
+                    clasesActivas,
                     ultimaActividad
             ));
         }
 
+        long estudiantesActivos = directorio.stream().filter(d -> d.clasesActivas() > 0).count();
+        long totalClasesActivas = sesiones.stream().filter(s -> Boolean.TRUE.equals(s.getEstado())).count();
+        long totalParticipaciones = participaciones.size();
+
         model.addAttribute("profesor", profesor);
         model.addAttribute("directorio", directorio);
         model.addAttribute("sesiones", sesiones);
+        model.addAttribute("estudiantesActivos", estudiantesActivos);
+        model.addAttribute("totalClasesActivas", totalClasesActivas);
+        model.addAttribute("totalParticipaciones", totalParticipaciones);
         model.addAttribute("estudianteAsignado", Boolean.TRUE.equals(estudianteAsignado));
         return "docente/estudiantes";
     }
@@ -463,6 +555,8 @@ public class DocenteController {
             HttpSession session) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
         Sesion sesion = sesionRepository.findById(sesionId).orElse(null);
         Estudiante estudiante = estudianteRepository.findById(estudianteId).orElse(null);
 
@@ -478,6 +572,50 @@ public class DocenteController {
         return "redirect:/docente/estudiantes";
     }
 
+    @Transactional
+    @PostMapping("/estudiantes/{estudianteId}/eliminar")
+    public String eliminarEstudiante(
+            @PathVariable UUID estudianteId,
+            HttpSession session) {
+
+        Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
+        Estudiante estudiante = estudianteRepository.findById(estudianteId).orElse(null);
+        if (estudiante != null) {
+            // Verificar que el estudiante SOLO tenga participaciones en sesiones de este docente (anti-IDOR)
+            List<Participacion> todasParticipaciones = participacionRepository.findByEstudianteOrderByCreatedAtDesc(estudiante);
+            boolean perteneceAOtroDocente = todasParticipaciones.stream()
+                    .anyMatch(p -> p.getSesion() != null
+                            && p.getSesion().getProfesor() != null
+                            && !p.getSesion().getProfesor().getId().equals(profesor.getId()));
+
+            if (perteneceAOtroDocente) {
+                log.warn("El docente {} intentó eliminar al estudiante {} que tiene participaciones en sesiones de otros docentes",
+                        profesor.getCorreo(), estudiante.getCorreo());
+                return "redirect:/docente/estudiantes?errorEliminacion=true";
+            }
+
+            // Eliminar en cascada solo las participaciones en sesiones de este docente
+            for (Participacion part : todasParticipaciones) {
+                List<Mensaje> mensajes = mensajeRepository.findByParticipacionOrderByCreatedAtAsc(part);
+                mensajeRepository.deleteAll(mensajes);
+
+                List<Metrica> metricas = metricaRepository.findByParticipacion(part);
+                metricaRepository.deleteAll(metricas);
+
+                participacionRepository.delete(part);
+            }
+
+            estudianteRepository.delete(estudiante);
+            log.info("Docente {} eliminó al estudiante {} ({}) de la plataforma",
+                    profesor.getCorreo(), estudiante.getNombre(), estudiante.getCorreo());
+            return "redirect:/docente/estudiantes?estudianteEliminado=true";
+        }
+
+        return "redirect:/docente/estudiantes";
+    }
+
     // ─── 10. Módulo de Feedback Consolidado de Estudiantes ────────────────────
 
     public record FeedbackItemDto(
@@ -488,7 +626,9 @@ public class DocenteController {
             String enlaceSesion,
             Integer valoracion,
             String comentario,
-            String fechaFormateada
+            String fechaFormateada,
+            Double susScore,
+            EvaluacionSusTamDTO evaluacionSusTam
     ) {}
 
     @Transactional(readOnly = true)
@@ -499,23 +639,30 @@ public class DocenteController {
             Model model) {
 
         Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
         List<Participacion> participaciones = participacionRepository.findByProfesorWithEstudianteAndSesion(profesor);
         List<Sesion> sesiones = sesionRepository.findByProfesorOrderByCreatedAtDesc(profesor);
         java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
         List<FeedbackItemDto> items = participaciones.stream()
-                .filter(p -> p.getFeedbackEstudiante() != null || p.getValoracionEstudiante() != null)
+                .filter(p -> p.getFeedbackEstudiante() != null || p.getValoracionEstudiante() != null || p.getEvaluacionSusTam() != null)
                 .filter(p -> sesionId == null || (p.getSesion() != null && p.getSesion().getId().equals(sesionId)))
-                .map(p -> new FeedbackItemDto(
-                        p.getId(),
-                        p.getEstudiante() != null ? p.getEstudiante().getNombre() : "Estudiante",
-                        p.getEstudiante() != null ? p.getEstudiante().getCorreo() : "",
-                        p.getSesion() != null ? p.getSesion().getTema() : "Clase",
-                        p.getSesion() != null ? p.getSesion().getEnlaceUnico() : "",
-                        p.getValoracionEstudiante() != null ? p.getValoracionEstudiante() : 0,
-                        p.getFeedbackEstudiante() != null ? p.getFeedbackEstudiante() : "Sin comentario escrito.",
-                        p.getCreatedAt() != null ? p.getCreatedAt().format(dtf) : "Reciente"
-                ))
+                .map(p -> {
+                    EvaluacionSusTamDTO evalDTO = p.getEvaluacionSusTamDTO();
+                    return new FeedbackItemDto(
+                            p.getId(),
+                            p.getEstudiante() != null ? p.getEstudiante().getNombre() : "Estudiante",
+                            p.getEstudiante() != null ? p.getEstudiante().getCorreo() : "",
+                            p.getSesion() != null ? p.getSesion().getTema() : "Clase",
+                            p.getSesion() != null ? p.getSesion().getEnlaceUnico() : "",
+                            p.getValoracionEstudiante() != null ? p.getValoracionEstudiante() : 0,
+                            p.getFeedbackEstudiante() != null ? p.getFeedbackEstudiante() : "Sin comentario escrito.",
+                            p.getCreatedAt() != null ? p.getCreatedAt().format(dtf) : "Reciente",
+                            evalDTO != null ? evalDTO.getSusScore() : null,
+                            evalDTO
+                    );
+                })
                 .collect(Collectors.toList());
 
         double promedioGlobal = items.stream()
@@ -524,12 +671,23 @@ public class DocenteController {
                 .average()
                 .orElse(0.0);
 
+        double promedioSus = items.stream()
+                .filter(f -> f.susScore() != null)
+                .mapToDouble(FeedbackItemDto::susScore)
+                .average()
+                .orElse(0.0);
+
+        long totalEvaluacionesSus = items.stream().filter(f -> f.susScore() != null).count();
+
         model.addAttribute("profesor", profesor);
         model.addAttribute("feedbacks", items);
         model.addAttribute("sesiones", sesiones);
         model.addAttribute("sesionSeleccionada", sesionId);
         model.addAttribute("promedioGlobal", Math.round(promedioGlobal * 10.0) / 10.0);
         model.addAttribute("totalFeedbacks", items.size());
+        model.addAttribute("promedioSusGlobal", Math.round(promedioSus * 10.0) / 10.0);
+        model.addAttribute("totalEvaluacionesSus", totalEvaluacionesSus);
+        model.addAttribute("interpretacionSusGlobal", EvaluacionSusTamDTO.interpretarSus(promedioSus));
 
         return "docente/feedback";
     }
@@ -542,22 +700,13 @@ public class DocenteController {
     // ─── Métodos Auxiliares ───────────────────────────────────────────────────
 
     private Profesor obtenerProfesorActual(HttpSession session) {
+        if (session == null) return null;
+        String rol = (String) session.getAttribute("rolUsuario");
         String correoSession = (String) session.getAttribute("usuarioLogueado");
-        if (correoSession != null) {
-            Optional<Profesor> profOpt = profesorRepository.findByCorreoIgnoreCase(correoSession);
-            if (profOpt.isPresent()) return profOpt.get();
+        if (correoSession != null && "DOCENTE".equalsIgnoreCase(rol)) {
+            return profesorRepository.findByCorreoIgnoreCase(correoSession).orElse(null);
         }
-
-        // Fallback para pruebas de desarrollo si no ha iniciado sesión
-        return profesorRepository.findAll().stream().findFirst().orElseGet(() -> {
-            Profesor demo = Profesor.builder()
-                    .correo("profesor.demo@javerianacali.edu.co")
-                    .nombre("Profesor Demo Javeriano")
-                    .facultad("Facultad de Ingeniería")
-                    .contrasena("demo1234")
-                    .build();
-            return profesorRepository.save(demo);
-        });
+        return null;
     }
 
     private String generarCodigoAlfanumericoUnico() {

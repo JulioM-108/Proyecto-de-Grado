@@ -41,62 +41,62 @@ public class AuthService {
         if ("DOCENTE".equalsIgnoreCase(rol)) {
             Optional<Profesor> profesorOpt = profesorRepository.findByCorreoIgnoreCase(emailLimpio);
             if (profesorOpt.isEmpty()) {
-                throw new IllegalArgumentException("No se encontró ningún docente registrado con ese correo institucional.");
+                throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             Profesor prof = profesorOpt.get();
-            verificarPassword(password, prof.getContrasena());
+            if (!verificarPassword(password, prof.getContrasena())) {
+                throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
+            }
             return new UsuarioAutenticado(prof.getId(), prof.getNombre(), prof.getCorreo(), "DOCENTE");
 
         } else {
             // Por defecto: ESTUDIANTE
             Optional<Estudiante> estudianteOpt = estudianteRepository.findByCorreoIgnoreCase(emailLimpio);
             if (estudianteOpt.isEmpty()) {
-                throw new IllegalArgumentException("No se encontró ningún estudiante registrado con ese correo institucional.");
+                throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             Estudiante est = estudianteOpt.get();
-            verificarPassword(password, est.getContrasena());
+            if (!verificarPassword(password, est.getContrasena())) {
+                throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
+            }
             return new UsuarioAutenticado(est.getId(), est.getNombre(), est.getCorreo(), "ESTUDIANTE");
         }
+    }
+
+    /**
+     * Comprueba si el correo pertenece al dominio oficial de la Javeriana.
+     */
+    public boolean esDominioJaveriano(String correo) {
+        if (correo == null || correo.isBlank()) {
+            return false;
+        }
+        String email = correo.trim().toLowerCase();
+        return email.endsWith("@javerianacali.edu.co") || email.endsWith("@javeriana.edu.co");
     }
 
     /**
      * Exige que el correo pertenezca al dominio oficial de la Javeriana.
      */
     public void validarDominioJaveriano(String correo) {
-        if (correo == null || correo.isBlank()) {
-            throw new IllegalArgumentException("El correo institucional es obligatorio.");
-        }
-        String email = correo.trim().toLowerCase();
-        if (!email.endsWith("@javerianacali.edu.co") && !email.endsWith("@javeriana.edu.co")) {
+        if (!esDominioJaveriano(correo)) {
             throw new IllegalArgumentException(
                     "Solo se aceptan correos institucionales de la Pontificia Universidad Javeriana (@javerianacali.edu.co).");
         }
     }
 
     /**
-     * Verifica la contraseña contra el valor almacenado.
-     * Soporta BCrypt (producción) y texto plano (desarrollo inicial).
+     * Verifica la contraseña contra el hash BCrypt almacenado.
      */
-    private void verificarPassword(String passwordIngresada, String passwordAlmacenada) {
+    public boolean verificarPassword(String passwordIngresada, String passwordAlmacenada) {
         if (passwordAlmacenada == null || passwordIngresada == null) {
-            throw new IllegalArgumentException("Contraseña incorrecta.");
+            return false;
         }
 
-        boolean coincide;
         try {
-            // Intento BCrypt primero
-            coincide = passwordEncoder.matches(passwordIngresada, passwordAlmacenada);
+            return passwordEncoder.matches(passwordIngresada, passwordAlmacenada);
         } catch (Exception e) {
-            coincide = false;
-        }
-
-        // Fallback: comparación en texto plano para datos de prueba sin hashear
-        if (!coincide) {
-            coincide = passwordIngresada.equals(passwordAlmacenada);
-        }
-
-        if (!coincide) {
-            throw new IllegalArgumentException("Contraseña incorrecta.");
+            log.warn("Error al verificar contraseña con BCrypt: {}", e.getMessage());
+            return false;
         }
     }
 }

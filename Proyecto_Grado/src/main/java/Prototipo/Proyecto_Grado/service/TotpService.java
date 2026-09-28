@@ -45,8 +45,29 @@ public class TotpService {
     }
 
     /**
+     * Genera la imagen QR de forma local y autónoma con ZXing en Base64.
+     * Evita la fuga de secretos 2FA a servidores externos de internet.
+     */
+    public String generarQrBase64(String otpAuthUri, int width, int height) {
+        try {
+            com.google.zxing.qrcode.QRCodeWriter qrCodeWriter = new com.google.zxing.qrcode.QRCodeWriter();
+            com.google.zxing.common.BitMatrix bitMatrix = qrCodeWriter.encode(
+                    otpAuthUri, com.google.zxing.BarcodeFormat.QR_CODE, width, height);
+
+            java.io.ByteArrayOutputStream pngOutputStream = new java.io.ByteArrayOutputStream();
+            com.google.zxing.client.j2se.MatrixToImageWriter.writeToStream(bitMatrix, "PNG", pngOutputStream);
+            byte[] pngData = pngOutputStream.toByteArray();
+            return "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(pngData);
+        } catch (Exception e) {
+            log.error("Error al generar imagen QR local con ZXing: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Valida si el código de 6 dígitos ingresado es válido para el secreto dado.
      * Evalúa la ventana actual T, así como T-1 y T+1 (tolerancia a desfase de reloj).
+     * Utiliza MessageDigest.isEqual para mitigar ataques de temporización (timing attacks).
      */
     public boolean validarCodigo(String secreto, String codigoIngresado) {
         if (secreto == null || codigoIngresado == null) return false;
@@ -59,7 +80,9 @@ public class TotpService {
         for (long window = currentWindow - 1; window <= currentWindow + 1; window++) {
             try {
                 String expected = generarCodigoParaVentana(secreto, window);
-                if (expected.equals(codigoLimpio)) {
+                if (java.security.MessageDigest.isEqual(
+                        expected.getBytes(StandardCharsets.UTF_8),
+                        codigoLimpio.getBytes(StandardCharsets.UTF_8))) {
                     return true;
                 }
             } catch (Exception e) {

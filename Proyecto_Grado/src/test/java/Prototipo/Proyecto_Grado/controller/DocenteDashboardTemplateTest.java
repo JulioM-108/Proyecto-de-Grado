@@ -90,5 +90,11 @@ class DocenteDashboardTemplateTest {
         assertTrue(htmlProcesado.contains("K9X2P7"));
         assertTrue(htmlProcesado.contains("Estudiante Prueba"));
         assertTrue(htmlProcesado.contains("Diagnóstico generado con Gemini"));
+        assertTrue(htmlProcesado.contains("Promedio Turnos"));
+        assertTrue(htmlProcesado.contains("Alertas de Atajo"));
+        assertTrue(htmlProcesado.contains("Seguimiento Individual de Estudiantes"));
+        assertTrue(htmlProcesado.contains("modalDiagnosticoCognitivo"));
+        // Comprobar que la jerga técnica RF-10 ya no aparece en el HTML docente
+        org.junit.jupiter.api.Assertions.assertFalse(htmlProcesado.contains("Auditor RF-10"));
     }
 }

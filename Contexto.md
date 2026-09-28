@@ -439,3 +439,98 @@ Para evitar ambigüedades operativas y pérdidas involuntarias de datos durante 
 * **Mitigación de `LazyInitializationException`:** Se optimizó el repositorio [`ParticipacionRepository.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/repository/ParticipacionRepository.java) mediante consultas JPQL con `JOIN FETCH` (`findByProfesorWithEstudianteAndSesion`, `findByEstudianteWithSesionOrderByCreatedAtDesc`), asegurando la carga ansiosa controlada de las relaciones `estudiante` y `sesion` en una sola consulta SQL, evitando consultas *N+1* y fallos en contextos desacoplados.
 * **Habilitación de *Open-In-View*:** Se configuró explícitamente `spring.jpa.open-in-view=true` en `application.properties`, garantizando la disponibilidad de la sesión de Hibernate durante la fase de renderizado de vistas en Thymeleaf.
 * **Seguridad Criptográfica en Credenciales:** Se implementó el hasheo seguro y salado de contraseñas de estudiantes mediante `BCryptPasswordEncoder`, eliminando el almacenamiento en texto plano y alineando la autenticación de la plataforma con los estándares modernos de seguridad informática.
+
+### 14.6. Rediseño del Dashboard Analítico y Adecuación Pedagógica de Métricas (Eliminación de 'RF-10' en UI)
+* **Depuración de Jerga Técnica ('RF-10'):** Se eliminó la etiqueta de requisito de software *"Auditor RF-10"* de la interfaz gráfica docente. Al profesor se le presentan ahora métricas orientadas al aprendizaje del estudiante y no a mecanismos de control interno del backend.
+* **Reconfiguración de los 4 KPIs de Cabecera:**
+  1. *Estudiantes Conectados:* Total de alumnos matriculados en la sesión.
+  2. *Preguntas Realizadas:* Volumen total de consultas emitidas por los estudiantes.
+  3. *Promedio de Turnos (`M-02`):* Promedio de intervenciones requeridas por estudiante para resolver dudas (`promedioTurnosPorEstudiante`).
+  4. *Alertas de Atajo / Solicitudes Directas (`M-04`):* Conteo de ocasiones en que los alumnos exigieron código directo y fueron reconducidos por el tutor socrático hacia la reflexión autónoma.
+* **Tabla Enriquecida de Seguimiento Individual (`M-02`, `M-03`, `M-05`):**
+  * *M-02 (Turnos y Nivel de Dificultad):* Clasificación semafórica (*🟢 Fluido [≤3 turnos]*, *🟡 Guiado [4-7 turnos]*, *🔴 Requiere Apoyo [≥8 turnos]*).
+  * *M-03 (Evolución Pedagógica):* Estado de madurez cognitiva (*Consolidado*, *En diálogo activo*, *Dudas en progreso*).
+  * *M-05 (Actividad y Compromiso):* Indicador temporal relativo (*Activo hoy*, *Hace X días*, *Sin participación / En riesgo*).
+* **Modal de Diagnóstico Cognitivo Individual:** Integración del botón *"Ver Diagnóstico"* en cada fila de estudiante, desplegando un modal interactivo con los 4 bloques cualitativos estructurados por Gemini (*Conceptos dominados*, *Conceptos en progreso*, *Errores recurrentes* y *Recomendación para la siguiente sesión*), superando la limitación de texto truncado en celda.
+
+### 14.7. Módulo Integrado de Evaluación Científica de Usabilidad y Aceptación (Instrumentos Estandarizados SUS y TAM)
+Para dar cumplimiento riguroso al **Objetivo Específico 4**, a la **Subpregunta 4** y al **Entregable 6** de la investigación de grado, se integró en la plataforma un sistema formal de evaluación empírica con usuarios reales, fundamentado en los dos modelos psicométricos de mayor validez en la literatura de Ingeniería de Software e Informática Educativa:
+
+1. **System Usability Scale (SUS - Brooke, 1986):**
+   * *Propósito:* Evaluar la usabilidad técnica, ergonomía, consistencia y facilidad de uso de la aplicación web.
+   * *Estructura:* 10 afirmaciones estandarizadas en escala Likert (1: Totalmente en desacuerdo a 5: Totalmente de acuerdo), alternando 5 ítems de tono positivo y 5 de tono negativo.
+   * *Fórmula de Calificación Oficial (0 a 100 puntos):*
+     $$\text{Puntaje SUS} = \left[ \sum_{i \in \{1,3,5,7,9\}} (\text{Ítem}_i - 1) + \sum_{j \in \{2,4,6,8,10\}} (5 - \text{Ítem}_j) \right] \times 2.5$$
+     *(Puntaje de referencia en la industria: $\ge 68$ puntos para usabilidad aceptable; $\ge 80$ puntos para usabilidad excelente).*
+
+2. **Technology Acceptance Model (TAM - Davis, 1989):**
+   * *Propósito:* Medir la aceptación del modelo pedagógico socrático asistido por IA generativa frente a métodos tradicionales de enseñanza y herramientas de respuesta directa.
+   * *Batería Adaptada de 6 Constructos Clave (Agnóstica a un lenguaje específico de programación):*
+     * *Utilidad Pedagógica (PU):* Efectividad de recibir preguntas orientadoras y analogías en vez del código resuelto para comprender la lógica de POO.
+     * *Autonomía Cognitiva (PU):* Capacidad del tutor para ayudar al estudiante a identificar sus propios errores conceptuales y resolver el problema por sí mismo.
+     * *Manejo del Desafío y Frustración (Carga Cognitiva y Afectiva):* Percepción de reto formativo constructivo en lugar de frustración por no recibir el código inmediatamente.
+     * *Claridad de la Mediación (PEOU):* Efectividad del ritmo conversacional (una sola pregunta a la vez) y de las analogías del mundo real.
+     * *Ventaja Comparativa Relativa:* Percepción de mayor valor formativo frente al uso de herramientas comerciales de IA genéricas que entregan el código terminado (como ChatGPT).
+     * *Intención de Uso Futuro (BIU):* Disposición voluntaria para adoptar la plataforma en asignaturas futuras de programación.
+
+3. **Arquitectura de Persistencia JSON Desacoplada (`evaluacion_sus_tam TEXT`):**
+   * Para asegurar un modelo relacional limpio en Supabase / PostgreSQL sin saturar la tabla `participacion` con múltiples columnas, se habilitó el atributo `evaluacion_sus_tam TEXT` en la tabla `participacion`, mapeado en [`Participacion.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/model/entity/Participacion.java).
+   * Almacena un objeto JSON estructurado que encapsula el puntaje SUS calculado automáticamente en backend (`susScore`), el vector de respuestas SUS (`susRespuestas`), el mapa de respuestas TAM (`tamRespuestas`), la retroalimentación cualitativa opcional (`comentario`) y la marca temporal de envío. Esta arquitectura posibilita la exportación inmediata hacia software estadístico (Excel, SPSS, R) para la elaboración de los análisis empíricos del Capítulo 5.
+
+4. **Doble Canal Diferenciado en la Experiencia del Estudiante:**
+   * *Canal 1 (Feedback de Aula al Docente - Existente):* Calificación tradicional de 1 a 5 estrellas y dudas pedagógicas para la clase presencial (color dorado/azul), concebido como canal no vinculante.
+   * *Canal 2 (Evaluación Científica de la Plataforma SUS + TAM - Nuevo):* Botón prioritario con estilo **Púrpura / Amatista Institucional** (`#5A3793`) accesible desde la cabecera del chat ([`chat.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/estudiante/chat.html)) y desde la tarjeta de clases ([`clases.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/estudiante/clases.html)). Al finalizar la sesión socrática, se enfatiza su diligenciamiento para la validación de la tesis, mostrando un estado visual de completitud una vez enviado.
+
+5. **Explotación Analítica en el Panel Docente:**
+   * En [`feedback.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/feedback.html), el profesor cuenta con un KPI centralizado que computa la media aritmética del puntaje SUS global obtenido en sus sesiones, complementado con un modal de detalle por estudiante que expone el desglose de respuestas de usabilidad y aceptación pedagógica.
+
+### 14.8. Auditoría Integral de Seguridad y Eficiencia — Correcciones Implementadas (Septiembre 2026)
+
+Se realizó una auditoría exhaustiva de seguridad y eficiencia sobre la totalidad del código fuente (controladores, servicios, entidades, repositorios, configuración y plantillas HTML). La auditoría identificó **36 hallazgos** categorizados por severidad (6 críticos, 9 altos, 12 medios, 9 bajos). A continuación se documentan las correcciones implementadas:
+
+#### 14.8.1. Correcciones de Severidad Crítica
+
+1. **Eliminación de Credenciales en Texto Plano del Repositorio:**
+   * Se removieron los valores por defecto de las credenciales de la base de datos en `application.properties` (URL, usuario y contraseña de Supabase). Las propiedades ahora exigen estrictamente la provisión de variables de entorno (`${DB_URL}`, `${DB_USERNAME}`, `${DB_PASSWORD}`) sin fallback, previniendo la exposición accidental de secretos en el control de versiones.
+   * Se procedió a rotar la contraseña de la base de datos en el panel de administración de Supabase.
+
+2. **Eliminación del Fallback de Contraseñas en Texto Plano:**
+   * En [`AuthService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/AuthService.java), se eliminó el bloque de comparación directa (`passwordIngresada.equals(passwordAlmacenada)`) que permitía autenticar usuarios con contraseñas no hasheadas. La verificación ahora opera exclusivamente a través de `BCryptPasswordEncoder.matches()`.
+
+3. **Corrección de IDOR en Eliminación de Estudiantes:**
+   * En [`DocenteController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/DocenteController.java), el endpoint `POST /docente/estudiantes/{estudianteId}/eliminar` fue refactorizado para verificar que el estudiante a eliminar tenga participaciones exclusivamente en sesiones pertenecientes al docente autenticado. Se previene así la eliminación arbitraria de estudiantes ajenos.
+
+4. **Generación Local de Códigos QR para 2FA:**
+   * Se reemplazó la dependencia del servicio externo `api.qrserver.com` por la generación local del código QR en el servidor mediante la librería ZXing (`com.google.zxing:core`). El secreto TOTP del docente ya no se transmite a terceros y la imagen QR se retorna como cadena Base64 (`data:image/png;base64,...`) directamente en la vista.
+
+5. **Desacoplamiento Transaccional de Llamadas a la API de Gemini (Connection Pool Starvation):**
+   * En [`ChatService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/ChatService.java), se separó el método `procesarMensajeEstudiante()` en tres fases: (1) persistencia del mensaje del estudiante y construcción del prompt en una transacción corta, (2) invocación de la API de Gemini fuera de contexto transaccional, y (3) persistencia de la respuesta del tutor en una segunda transacción corta. Esto evita que una conexión JDBC del pool HikariCP (limitado a 5) quede retenida durante los 5–35 segundos de la llamada HTTP externa.
+   * Se desactivó `spring.jpa.open-in-view` (`false`) para evitar la retención innecesaria de conexiones durante el renderizado de vistas Thymeleaf.
+
+#### 14.8.2. Correcciones de Severidad Alta
+
+6. **Neutralización de Cross-Site Scripting (XSS) en Chat y Dashboard:**
+   * Se integró la librería **DOMPurify** en [`chat.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/estudiante/chat.html) y [`dashboard.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/dashboard.html) para sanitizar todo contenido Markdown parseado por `marked.js` antes de su inyección en el DOM (`DOMPurify.sanitize(marked.parse(contenido))`).
+   * Se migraron las concatenaciones inseguras en atributos `onclick` de [`sesiones.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/sesiones.html) y [`estudiantes.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/estudiantes.html) a atributos HTML5 `data-*`, previniendo la inyección de JavaScript mediante nombres con caracteres especiales.
+
+7. **Protección contra Desactivación No Autorizada de 2FA:**
+   * El endpoint `POST /docente/2fa/desactivar` ahora exige la confirmación de la contraseña actual del docente antes de proceder a desactivar el segundo factor de autenticación.
+
+8. **Restricción de Visibilidad de Estudiantes por Docente:**
+   * La vista de directorio de estudiantes (`/docente/estudiantes`) fue modificada para mostrar únicamente estudiantes con participaciones en sesiones del docente autenticado, respetando el principio de mínimo privilegio y protección de datos personales.
+
+#### 14.8.3. Correcciones de Severidad Media
+
+9. **Unificación de Mensajes de Error en Autenticación:**
+   * Se homogenizaron los mensajes de error en [`AuthService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/AuthService.java) para evitar la enumeración de usuarios. Tanto el caso de "correo no encontrado" como el de "contraseña incorrecta" retornan el mismo mensaje genérico.
+
+10. **Validación de Rango en Evaluaciones SUS+TAM:**
+    * Se implementó validación de rango `[1, 5]` en los controladores que reciben los reactivos de las evaluaciones psicométricas, previniendo la corrupción de datos de investigación.
+
+11. **Corrección de Bug del Buscador de Estudiantes:**
+    * Se corrigió el error de JavaScript en [`estudiantes.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/estudiantes.html) causado por un ID faltante en el elemento de KPI, que impedía la inicialización del buscador en tiempo real.
+
+#### 14.8.4. Decisiones de Diseño sobre Hallazgos No Corregidos
+
+* **RF-10 (Auditor Socrático):** Se decidió explícitamente no implementar el servicio `SocraticAuditorService` como componente independiente. La auditoría socrática se gestiona de forma unificada dentro de las reglas de la Capa 1 del prompt del sistema, las cuales prohíben al modelo entregar código o soluciones directas. Se actualizaron los comentarios del código para reflejar esta decisión arquitectónica.
+* **Spring Security con roles formales:** Se mantiene la autenticación basada en sesión HTTP con validación manual por controlador como decisión de prototipo, dado que la implementación de roles Spring Security formales requeriría una reestructuración mayor del flujo de autenticación actual (correo institucional + 2FA manual).

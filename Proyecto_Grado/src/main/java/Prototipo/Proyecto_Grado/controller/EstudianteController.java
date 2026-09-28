@@ -1,5 +1,6 @@
 package Prototipo.Proyecto_Grado.controller;
 
+import Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO;
 import Prototipo.Proyecto_Grado.model.entity.Estudiante;
 import Prototipo.Proyecto_Grado.model.entity.Participacion;
 import Prototipo.Proyecto_Grado.model.entity.Sesion;
@@ -18,7 +19,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -132,16 +135,96 @@ public class EstudianteController {
             }
         }
 
+        final String correoFinal = correo;
         participacionRepository.findById(participacionId).ifPresent(p -> {
-            if (valoracion != null && valoracion >= 1 && valoracion <= 5) {
-                p.setValoracionEstudiante(valoracion);
+            if (p.getEstudiante() != null && correoFinal.equalsIgnoreCase(p.getEstudiante().getCorreo())) {
+                if (valoracion != null && valoracion >= 1 && valoracion <= 5) {
+                    p.setValoracionEstudiante(valoracion);
+                }
+                if (comentario != null && !comentario.isBlank()) {
+                    p.setFeedbackEstudiante(comentario.trim());
+                }
+                participacionRepository.save(p);
             }
-            if (comentario != null && !comentario.isBlank()) {
-                p.setFeedbackEstudiante(comentario.trim());
-            }
-            participacionRepository.save(p);
         });
 
         return "redirect:/estudiante?feedbackEnviado=true";
+    }
+
+    @PostMapping("/clases/{participacionId}/evaluacion-sus-tam")
+    public String guardarEvaluacionSusTamEstudiante(
+            @PathVariable UUID participacionId,
+            @RequestParam("sus1") Integer sus1,
+            @RequestParam("sus2") Integer sus2,
+            @RequestParam("sus3") Integer sus3,
+            @RequestParam("sus4") Integer sus4,
+            @RequestParam("sus5") Integer sus5,
+            @RequestParam("sus6") Integer sus6,
+            @RequestParam("sus7") Integer sus7,
+            @RequestParam("sus8") Integer sus8,
+            @RequestParam("sus9") Integer sus9,
+            @RequestParam("sus10") Integer sus10,
+            @RequestParam("tamUtilidad") Integer tamUtilidad,
+            @RequestParam("tamAutonomia") Integer tamAutonomia,
+            @RequestParam("tamFrustracion") Integer tamFrustracion,
+            @RequestParam("tamDialogo") Integer tamDialogo,
+            @RequestParam("tamVentaja") Integer tamVentaja,
+            @RequestParam("tamAdopcion") Integer tamAdopcion,
+            @RequestParam(value = "comentario", required = false) String comentario,
+            HttpSession session) {
+
+        if (!validarRangoLikert(sus1, sus2, sus3, sus4, sus5, sus6, sus7, sus8, sus9, sus10,
+                tamUtilidad, tamAutonomia, tamFrustracion, tamDialogo, tamVentaja, tamAdopcion)) {
+            return "redirect:/estudiante?errorEvaluacion=rangoInvalido";
+        }
+
+        String correo = (String) session.getAttribute("usuarioLogueado");
+        if (correo == null) {
+            Estudiante estActivo = (Estudiante) session.getAttribute("estudianteActivo");
+            if (estActivo != null) {
+                correo = estActivo.getCorreo();
+            } else {
+                return "redirect:/login";
+            }
+        }
+
+        final String correoFinal = correo;
+        participacionRepository.findById(participacionId).ifPresent(p -> {
+            if (p.getEstudiante() != null && correoFinal.equalsIgnoreCase(p.getEstudiante().getCorreo())) {
+                List<Integer> susRespuestas = List.of(sus1, sus2, sus3, sus4, sus5, sus6, sus7, sus8, sus9, sus10);
+                Double susScore = EvaluacionSusTamDTO.calcularSusScore(susRespuestas);
+
+                Map<String, Integer> tamRespuestas = Map.of(
+                        "utilidadPoo", tamUtilidad,
+                        "autonomia", tamAutonomia,
+                        "frustracion", tamFrustracion,
+                        "claridadDialogo", tamDialogo,
+                        "ventajaIa", tamVentaja,
+                        "adopcionFutura", tamAdopcion
+                );
+
+                EvaluacionSusTamDTO dto = EvaluacionSusTamDTO.builder()
+                        .susScore(susScore)
+                        .susRespuestas(susRespuestas)
+                        .tamRespuestas(tamRespuestas)
+                        .comentario(comentario != null ? comentario.trim() : "")
+                        .fechaRegistro(OffsetDateTime.now().toString())
+                        .build();
+
+                p.setEvaluacionSusTam(dto.toJson());
+                participacionRepository.save(p);
+            }
+        });
+
+        return "redirect:/estudiante?evaluacionExitosa=true";
+    }
+
+    private boolean validarRangoLikert(Integer... valores) {
+        for (Integer v : valores) {
+            if (v == null || v < 1 || v > 5) {
+                return false;
+            }
+        }
+        return true;
     }
 }

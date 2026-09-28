@@ -1,6 +1,10 @@
 package Prototipo.Proyecto_Grado.controller;
 
+import Prototipo.Proyecto_Grado.repository.EstudianteRepository;
+import Prototipo.Proyecto_Grado.repository.ProfesorRepository;
 import Prototipo.Proyecto_Grado.service.AuthService;
+import Prototipo.Proyecto_Grado.service.TotpService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -19,9 +23,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class LoginController {
 
     private final AuthService authService;
-    private final Prototipo.Proyecto_Grado.repository.ProfesorRepository profesorRepository;
-    private final Prototipo.Proyecto_Grado.repository.EstudianteRepository estudianteRepository;
-    private final Prototipo.Proyecto_Grado.service.TotpService totpService;
+    private final ProfesorRepository profesorRepository;
+    private final EstudianteRepository estudianteRepository;
+    private final TotpService totpService;
 
     @GetMapping("/login")
     public String verLogin(
@@ -40,6 +44,7 @@ public class LoginController {
             @RequestParam("correo") String correo,
             @RequestParam("password") String password,
             @RequestParam(value = "rol", defaultValue = "ESTUDIANTE") String rol,
+            HttpServletRequest request,
             HttpSession session,
             Model model) {
 
@@ -55,6 +60,9 @@ public class LoginController {
                     return "redirect:/login/2fa";
                 }
             }
+
+            // Rotar ID de sesión para prevenir Session Fixation
+            request.changeSessionId();
 
             // Inicio de sesión directo (sin 2FA o estudiante)
             establecerSesionUsuario(session, usuario);
@@ -88,6 +96,7 @@ public class LoginController {
     @PostMapping("/login/2fa")
     public String procesarVerificacion2Fa(
             @RequestParam("codigo") String codigo,
+            jakarta.servlet.http.HttpServletRequest request,
             HttpSession session,
             Model model) {
 
@@ -110,7 +119,8 @@ public class LoginController {
             return "Login/verificar_2fa";
         }
 
-        // 2FA Exitoso: establecer sesión docente
+        // 2FA Exitoso: rotar sesión y establecer sesión docente
+        request.changeSessionId();
         session.removeAttribute("docentePendiente2fa");
         session.setAttribute("usuarioLogueado", profesor.getCorreo());
         session.setAttribute("nombreUsuario",   profesor.getNombre());

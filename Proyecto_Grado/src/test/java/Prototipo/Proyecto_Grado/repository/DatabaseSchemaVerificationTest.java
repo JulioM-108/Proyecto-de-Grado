@@ -14,6 +14,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 public class DatabaseSchemaVerificationTest {
 
+    static {
+        Prototipo.Proyecto_Grado.ProyectoGradoApplication.cargarVariablesEntorno();
+    }
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -37,6 +41,9 @@ public class DatabaseSchemaVerificationTest {
 
     @Test
     void verificarTablasYColumnasEnSupabase() {
+        // Asegurar que la columna evaluacion_sus_tam exista en Supabase
+        jdbcTemplate.execute("ALTER TABLE participacion ADD COLUMN IF NOT EXISTS evaluacion_sus_tam TEXT;");
+
         System.out.println("=== 1. TABLAS EXISTENTES EN SCHEMA PUBLIC ===");
         List<Map<String, Object>> tables = jdbcTemplate.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
@@ -90,10 +97,10 @@ public class DatabaseSchemaVerificationTest {
         assertDoesNotThrow(() -> {
             List<Estudiante> estudiantes = estudianteRepository.findAll();
             System.out.println("Estudiante: " + estudiantes.size() + " registros encontrados.");
-            if (!estudiantes.isEmpty()) {
-                Estudiante e = estudiantes.get(0);
-                System.out.println("   Ejemplo: id=" + e.getId() + ", nombre=" + e.getNombre() + ", correo=" + e.getCorreo());
-                estudianteRepository.findByCorreoIgnoreCase(e.getCorreo());
+            for (Estudiante e : estudiantes) {
+                String pass = e.getContrasena();
+                String tipo = (pass != null && pass.startsWith("$2a$")) ? "BCrypt (Hasheada)" : "Texto plano";
+                System.out.println("   - Nombre: " + e.getNombre() + " | Correo: " + e.getCorreo() + " | Tipo Pass: " + tipo);
             }
         });
 

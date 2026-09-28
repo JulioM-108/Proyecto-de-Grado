@@ -20,6 +20,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,9 +33,8 @@ import java.util.stream.Collectors;
 
 /**
  * Servicio central del Módulo de Tutoría Socrática.
- * Coordina la arquitectura de 3 capas de prompts, el llamado a Gemini,
- * la auditoría RF-10 y la persistencia en las tablas reales de Supabase:
- *   participacion → mensaje (historial) y metrica (indicadores de desempeño).
+ * Coordina la arquitectura de 3 capas de prompts, el llamado a Gemini
+ * y la persistencia en las tablas participacion → mensaje y metrica.
  */
 @Service
 @RequiredArgsConstructor
@@ -42,12 +42,12 @@ import java.util.stream.Collectors;
 public class ChatService {
 
     private final GeminiService geminiService;
-    private final SocraticAuditorService socraticAuditorService;
     private final EstudianteRepository estudianteRepository;
     private final SesionRepository sesionRepository;
     private final ParticipacionRepository participacionRepository;
     private final MensajeRepository mensajeRepository;
     private final MetricaRepository metricaRepository;
+    private final TransactionTemplate transactionTemplate;
 
     // ─── Capa 1: cargada dinámicamente desde resources ───────────────────────
     private String capa1ReglasSistema;
@@ -67,81 +67,82 @@ public class ChatService {
 
     // ─── Procesar mensaje del estudiante ─────────────────────────────────────
 
+    private record PromptContext(String promptFinal, UUID participacionId) {}
+
     /**
-     * Procesa una consulta del estudiante y genera la respuesta socrática auditada.
-     * Flujo: obtener Participacion → construir prompt 3 capas → Gemini → RF-10 → persistir.
+     * Procesa una consulta del estudiante y genera la respuesta socrática.
+     * Flujo desacoplado:
+     * 1. Transacción corta: guarda mensaje del estudiante y compila prompt.
+     * 2. Sin transacción: llamada HTTP externa a Gemini (evita agotar el pool HikariCP).
+     * 3. Transacción corta: guarda respuesta del tutor.
      *
      * @param correoEstudiante correo institucional del estudiante
      * @param enlaceSesion     enlace único de la sesión (identifica la Sesion activa)
      * @param mensajeTexto     texto enviado por el estudiante
      * @param craftDocente     configuración CRAFT del docente (puede ser null para usar la de la Sesion)
      */
-    @Transactional
     public MensajeDto procesarMensajeEstudiante(String correoEstudiante,
                                                 String enlaceSesion,
                                                 String mensajeTexto,
                                                 CraftConfigDto craftDocente) {
 
-        // 1. Resolver Estudiante y Sesion
-        Estudiante estudiante = estudianteRepository.findByCorreoIgnoreCase(correoEstudiante)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Estudiante no encontrado: " + correoEstudiante));
-        Sesion sesion = sesionRepository.findByEnlaceUnico(enlaceSesion)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Sesión no encontrada con enlace: " + enlaceSesion));
+        // Fase 1 (Transacción corta ~50ms): persistir mensaje de estudiante y ensamblar prompt
+        PromptContext contexto = transactionTemplate.execute(status -> {
+            Estudiante estudiante = estudianteRepository.findByCorreoIgnoreCase(correoEstudiante)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Estudiante no encontrado: " + correoEstudiante));
+            Sesion sesion = sesionRepository.findByEnlaceUnico(enlaceSesion)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Sesión no encontrada con enlace: " + enlaceSesion));
 
-        // 2. Obtener o crear la Participacion (vínculo estudiante ↔ sesión)
-        Participacion participacion = participacionRepository
-                .findFirstByEstudianteAndSesionOrderByCreatedAtDesc(estudiante, sesion)
-                .orElseGet(() -> crearParticipacion(estudiante, sesion));
+            Participacion participacion = participacionRepository
+                    .findFirstByEstudianteAndSesionOrderByCreatedAtDesc(estudiante, sesion)
+                    .orElseGet(() -> crearParticipacion(estudiante, sesion));
 
-        // 3. Persistir el mensaje del estudiante (emisor = true)
-        mensajeRepository.save(Mensaje.builder()
-                .emisor(true)
-                .contenido(mensajeTexto)
-                .participacion(participacion)
-                .build());
+            mensajeRepository.save(Mensaje.builder()
+                    .emisor(true)
+                    .contenido(mensajeTexto)
+                    .participacion(participacion)
+                    .build());
 
-        // 4. Registrar métrica M-02 (turnos del estudiante en esta sesión)
-        long turnosEstudiante = mensajeRepository.countByParticipacion(participacion);
-        registrarMetrica(participacion, 2L, sesion.getTema(), turnosEstudiante);
+            long turnosEstudiante = mensajeRepository.countByParticipacion(participacion);
+            registrarMetrica(participacion, 2L, sesion.getTema(), turnosEstudiante);
 
-        // 5. Construir prompt en 3 capas
-        PromptCapasDto promptCapas = PromptCapasDto.builder()
-                .capa1Sistema(capa1ReglasSistema)
-                .capa2DocenteCraft(construirCapaDocente(sesion, craftDocente))
-                .capa3EstudianteDinamica(construirCapa3(participacion))
-                .build();
+            PromptCapasDto promptCapas = PromptCapasDto.builder()
+                    .capa1Sistema(capa1ReglasSistema)
+                    .capa2DocenteCraft(construirCapaDocente(sesion, craftDocente))
+                    .capa3EstudianteDinamica(construirCapa3(participacion))
+                    .build();
 
-        String promptFinal = promptCapas.compilarPromptFinal(mensajeTexto);
+            String promptFinal = promptCapas.compilarPromptFinal(mensajeTexto);
+            return new PromptContext(promptFinal, participacion.getId());
+        });
 
-        // 6. Generar respuesta con Gemini
-        String respuestaOriginal = geminiService.generarRespuesta(promptFinal);
-
-        // 7. Doble Verificación RF-10 (Auditor Socrático)
-        SocraticAuditorService.ResultadoAuditoria auditoria =
-                socraticAuditorService.auditarYCorregir(respuestaOriginal, mensajeTexto);
-
-        // 8. Persistir la respuesta del tutor (emisor = false)
-        mensajeRepository.save(Mensaje.builder()
-                .emisor(false)
-                .contenido(auditoria.respuestaFinal())
-                .participacion(participacion)
-                .build());
-
-        // 9. Registrar métricas de auditoría
-        if (auditoria.fueReformulada()) {
-            log.info("RF-10: respuesta reformulada por el auditor socrático para estudiante '{}'.",
-                    correoEstudiante);
-            registrarMetrica(participacion, 10L, "RF-10", 1L);
-            registrarMetrica(participacion, 4L, "solicitud_directa", 1L);
+        if (contexto == null) {
+            throw new IllegalStateException("Error al inicializar el contexto de la consulta socrática.");
         }
 
-        return MensajeDto.builder()
-                .emisor("TUTOR")
-                .contenido(auditoria.respuestaFinal())
-                .reformuladoPorAuditor(auditoria.fueReformulada())
-                .build();
+        // Fase 2 (FUERA de transacción JDBC, 5-35s): llamada HTTP a Gemini
+        String respuestaTutor = geminiService.generarRespuesta(contexto.promptFinal());
+
+        // Fase 3 (Transacción corta ~50ms): persistir respuesta del tutor
+        return transactionTemplate.execute(status -> {
+            Participacion participacion = participacionRepository.findById(contexto.participacionId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Participación no encontrada: " + contexto.participacionId()));
+
+            mensajeRepository.save(Mensaje.builder()
+                    .emisor(false)
+                    .contenido(respuestaTutor)
+                    .participacion(participacion)
+                    .build());
+
+            return MensajeDto.builder()
+                    .emisor("TUTOR")
+                    .contenido(respuestaTutor)
+                    .reformuladoPorAuditor(false)
+                    .build();
+        });
     }
 
     // ─── Flujo 3: Cierre de Sesión y Síntesis Pedagógica ─────────────────────
@@ -149,52 +150,63 @@ public class ChatService {
     /**
      * Genera la síntesis pedagógica al cerrar la sesión.
      * Llama a Gemini con el historial completo y persiste el Markdown de 4 secciones
-     * en participacion.progreso_md. Solo se invoca una vez por sesión al finalizarla.
+     * en participacion.progreso_md. La llamada a Gemini se ejecuta fuera de transacción.
      */
-    @Transactional
     public void cerrarSesionYGenerarProgreso(UUID participacionId) {
-        Participacion p = participacionRepository.findById(participacionId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Participación no encontrada: " + participacionId));
+        // Fase 1: Recuperar datos del historial
+        String instruccion = transactionTemplate.execute(status -> {
+            Participacion p = participacionRepository.findById(participacionId)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Participación no encontrada: " + participacionId));
 
-        List<Mensaje> historial = mensajeRepository
-                .findByParticipacionOrderByCreatedAtAsc(p);
+            List<Mensaje> historial = mensajeRepository
+                    .findByParticipacionOrderByCreatedAtAsc(p);
 
-        String historialTexto = historial.stream()
-                .map(m -> (Boolean.TRUE.equals(m.getEmisor()) ? "[ESTUDIANTE]" : "[TUTOR]")
-                        + ": " + m.getContenido())
-                .collect(Collectors.joining("\n"));
+            String historialTexto = historial.stream()
+                    .map(m -> (Boolean.TRUE.equals(m.getEmisor()) ? "[ESTUDIANTE]" : "[TUTOR]")
+                            + ": " + m.getContenido())
+                    .collect(Collectors.joining("\n"));
 
-        String instruccion = """
-                Analiza el siguiente historial de conversación entre un tutor socrático \
-                y un estudiante de POO. Genera un resumen pedagógico en Markdown con \
-                exactamente estas 4 secciones:
+            return """
+                    Analiza el siguiente historial de conversación entre un tutor socrático \
+                    y un estudiante de POO. Genera un resumen pedagógico en Markdown con \
+                    exactamente estas 4 secciones:
 
-                ## Conceptos dominados
-                (lista de conceptos que el estudiante demostró comprender)
+                    ## Conceptos dominados
+                    (lista de conceptos que el estudiante demostró comprender)
 
-                ## Conceptos en progreso
-                (conceptos donde el estudiante avanzó pero aún no consolida)
+                    ## Conceptos en progreso
+                    (conceptos donde el estudiante avanzó pero aún no consolida)
 
-                ## Errores recurrentes
-                (patrones de error repetidos o confusiones persistentes)
+                    ## Errores recurrentes
+                    (patrones de error repetidos o confusiones persistentes)
 
-                ## Recomendación para la siguiente sesión
-                (qué explorar o reforzar en la próxima interacción)
+                    ## Recomendación para la siguiente sesión
+                    (qué explorar o reforzar en la próxima interacción)
 
-                HISTORIAL:
-                """ + historialTexto;
+                    HISTORIAL:
+                    """ + historialTexto;
+        });
 
+        // Fase 2: Llamada a Gemini fuera de transacción JDBC
         String progreso = geminiService.generarRespuesta(instruccion);
-        p.setProgresoMd(progreso);
-        participacionRepository.save(p);
 
-        // Registrar métricas de cierre
-        registrarMetrica(p, 3L, "sesion_cerrada", (long) historial.size());
-        registrarMetrica(p, 5L, "turnos_totales", (long) historial.size());
+        // Fase 3: Persistir resumen y métricas en transacción corta
+        transactionTemplate.executeWithoutResult(status -> {
+            Participacion p = participacionRepository.findById(participacionId)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Participación no encontrada: " + participacionId));
 
-        log.info("Flujo 3: síntesis pedagógica generada para participación {} ({} turnos)",
-                participacionId, historial.size());
+            List<Mensaje> historial = mensajeRepository.findByParticipacionOrderByCreatedAtAsc(p);
+            p.setProgresoMd(progreso);
+            participacionRepository.save(p);
+
+            registrarMetrica(p, 3L, "sesion_cerrada", (long) historial.size());
+            registrarMetrica(p, 5L, "turnos_totales", (long) historial.size());
+
+            log.info("Flujo 3: síntesis pedagógica generada para participación {} ({} turnos)",
+                    participacionId, historial.size());
+        });
     }
 
     // ─── Historial ────────────────────────────────────────────────────────────

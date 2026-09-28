@@ -252,12 +252,53 @@
             </div>
         </div>
 
+        <!-- Notificación de Estudiante Eliminado -->
+        <div th:if="${param.estudianteEliminado}" class="alert alert-warning alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-trash3-fill text-danger fs-5"></i>
+                <div>El estudiante y su historial académico fueron eliminados exitosamente del sistema.</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+
+        <!-- Banner Informativo: Sin Clases Creadas -->
+        <div th:if="${#lists.isEmpty(sesiones)}" class="alert border-0 shadow-sm rounded-4 p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3" style="background-color: #E8EFF8; color: var(--puj-blue-dark); border-left: 4px solid var(--puj-blue) !important;">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(44, 86, 151, 0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="bi bi-info-circle-fill fs-5" style="color: var(--puj-blue);"></i>
+                </div>
+                <div>
+                    <div class="fw-bold mb-0">Directorio Institucional Permanente</div>
+                    <div class="small opacity-75">Actualmente no tienes sesiones creadas. Todos los estudiantes registrados permanecen en este directorio y podrás asignarlos a tus nuevas clases cuando las crees.</div>
+                </div>
+            </div>
+            <a th:href="@{/docente/sesiones/nueva}" class="btn btn-sm text-white fw-semibold rounded-3 px-3 py-2" style="background-color: var(--puj-blue);">
+                <i class="bi bi-plus-lg me-1"></i>Crear Primera Clase
+            </a>
+        </div>
+
+        <!-- Banner Informativo: Clases Creadas pero Todas Pausadas -->
+        <div th:if="${!#lists.isEmpty(sesiones) and totalClasesActivas == 0}" class="alert border-0 shadow-sm rounded-4 p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3" style="background-color: #FEF3C7; color: #92400E; border-left: 4px solid #D97706 !important;">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(217, 119, 6, 0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="bi bi-pause-circle-fill fs-5" style="color: #D97706;"></i>
+                </div>
+                <div>
+                    <div class="fw-bold mb-0">Todas tus clases están pausadas</div>
+                    <div class="small opacity-75">Los alumnos matriculados no podrán interactuar con el tutor socrático hasta que actives una sesión desde tu panel.</div>
+                </div>
+            </div>
+            <a th:href="@{/docente/sesiones}" class="btn btn-sm fw-semibold rounded-3 px-3 py-2" style="background-color: #D97706; color: #FFFFFF;">
+                <i class="bi bi-collection-play me-1"></i>Ir a Mis Sesiones
+            </a>
+        </div>
+
         <!-- Título -->
         <div class="mb-4">
             <h4 class="fw-bold mb-1" style="color: var(--puj-blue-dark);">
                 <i class="bi bi-people-fill me-2"></i>Directorio de Estudiantes
             </h4>
-            <p class="text-muted small mb-0">Listado consolidado de alumnos que han interactuado con tus clases socráticas.</p>
+            <p class="text-muted small mb-0">Listado institucional de alumnos registrados y su vinculación con tus clases de programación.</p>
         </div>
 
         <!-- KPI Cards -->
@@ -268,7 +309,7 @@
                         <i class="bi bi-people-fill"></i>
                     </div>
                     <div>
-                        <div class="kpi-value" th:text="${directorio.size()}">0</div>
+                        <div class="kpi-value" th:text="${directorio != null ? directorio.size() : 0}">0</div>
                         <div class="kpi-label">Total Estudiantes</div>
                     </div>
                 </div>
@@ -279,8 +320,8 @@
                         <i class="bi bi-person-check-fill"></i>
                     </div>
                     <div>
-                        <div class="kpi-value" th:text="${directorio.size()}">0</div>
-                        <div class="kpi-label">Estudiantes Activos</div>
+                        <div class="kpi-value" th:text="${estudiantesActivos != null ? estudiantesActivos : 0}">0</div>
+                        <div class="kpi-label">Estudiantes en Clase Activa</div>
                     </div>
                 </div>
             </div>
@@ -290,7 +331,7 @@
                         <i class="bi bi-journal-check"></i>
                     </div>
                     <div>
-                        <div class="kpi-value" id="totalParticipaciones">0</div>
+                        <div class="kpi-value" id="totalParticipaciones" th:text="${totalParticipaciones != null ? totalParticipaciones : 0}">0</div>
                         <div class="kpi-label">Total Participaciones</div>
                     </div>
                 </div>
@@ -335,35 +376,53 @@
                                 <span class="text-muted" th:text="${est.correo}">correo@javerianacali.edu.co</span>
                             </td>
                             <td class="text-center">
-                                <span class="badge-classes" th:text="${est.totalClases}">1</span>
+                                <span th:class="${est.totalClases > 0 ? 'badge-classes' : 'badge bg-light text-muted border px-2 py-1'}" th:text="${est.totalClases} + ' clase(s)'">0 clase(s)</span>
                             </td>
                             <td>
                                 <span class="small" style="color: var(--text-muted);" th:text="${est.ultimaActividadFormateada}">01/01/2026</span>
                             </td>
                             <td>
-                                <span class="badge-active">
-                                    <i class="bi bi-check-circle-fill me-1"></i>Registrado
+                                <span th:if="${est.clasesActivas > 0}" class="badge-active">
+                                    <i class="bi bi-check-circle-fill me-1"></i>En clase activa
+                                </span>
+                                <span th:if="${est.clasesActivas == 0 and est.totalClases > 0}" class="badge bg-secondary-subtle text-secondary border px-2 py-1 small rounded-pill">
+                                    <i class="bi bi-pause-circle me-1"></i>Clase(s) pausada(s)
+                                </span>
+                                <span th:if="${est.totalClases == 0}" class="badge bg-light text-muted border px-2 py-1 small rounded-pill">
+                                    <i class="bi bi-dash-circle me-1"></i>Sin clases
                                 </span>
                             </td>
                             <td class="text-end pe-4">
-                                <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 fw-semibold"
-                                        th:attr="onclick='abrirModalAsignar(\'' + ${est.id} + '\', \'' + ${est.nombre} + '\')'">
-                                    <i class="bi bi-bookmark-plus me-1"></i>Asignar a Clase
-                                </button>
+                                <div class="d-inline-flex align-items-center gap-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 fw-semibold"
+                                            th:data-id="${est.id}"
+                                            th:data-nombre="${est.nombre}"
+                                            onclick="abrirModalAsignar(this.dataset.id, this.dataset.nombre)">
+                                        <i class="bi bi-bookmark-plus me-1"></i>Asignar
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-3 py-1 px-2"
+                                            title="Eliminar estudiante"
+                                            th:data-id="${est.id}"
+                                            th:data-nombre="${est.nombre}"
+                                            th:data-correo="${est.correo}"
+                                            onclick="abrirModalEliminarEstudiante(this.dataset.id, this.dataset.nombre, this.dataset.correo)">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- Si no hay estudiantes aún -->
+            <!-- Si no hay estudiantes aún en la universidad -->
             <div th:unless="${directorio != null and !directorio.isEmpty()}" class="text-center py-5 text-muted">
                 <div style="width: 64px; height: 64px; border-radius: 16px; background: #E8EFF8; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
                     <i class="bi bi-people fs-3" style="color: var(--puj-blue);"></i>
                 </div>
-                <h6 class="fw-bold text-dark mb-1">Aún no hay estudiantes registrados en tus clases</h6>
+                <h6 class="fw-bold text-dark mb-1">Aún no hay estudiantes registrados en la plataforma</h6>
                 <p class="small mb-3 mx-auto" style="max-width: 420px;">
-                    Cuando los estudiantes abran tus enlaces únicos de clase o los vincules a una sesión, aparecerán listados aquí.
+                    Cuando los estudiantes ingresen con su correo institucional (@javerianacali.edu.co) o abran un enlace de clase, aparecerán listados aquí.
                 </p>
                 <a th:href="@{/docente/sesiones}" class="btn btn-sm rounded-3 px-4 py-2" style="background-color: var(--puj-blue); color: #FFFFFF; font-weight: 600;">
                     <i class="bi bi-arrow-left me-1"></i>Ir a Mis Sesiones
@@ -398,20 +457,72 @@
                 <form id="formAsignarClase" method="post" action="">
                     <div class="modal-body p-4">
                         <p class="text-muted small mb-3">
-                            Vincula al alumno <strong id="modalNombreEstudiante" class="text-dark">Estudiante</strong> a otra de tus sesiones socráticas activas. Una vez asignado, la clase aparecerá inmediatamente en su portal.
+                            Vincula al alumno <strong id="modalNombreEstudiante" class="text-dark">Estudiante</strong> a una de tus sesiones socráticas. Una vez asignado, la clase aparecerá inmediatamente en su portal.
                         </p>
-                        <div class="mb-3">
+
+                        <!-- Si no hay sesiones creadas -->
+                        <div th:if="${#lists.isEmpty(sesiones)}" class="alert border-0 rounded-3 p-3 mb-0" style="background-color: #FEF3C7; color: #92400E; border-left: 4px solid #D97706 !important;">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <i class="bi bi-exclamation-triangle-fill fs-5" style="color: #D97706;"></i>
+                                <strong class="fs-6">No tienes clases creadas aún</strong>
+                            </div>
+                            <p class="small mb-3">Para poder asignar a este estudiante, primero debes crear al menos una sesión de clase en tu panel docente.</p>
+                            <a th:href="@{/docente/sesiones/nueva}" class="btn btn-sm fw-semibold rounded-3 px-3 py-2 text-white" style="background-color: var(--puj-blue);">
+                                <i class="bi bi-plus-lg me-1"></i>Crear Nueva Clase
+                            </a>
+                        </div>
+
+                        <!-- Si hay sesiones creadas -->
+                        <div th:unless="${#lists.isEmpty(sesiones)}" class="mb-3">
                             <label for="sesionAsignarSelect" class="form-label small fw-bold">Seleccionar Clase:</label>
                             <select id="sesionAsignarSelect" name="sesionId" class="form-select rounded-3" required>
                                 <option value="" disabled selected>-- Elige una clase --</option>
-                                <option th:each="s : ${sesiones}" th:value="${s.id}" th:text="${s.tema}">Clase de POO</option>
+                                <option th:each="s : ${sesiones}" th:value="${s.id}" 
+                                        th:text="${s.tema + (s.estado ? ' — [Activa]' : ' — [Pausada]')}">Clase de POO</option>
                             </select>
+                            <div th:if="${totalClasesActivas == 0}" class="form-text text-warning small mt-2">
+                                <i class="bi bi-info-circle me-1"></i>Todas tus clases están pausadas. Puedes asignar al alumno ahora y reactivar la sesión desde "Mis Sesiones".
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer bg-light p-3 border-top">
                         <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary btn-sm rounded-3 px-3" style="background-color: var(--puj-blue); border-color: var(--puj-blue);">
+                        <button th:unless="${#lists.isEmpty(sesiones)}" type="submit" class="btn btn-primary btn-sm rounded-3 px-3" style="background-color: var(--puj-blue); border-color: var(--puj-blue);">
                             <i class="bi bi-check-lg me-1"></i>Confirmar Asignación
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Eliminar Estudiante -->
+    <div class="modal fade" id="modalEliminarEstudiante" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+                <div class="modal-header border-bottom p-3" style="background-color: #FEF2F2;">
+                    <h6 class="modal-title fw-bold text-danger">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Eliminar Estudiante de la Plataforma
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formEliminarEstudiante" method="post" action="">
+                    <div class="modal-body p-4">
+                        <p class="text-dark mb-2">
+                            ¿Estás seguro de que deseas eliminar a <strong id="modalNombreEliminarEstudiante" class="text-danger">Estudiante</strong>?
+                        </p>
+                        <div class="small text-muted mb-3">
+                            Correo institucional: <strong id="modalCorreoEliminarEstudiante" class="text-dark">correo@javerianacali.edu.co</strong>
+                        </div>
+                        <div class="alert border-0 small rounded-3 p-3 mb-0" style="background-color: #FEE2E2; color: #991B1B; border-left: 4px solid #DC2626 !important;">
+                            <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i>Aviso de acción irreversible:</div>
+                            Esta acción eliminará al estudiante de la plataforma de forma definitiva, suprimiendo de manera permanente sus participaciones, registros de chat socrático y métricas acumuladas en el curso.
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light p-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger btn-sm rounded-3 px-3 fw-bold">
+                            <i class="bi bi-trash3-fill me-1"></i>Eliminar Permanentemente
                         </button>
                     </div>
                 </form>
@@ -429,12 +540,21 @@
             modal.show();
         }
 
+        function abrirModalEliminarEstudiante(estId, estNombre, estCorreo) {
+            document.getElementById('modalNombreEliminarEstudiante').textContent = estNombre;
+            document.getElementById('modalCorreoEliminarEstudiante').textContent = estCorreo;
+            document.getElementById('formEliminarEstudiante').action = '/docente/estudiantes/' + estId + '/eliminar';
+            const modal = new bootstrap.Modal(document.getElementById('modalEliminarEstudiante'));
+            modal.show();
+        }
+
         // Calcular total de participaciones desde la tabla
         document.addEventListener('DOMContentLoaded', function() {
             const badges = document.querySelectorAll('.badge-classes');
             let total = 0;
             badges.forEach(b => total += parseInt(b.textContent) || 0);
-            document.getElementById('totalParticipaciones').textContent = total;
+            const totalElem = document.getElementById('totalParticipaciones');
+            if (totalElem) totalElem.textContent = total;
 
             // Búsqueda en tiempo real
             const searchInput = document.getElementById('searchInput');

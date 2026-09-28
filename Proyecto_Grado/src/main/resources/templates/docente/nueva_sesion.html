@@ -180,7 +180,7 @@
                         <i class="bi bi-stars text-primary fs-5"></i>
                         <h6 class="fw-bold mb-0 text-dark">Paso 1: Tema de la Clase & Asistente IA</h6>
                     </div>
-                    <span class="small text-muted">Gemini 3 Flash</span>
+                    <span class="small text-muted"><i class="bi bi-stars text-warning me-1"></i>Asistente IA</span>
                 </div>
                 <p class="text-muted small mb-3">
                     Ingresa el tema de Programación y utiliza el asistente para generar directrices didácticas estructuradas que impidan que el tutor entregue soluciones directas de código.
@@ -282,12 +282,12 @@
                         <i class="bi bi-signpost-split text-primary fs-5"></i>
                         <h6 class="fw-bold mb-0 text-dark">Paso 3: Preguntas Guía de la Clase</h6>
                     </div>
-                    <span class="badge bg-light text-muted border small">Opcional</span>
+                    <span class="badge bg-light text-muted border small">Obligatorio</span>
                 </div>
                 <p class="text-muted small mb-3">
                     Formula los hitos o preguntas de reflexión que el tutor abordará secuencialmente con los estudiantes a medida que demuestren comprensión. (Escribe una pregunta por línea).
                 </p>
-                <textarea class="form-control" id="preguntasGuia" name="preguntasGuia" rows="4" 
+                <textarea required class="form-control" id="preguntasGuia" name="preguntasGuia" rows="4" 
                           th:text="${craft.preguntasGuia}"
                           placeholder="1. ¿Qué diferencia sustancial existe entre una clase abstracta y una interfaz en Java?&#10;2. ¿Por qué el principio de polimorfismo facilita la extensibilidad de un software?&#10;3. ¿En qué escenario convendría preferir composición en lugar de herencia múltiple?"></textarea>
                 <div class="form-text small text-muted mt-2">
@@ -329,7 +329,7 @@
             btnAsistente.disabled = true;
             btnIcon.classList.add('d-none');
             btnSpinner.classList.remove('d-none');
-            btnText.innerText = 'Consultando con Gemini 3 Flash...';
+            btnText.innerText = 'Generando directrices pedagógicas...';
             aiAlert.classList.add('d-none');
 
             try {

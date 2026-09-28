@@ -1,5 +1,6 @@
 package Prototipo.Proyecto_Grado.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,6 +35,7 @@ public class Estudiante {
     private String correo;
 
     /** Contraseña en texto plano o hash (columna con nombre especial). */
+    @JsonIgnore
     @Column(name = "contrase\u00f1a", nullable = false)
     private String contrasena;
 

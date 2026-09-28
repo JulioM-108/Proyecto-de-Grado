@@ -44,7 +44,11 @@ public class AnalyticsService {
         private long totalMensajes;
         private long totalConsultasEstudiante;
         private long totalRespuestasTutor;
-        /** Cantidad de reformulaciones RF-10 detectadas para prevenir entrega directa de código */
+        /** Promedio de turnos/consultas por estudiante (M-02) */
+        private double promedioTurnosPorEstudiante;
+        /** Conteo de intentos de solicitar código directo prevenidos (M-04) */
+        private long totalSolicitudesDirectas;
+        /** Compatibilidad hacia atrás */
         private long totalIntervencionesAuditorRf10;
         /** Mapa concepto POO → cantidad de errores/dudas acumuladas */
         private Map<String, Long> dificultadesPorConcepto;
@@ -64,6 +68,18 @@ public class AnalyticsService {
         private long totalMensajes;
         private long consultasEstudiante;
         private String progresoMd;
+
+        // M-02: Turnos y Nivel de Dificultad
+        private String nivelDificultad;
+        private String nivelDificultadClase;
+
+        // M-03: Evolución Pedagógica
+        private String estadoEvolucion;
+        private String estadoEvolucionClase;
+
+        // M-05: Actividad y Estado de Compromiso
+        private String estadoActividad;
+        private String estadoActividadColor;
     }
 
     /**
@@ -91,6 +107,8 @@ public class AnalyticsService {
                 .totalMensajes(totalMensajes)
                 .totalConsultasEstudiante(0)
                 .totalRespuestasTutor(0)
+                .promedioTurnosPorEstudiante(0.0)
+                .totalSolicitudesDirectas(totalReformulaciones)
                 .totalIntervencionesAuditorRf10(totalReformulaciones)
                 .dificultadesPorConcepto(dificultades)
                 .resumenIa(null)
@@ -147,6 +165,70 @@ public class AnalyticsService {
             String correoEst = (p.getEstudiante() != null && p.getEstudiante().getCorreo() != null)
                     ? p.getEstudiante().getCorreo() : "estudiante@javeriana.edu.co";
 
+            // M-02: Turnos y Nivel de Dificultad
+            String nivelDificultad;
+            String nivelDificultadClase;
+            if (cEstudiante == 0) {
+                nivelDificultad = "Sin consultas";
+                nivelDificultadClase = "bg-light text-muted border";
+            } else if (cEstudiante <= 3) {
+                nivelDificultad = cEstudiante + " turnos · Fluido";
+                nivelDificultadClase = "bg-success-subtle text-success border border-success-subtle";
+            } else if (cEstudiante <= 7) {
+                nivelDificultad = cEstudiante + " turnos · Guiado";
+                nivelDificultadClase = "bg-warning-subtle text-warning-emphasis border border-warning-subtle";
+            } else {
+                nivelDificultad = cEstudiante + " turnos · Requiere Apoyo";
+                nivelDificultadClase = "bg-danger-subtle text-danger border border-danger-subtle";
+            }
+
+            // M-03: Evolución Pedagógica
+            String estadoEvolucion;
+            String estadoEvolucionClase;
+            String pMd = (p.getProgresoMd() != null) ? p.getProgresoMd() : "";
+            if (cEstudiante == 0) {
+                estadoEvolucion = "Sin interacción";
+                estadoEvolucionClase = "bg-light text-muted border";
+            } else if (!pMd.isBlank() && pMd.contains("## Conceptos dominados")) {
+                if (pMd.contains("## Errores recurrentes") && (pMd.toLowerCase().contains("persiste") || pMd.toLowerCase().contains("confunde") || cEstudiante >= 8)) {
+                    estadoEvolucion = "Dudas en progreso";
+                    estadoEvolucionClase = "bg-warning-subtle text-warning-emphasis border border-warning-subtle";
+                } else {
+                    estadoEvolucion = "Consolidado";
+                    estadoEvolucionClase = "bg-success-subtle text-success border border-success-subtle";
+                }
+            } else {
+                estadoEvolucion = "En diálogo activo";
+                estadoEvolucionClase = "bg-primary-subtle text-primary border border-primary-subtle";
+            }
+
+            // M-05: Actividad y Estado de Compromiso
+            String estadoActividad;
+            String estadoActividadColor;
+            java.time.OffsetDateTime ultimaFecha = msgs.isEmpty() ? p.getCreatedAt() : msgs.get(msgs.size() - 1).getCreatedAt();
+            if (cEstudiante == 0) {
+                estadoActividad = "Sin participación";
+                estadoActividadColor = "text-muted";
+            } else if (ultimaFecha != null) {
+                long horas = java.time.Duration.between(ultimaFecha, java.time.OffsetDateTime.now()).toHours();
+                if (horas < 24) {
+                    estadoActividad = "Activo hoy";
+                    estadoActividadColor = "text-success";
+                } else {
+                    long dias = horas / 24;
+                    if (dias <= 3) {
+                        estadoActividad = "Hace " + dias + (dias == 1 ? " día" : " días");
+                        estadoActividadColor = "text-secondary";
+                    } else {
+                        estadoActividad = "Hace " + dias + " días (En riesgo)";
+                        estadoActividadColor = "text-danger fw-semibold";
+                    }
+                }
+            } else {
+                estadoActividad = "Reciente";
+                estadoActividadColor = "text-success";
+            }
+
             detalleList.add(ParticipacionDetalleDto.builder()
                     .id(p.getId())
                     .estudianteNombre(nombreEst)
@@ -155,10 +237,20 @@ public class AnalyticsService {
                     .totalMensajes(msgs.size())
                     .consultasEstudiante(cEstudiante)
                     .progresoMd(p.getProgresoMd() != null ? p.getProgresoMd() : "")
+                    .nivelDificultad(nivelDificultad)
+                    .nivelDificultadClase(nivelDificultadClase)
+                    .estadoEvolucion(estadoEvolucion)
+                    .estadoEvolucionClase(estadoEvolucionClase)
+                    .estadoActividad(estadoActividad)
+                    .estadoActividadColor(estadoActividadColor)
                     .build());
         }
 
         long totalMensajes = totalConsultasEstudiantes + totalRespuestasTutor;
+
+        // Promedio de turnos por estudiante (M-02)
+        double promTurnos = participaciones.isEmpty() ? 0.0 :
+                Math.round(((double) totalConsultasEstudiantes / participaciones.size()) * 10.0) / 10.0;
 
         // Si no hay métricas explícitas pero hay tema, añadimos el tema principal
         if (dificultades.isEmpty() && totalConsultasEstudiantes > 0) {
@@ -175,6 +267,8 @@ public class AnalyticsService {
                 .totalMensajes(totalMensajes)
                 .totalConsultasEstudiante(totalConsultasEstudiantes)
                 .totalRespuestasTutor(totalRespuestasTutor)
+                .promedioTurnosPorEstudiante(promTurnos)
+                .totalSolicitudesDirectas(totalRf10)
                 .totalIntervencionesAuditorRf10(totalRf10)
                 .dificultadesPorConcepto(dificultades)
                 .resumenIa(resumenIa)
@@ -200,7 +294,7 @@ public class AnalyticsService {
             - Estudiantes participantes: %d
             - Preguntas enviadas por los estudiantes: %d
             - Orientaciones socráticas dadas por el tutor: %d
-            - Intervenciones del Auditor RF-10 (intentos de pedir código directo prevenidos): %d
+            - Solicitudes de código directo o atajo prevenidas (M-04): %d
             - Muestra de consultas realizadas por los alumnos: %s
 
             Genera un informe pedagógico ejecutivo conciso (máximo 3 párrafos en Markdown, con tono profesional y constructivo para el profesor):
@@ -231,7 +325,7 @@ public class AnalyticsService {
         return """
             **Diagnóstico Grupal**: La sesión sobre **%s** cuenta con **%d** estudiantes activos y un total de **%d** consultas registradas. La dinámica socrática ha permitido guiar el razonamiento autónomo de los alumnos sin suministrar código de manera pasiva.
             
-            **Auditoría Pedagógica**: Se registraron **%d** activaciones del Auditor RF-10, garantizando que el tutor respondiera con preguntas orientadoras y analogías conceptuales en lugar de soluciones directas.
+            **Seguimiento Socrático (M-04)**: Se registraron **%d** solicitudes de solución directa reconducidas con éxito hacia el razonamiento conceptual, garantizando que el tutor respondiera con preguntas orientadoras y analogías en lugar de código directo.
             
             **Recomendación Docente**: Se sugiere iniciar la siguiente clase presencial repasando la definición formal y el diseño de clases relacionado con *%s*, planteando un ejercicio colaborativo en el tablero.
             """.formatted(sesion.getTema(), cantEstudiantes, consultas, rf10, sesion.getTema());

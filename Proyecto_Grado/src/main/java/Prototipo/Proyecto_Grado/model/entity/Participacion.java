@@ -44,6 +44,10 @@ public class Participacion {
     @Column(name = "valoracion_estudiante")
     private Integer valoracionEstudiante;
 
+    /** Evaluación psicométrica y pedagógica de la plataforma (SUS + TAM en formato JSON) */
+    @Column(name = "evaluacion_sus_tam", columnDefinition = "TEXT")
+    private String evaluacionSusTam;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estudiante_id", nullable = false)
     private Estudiante estudiante;
@@ -65,5 +69,16 @@ public class Participacion {
     /** Alias de compatibilidad para plantillas Thymeleaf */
     public OffsetDateTime getFechaCreacion() {
         return this.createdAt;
+    }
+
+    /** Retorna el DTO parseado de la evaluación SUS + TAM o null si no se ha diligenciado */
+    public Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO getEvaluacionSusTamDTO() {
+        return Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO.fromJson(this.evaluacionSusTam);
+    }
+
+    /** Retorna el puntaje SUS oficial (0 a 100) o null si no se ha evaluado */
+    public Double getSusScore() {
+        Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO dto = getEvaluacionSusTamDTO();
+        return dto != null ? dto.getSusScore() : null;
     }
 }

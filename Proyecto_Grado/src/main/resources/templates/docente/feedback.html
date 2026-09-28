@@ -98,6 +98,10 @@
             background: #ECFDF5;
             color: #059669;
         }
+        .kpi-icon.purple {
+            background: #F3E8FF;
+            color: #7E22CE;
+        }
         .kpi-value {
             font-size: 1.6rem;
             font-weight: 700;
@@ -196,31 +200,42 @@
 
         <!-- KPI Cards -->
         <div class="row g-3 mb-4">
-            <div class="col-md-4">
+            <div class="col-sm-6 col-lg-3">
                 <div class="kpi-card d-flex align-items-center gap-3">
                     <div class="kpi-icon amber">
                         <i class="bi bi-star-fill"></i>
                     </div>
                     <div>
                         <div class="kpi-value" th:text="${promedioGlobal} + ' / 5.0'">0.0 / 5.0</div>
-                        <div class="kpi-label">Satisfacción Promedio</div>
+                        <div class="kpi-label">Feedback Aula Profe</div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-sm-6 col-lg-3">
                 <div class="kpi-card d-flex align-items-center gap-3">
-                    <div class="kpi-icon blue">
-                        <i class="bi bi-chat-left-text-fill"></i>
+                    <div class="kpi-icon purple">
+                        <i class="bi bi-clipboard2-data-fill"></i>
                     </div>
                     <div>
-                        <div class="kpi-value" th:text="${totalFeedbacks}">0</div>
-                        <div class="kpi-label">Total de Opiniones</div>
+                        <div class="kpi-value" th:text="${promedioSusGlobal} + ' / 100'">0.0 / 100</div>
+                        <div class="kpi-label" style="color: #6B21A8; font-weight: 600;" th:text="${interpretacionSusGlobal}">Estándar SUS</div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-sm-6 col-lg-3">
                 <div class="kpi-card d-flex align-items-center gap-3">
                     <div class="kpi-icon green">
+                        <i class="bi bi-patch-check-fill"></i>
+                    </div>
+                    <div>
+                        <div class="kpi-value" th:text="${totalEvaluacionesSus}">0</div>
+                        <div class="kpi-label">Encuestas SUS+TAM</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="kpi-card d-flex align-items-center gap-3">
+                    <div class="kpi-icon blue">
                         <i class="bi bi-journal-bookmark-fill"></i>
                     </div>
                     <div>
@@ -246,35 +261,247 @@
 
         <!-- Lista de Feedbacks -->
         <div th:if="${feedbacks != null and !feedbacks.isEmpty()}">
-            <div th:each="fb : ${feedbacks}" class="feedback-card">
-                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+            <div th:each="fb : ${feedbacks}" class="feedback-card mb-4">
+                <!-- 1. Cabecera Unificada del Estudiante y la Sesión -->
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pb-3 mb-3 border-bottom">
                     <div class="d-flex align-items-center gap-3">
                         <div class="avatar-initial" th:text="${(fb.nombreEstudiante != null and !#strings.isEmpty(fb.nombreEstudiante)) ? #strings.substring(fb.nombreEstudiante, 0, 1).toUpperCase() : 'E'}">E</div>
                         <div>
-                            <div class="fw-bold text-dark" th:text="${fb.nombreEstudiante}">Estudiante</div>
+                            <div class="fw-bold text-dark fs-6" th:text="${fb.nombreEstudiante}">Estudiante</div>
                             <div class="small text-muted" th:text="${fb.correoEstudiante}">estudiante@javerianacali.edu.co</div>
                         </div>
                     </div>
-                    <div class="text-end">
-                        <div class="star-rating">
-                            <span th:each="i : ${#numbers.sequence(1, 5)}">
-                                <i th:class="${i <= fb.valoracion ? 'bi bi-star-fill text-warning' : 'bi bi-star text-muted opacity-25'}"></i>
-                            </span>
-                            <span class="ms-1 fw-bold text-dark small" th:text="${fb.valoracion} + ' / 5'">5 / 5</span>
-                        </div>
-                        <div class="small text-muted mt-1" th:text="${fb.fechaFormateada}">Fecha</div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="class-badge">
+                            <i class="bi bi-book me-1"></i><span th:text="${fb.temaSesion}">Tema de la Clase</span>
+                        </span>
+                        <span class="badge bg-light text-muted border font-monospace small" th:text="'Código: ' + ${fb.enlaceSesion}">COD</span>
+                        <span class="small text-muted ms-1" th:text="${fb.fechaFormateada}"><i class="bi bi-calendar3 me-1"></i>Fecha</span>
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center gap-2 my-2">
-                    <span class="class-badge">
-                        <i class="bi bi-book me-1"></i><span th:text="${fb.temaSesion}">Tema de la Clase</span>
-                    </span>
-                    <span class="badge bg-light text-muted border font-monospace small" th:text="'Código: ' + ${fb.enlaceSesion}">COD</span>
+                <!-- 2. Dos Sub-Cards Contenedoras: Feedback Docente y Evaluación SUS+TAM -->
+                <div class="row g-3">
+                    <!-- SUB-CARD A: Retroalimentación Pedagógica de la Clase (Docente) -->
+                    <div class="col-lg-6">
+                        <div class="p-3 rounded-3 border h-100 d-flex flex-column" style="background-color: #F8FAFC; border-left: 4px solid var(--puj-blue) !important;">
+                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                <span class="fw-bold small d-flex align-items-center gap-1" style="color: var(--puj-blue-dark);">
+                                    <i class="bi bi-chat-heart-fill text-warning"></i>
+                                    <span>Feedback de la Clase (Docente)</span>
+                                </span>
+                                <div class="star-rating" th:if="${fb.valoracion > 0}">
+                                    <span th:each="i : ${#numbers.sequence(1, 5)}">
+                                        <i th:class="${i <= fb.valoracion ? 'bi bi-star-fill text-warning' : 'bi bi-star text-muted opacity-25'}"></i>
+                                    </span>
+                                    <span class="ms-1 fw-bold text-dark small" th:text="${fb.valoracion} + ' / 5'">5 / 5</span>
+                                </div>
+                                <span th:unless="${fb.valoracion > 0}" class="badge bg-secondary-subtle text-secondary small">Sin calificar</span>
+                            </div>
+
+                            <div class="flex-grow-1">
+                                <div class="small text-muted mb-1 fw-semibold" style="font-size: 0.75rem;">Comentarios / Dudas de la clase:</div>
+                                <p class="mb-0 text-dark small" style="white-space: pre-line;" 
+                                   th:if="${fb.comentario != null and !#strings.isEmpty(fb.comentario) and !fb.comentario.equals('Sin comentario escrito.')}" 
+                                   th:text="${fb.comentario}">Comentario del estudiante...</p>
+                                <p class="mb-0 text-muted small fst-italic" 
+                                   th:unless="${fb.comentario != null and !#strings.isEmpty(fb.comentario) and !fb.comentario.equals('Sin comentario escrito.')}">
+                                   El estudiante no registró dudas o comentarios cualitativos para esta clase.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUB-CARD B: Evaluación Científica de Usabilidad y Aceptación (SUS + TAM) -->
+                    <div class="col-lg-6">
+                        <div class="p-3 rounded-3 border h-100 d-flex flex-column" style="background: linear-gradient(135deg, #FAF5FF 0%, #F5EEFD 100%); border-color: #D8B4FE !important; border-left: 4px solid #7E22CE !important;">
+                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom" style="border-color: #E9D5FF !important;">
+                                <span class="fw-bold small d-flex align-items-center gap-1" style="color: #581C87;">
+                                    <i class="bi bi-clipboard2-check-fill" style="color: #7E22CE;"></i>
+                                    <span>Evaluación Científica (SUS + TAM)</span>
+                                </span>
+                                <span th:if="${fb.susScore != null}" class="badge text-white px-2 py-1 shadow-sm" style="background-color: #7E22CE; font-size: 0.78rem;">
+                                    SUS: <strong th:text="${fb.susScore} + ' / 100'">85.0 / 100</strong>
+                                </span>
+                                <span th:unless="${fb.susScore != null}" class="badge bg-secondary-subtle text-secondary small">Pendiente</span>
+                            </div>
+
+                            <!-- Si completó la evaluación SUS+TAM -->
+                            <div th:if="${fb.evaluacionSusTam != null}" class="d-flex flex-column flex-grow-1 justify-content-between">
+                                <div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="small fw-semibold text-muted" style="font-size: 0.78rem;">
+                                            Diagnóstico: <strong style="color: #6B21A8;" th:text="${T(Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO).interpretarSus(fb.susScore)}">Excelente</strong>
+                                        </span>
+                                        <span class="badge border bg-white" style="color: #581C87; font-size: 0.73rem;">16 reactivos contestados</span>
+                                    </div>
+                                    <div th:if="${fb.evaluacionSusTam.comentario != null and !#strings.isEmpty(fb.evaluacionSusTam.comentario)}" 
+                                         class="p-2 rounded-2 bg-white small border fst-italic mb-2" style="font-size: 0.78rem; color: #4A1D96; border-color: #E9D5FF !important;">
+                                        <i class="bi bi-chat-quote-fill me-1 text-muted"></i><span th:text="${fb.evaluacionSusTam.comentario}">Comentario SUS...</span>
+                                    </div>
+                                    <div th:unless="${fb.evaluacionSusTam.comentario != null and !#strings.isEmpty(fb.evaluacionSusTam.comentario)}" 
+                                         class="small text-muted fst-italic mb-2" style="font-size: 0.76rem;">
+                                        (El estudiante no añadió comentarios cualitativos en la encuesta SUS+TAM)
+                                    </div>
+                                </div>
+                                <div class="text-end pt-1">
+                                    <button type="button" class="btn btn-sm rounded-3 py-1 px-3 text-white shadow-sm fw-semibold" style="background-color: #6f42c1; font-size: 0.78rem;"
+                                            data-bs-toggle="modal" th:data-bs-target="'#modalVerSus' + ${fb.participacionId}">
+                                        <i class="bi bi-eye me-1"></i>Ver Desglose Completo (SUS + TAM)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Si aún no ha completado la encuesta SUS+TAM -->
+                            <div th:unless="${fb.evaluacionSusTam != null}" class="d-flex flex-column flex-grow-1 justify-content-center text-center py-3 text-muted">
+                                <i class="bi bi-hourglass-split fs-4 text-warning mb-1"></i>
+                                <span class="small fw-semibold text-secondary">Encuesta SUS+TAM pendiente</span>
+                                <span style="font-size: 0.75rem;" class="text-muted">El estudiante no ha diligenciado el instrumento psicométrico para esta clase.</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="p-3 rounded-3 mt-2" style="background-color: #F8FAFC; border-left: 3px solid var(--puj-blue);">
-                    <p class="mb-0 text-dark small" style="white-space: pre-line;" th:text="${fb.comentario}">Comentario del estudiante...</p>
+                <!-- MODAL: Ver Desglose SUS + TAM de este Estudiante -->
+                <div th:if="${fb.evaluacionSusTam != null}" class="modal fade" th:id="'modalVerSus' + ${fb.participacionId}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
+                        <div class="modal-content border-0 shadow rounded-4 overflow-hidden" style="max-height: 90vh; display: flex; flex-direction: column;">
+                            <div class="modal-header border-bottom p-3 flex-shrink-0" style="background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%);">
+                                <div>
+                                    <span class="badge rounded-pill text-white" style="background-color: #7E22CE; font-size: 0.72rem;">Resultados Psicométricos</span>
+                                    <h6 class="modal-title fw-bold mb-0 mt-1" style="color: #581C87;">
+                                        <i class="bi bi-clipboard2-data-fill me-2" style="color: #7E22CE;"></i>Respuestas de <span th:text="${fb.nombreEstudiante}">Estudiante</span>
+                                    </h6>
+                                </div>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4" style="overflow-y: auto; flex-grow: 1;">
+                                <!-- Banner Resumen -->
+                                <div class="d-flex align-items-center justify-content-between p-3 rounded-3 border mb-3 flex-wrap gap-2" style="background-color: #FAF5FF; border-color: #E9D5FF !important;">
+                                    <div>
+                                        <div class="small text-muted">Puntaje Estandarizado SUS (Brooke, 1986):</div>
+                                        <div class="fs-4 fw-bold" style="color: #6B21A8;" th:text="${fb.susScore} + ' / 100 puntos'">85.0 / 100</div>
+                                    </div>
+                                    <span class="badge rounded-pill px-3 py-2 text-white" style="background-color: #7E22CE; font-size: 0.8rem;"
+                                          th:text="${T(Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO).interpretarSus(fb.susScore)}">Excelente</span>
+                                </div>
+
+                                <!-- 10 Preguntas SUS -->
+                                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">1. Usabilidad del Sistema (Escala SUS — 10 ítems)</h6>
+                                <div class="table-responsive mb-4">
+                                    <table class="table table-sm table-bordered align-middle small mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width: 40px;" class="text-center">#</th>
+                                                <th>Afirmación Evaluada</th>
+                                                <th style="width: 100px;" class="text-center">Calificación</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">1</td>
+                                                <td>Gustaría usar la plataforma con frecuencia</td>
+                                                <td class="text-center fw-bold text-primary" th:text="${fb.evaluacionSusTam.susRespuestas[0]} + ' / 5'">5 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">2</td>
+                                                <td>Innecesariamente compleja para ingresar o interactuar</td>
+                                                <td class="text-center fw-bold text-danger" th:text="${fb.evaluacionSusTam.susRespuestas[1]} + ' / 5'">1 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">3</td>
+                                                <td>Fácil de usar e intuitiva</td>
+                                                <td class="text-center fw-bold text-primary" th:text="${fb.evaluacionSusTam.susRespuestas[2]} + ' / 5'">4 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">4</td>
+                                                <td>Necesitaría ayuda técnica o de monitor</td>
+                                                <td class="text-center fw-bold text-danger" th:text="${fb.evaluacionSusTam.susRespuestas[3]} + ' / 5'">1 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">5</td>
+                                                <td>Funciones del sistema bien integradas</td>
+                                                <td class="text-center fw-bold text-primary" th:text="${fb.evaluacionSusTam.susRespuestas[4]} + ' / 5'">5 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">6</td>
+                                                <td>Inconsistencias o fallas en el comportamiento</td>
+                                                <td class="text-center fw-bold text-danger" th:text="${fb.evaluacionSusTam.susRespuestas[5]} + ' / 5'">1 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">7</td>
+                                                <td>La mayoría aprendería a usarla rápidamente</td>
+                                                <td class="text-center fw-bold text-primary" th:text="${fb.evaluacionSusTam.susRespuestas[6]} + ' / 5'">5 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">8</td>
+                                                <td>Engorrosa o lenta de operar en clase</td>
+                                                <td class="text-center fw-bold text-danger" th:text="${fb.evaluacionSusTam.susRespuestas[7]} + ' / 5'">1 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">9</td>
+                                                <td>Se sintió seguro y confiado al utilizarla</td>
+                                                <td class="text-center fw-bold text-primary" th:text="${fb.evaluacionSusTam.susRespuestas[8]} + ' / 5'">4 / 5</td>
+                                            </tr>
+                                            <tr th:if="${fb.evaluacionSusTam.susRespuestas != null and fb.evaluacionSusTam.susRespuestas.size() >= 10}">
+                                                <td class="text-center fw-bold">10</td>
+                                                <td>Necesitó aprender demasiadas cosas previas</td>
+                                                <td class="text-center fw-bold text-danger" th:text="${fb.evaluacionSusTam.susRespuestas[9]} + ' / 5'">1 / 5</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- 6 Preguntas TAM -->
+                                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">2. Aceptación Pedagógica del Tutor Socrático (Modelo TAM — 6 constructos)</h6>
+                                <div class="table-responsive mb-4" th:if="${fb.evaluacionSusTam.tamRespuestas != null}">
+                                    <table class="table table-sm table-bordered align-middle small mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Constructo Pedagógico</th>
+                                                <th style="width: 100px;" class="text-center">Calificación</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Utilidad en Comprensión:</strong> Preguntas y analogías ayudaron a entender POO</td>
+                                                <td class="text-center fw-bold text-success" th:text="${fb.evaluacionSusTam.tamRespuestas.get('utilidadPoo')} + ' / 5'">5 / 5</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Autonomía Cognitiva:</strong> Identificación de propios errores conceptuales</td>
+                                                <td class="text-center fw-bold text-success" th:text="${fb.evaluacionSusTam.tamRespuestas.get('autonomia')} + ' / 5'">4 / 5</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Desafío vs. Frustración:</strong> Reto reflexivo positivo sin desesperación</td>
+                                                <td class="text-center fw-bold text-success" th:text="${fb.evaluacionSusTam.tamRespuestas.get('frustracion')} + ' / 5'">5 / 5</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Claridad del Diálogo:</strong> Analogías y ritmo de una pregunta a la vez</td>
+                                                <td class="text-center fw-bold text-success" th:text="${fb.evaluacionSusTam.tamRespuestas.get('claridadDialogo')} + ' / 5'">4 / 5</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Ventaja frente a ChatGPT:</strong> Mayor aprendizaje que pedir el código servido</td>
+                                                <td class="text-center fw-bold text-success" th:text="${fb.evaluacionSusTam.tamRespuestas.get('ventajaIa')} + ' / 5'">5 / 5</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Intención de Adopción Futura:</strong> Voluntad de usarlo en siguientes materias</td>
+                                                <td class="text-center fw-bold text-success" th:text="${fb.evaluacionSusTam.tamRespuestas.get('adopcionFutura')} + ' / 5'">5 / 5</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Comentario Cualitativo -->
+                                <div th:if="${fb.evaluacionSusTam.comentario != null and !#strings.isEmpty(fb.evaluacionSusTam.comentario)}" class="p-3 rounded-3" style="background-color: #F8FAFC; border-left: 3px solid #7E22CE;">
+                                    <div class="fw-bold small text-dark mb-1"><i class="bi bi-chat-quote-fill me-1" style="color: #7E22CE;"></i>Opinión cualitativa del estudiante para la investigación:</div>
+                                    <p class="mb-0 text-muted small" style="white-space: pre-line;" th:text="${fb.evaluacionSusTam.comentario}">Comentario...</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer bg-light p-3 border-top flex-shrink-0">
+                                <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cerrar</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

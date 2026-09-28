@@ -1,5 +1,6 @@
 package Prototipo.Proyecto_Grado.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -42,10 +43,12 @@ public class Profesor {
     private Boolean dosFactorActivo;
 
     /** Clave secreta Base32 para cálculo TOTP (Google/Microsoft Authenticator). */
+    @JsonIgnore
     @Column(name = "secreto_2fa", length = 64)
     private String secreto2fa;
 
     /** Contraseña en texto plano o hash (columna con nombre especial). */
+    @JsonIgnore
     @Column(name = "contrase\u00f1a", nullable = false)
     private String contrasena;
 

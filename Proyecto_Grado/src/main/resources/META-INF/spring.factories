@@ -1,0 +1,1 @@
+org.springframework.boot.env.EnvironmentPostProcessor=Prototipo.Proyecto_Grado.config.EnvLoaderEnvironmentPostProcessor

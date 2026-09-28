@@ -11,6 +11,10 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 @SpringBootTest
 class ProyectoGradoApplicationTests {
 
+    static {
+        ProyectoGradoApplication.cargarVariablesEntorno();
+    }
+
     @Autowired
     private ProfesorRepository profesorRepository;
 

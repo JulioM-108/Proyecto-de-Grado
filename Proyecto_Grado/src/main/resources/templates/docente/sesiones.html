@@ -374,7 +374,9 @@
                             </button>
                         </form>
                         <button type="button" class="btn btn-outline-danger btn-sm action-btn" 
-                                th:attr="onclick='confirmarEliminar(\'' + ${sesion.id} + '\', \'' + ${sesion.tema} + '\')'"
+                                th:data-id="${sesion.id}"
+                                th:data-tema="${sesion.tema}"
+                                onclick="confirmarEliminar(this.dataset.id, this.dataset.tema)"
                                 title="Eliminar clase">
                             <i class="bi bi-trash3"></i>
                         </button>

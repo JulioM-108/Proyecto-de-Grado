@@ -278,11 +278,20 @@
                 <i class="bi bi-check-circle-fill me-1"></i>Progreso guardado
             </div>
 
-            <!-- Botón Feedback para el profesor -->
-            <button type="button" class="btn btn-outline-primary btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2"
+            <!-- Botón Feedback para el profesor (Existente) -->
+            <button type="button" class="btn btn-outline-warning btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2 text-dark"
                     data-bs-toggle="modal" data-bs-target="#modalFeedbackEstudiante">
                 <i class="bi bi-star-fill text-warning"></i>
-                <span class="d-none d-md-inline" th:text="${participacion != null and participacion.valoracionEstudiante != null ? 'Mi Feedback (' + participacion.valoracionEstudiante + '★)' : 'Dar Feedback'}">Dar Feedback</span>
+                <span class="d-none d-md-inline" th:text="${participacion != null and participacion.valoracionEstudiante != null ? 'Feedback Profe (' + participacion.valoracionEstudiante + '★)' : 'Feedback Profe'}">Feedback Profe</span>
+            </button>
+
+            <!-- Botón Evaluación SUS + TAM para la Investigación (Nuevo) -->
+            <button type="button" 
+                    th:class="${evaluacionCompletada ? 'btn btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2 border' : 'btn btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2 shadow-sm text-white'}"
+                    th:style="${evaluacionCompletada ? 'background-color: #F3E8FF; border-color: #D8B4FE !important; color: #6B21A8;' : 'background-color: #6f42c1; border-color: #6f42c1; color: white;'}"
+                    data-bs-toggle="modal" data-bs-target="#modalEvaluacionSusTam">
+                <i th:class="${evaluacionCompletada ? 'bi bi-check-circle-fill text-success' : 'bi bi-clipboard2-check-fill text-white'}"></i>
+                <span class="d-none d-md-inline fw-semibold" th:text="${evaluacionCompletada ? 'Encuesta SUS+TAM (✓)' : 'Evaluar Plataforma (SUS+TAM)'}">Evaluar Plataforma</span>
             </button>
 
             <!-- Botón Finalizar Sesión -->
@@ -310,6 +319,27 @@
     <!-- 2. Área de Mensajes con Scroll -->
     <main class="chat-scroll-area" id="chatArea">
         <div class="chat-content-limit">
+
+            <!-- Alerta de Evaluación SUS+TAM Exitosa -->
+            <div th:if="${evaluacionExitosa or param.evaluacionExitosa != null}" class="alert alert-dismissible fade show rounded-3 p-3 mb-3 text-center small shadow-sm border" style="background-color: #F3E8FF; border-color: #D8B4FE; color: #581C87;" role="alert">
+                <i class="bi bi-clipboard2-check-fill fs-5 me-2" style="color: #7E22CE;"></i>
+                <strong>¡Muchísimas gracias por tu evaluación!</strong> Tus respuestas a los instrumentos SUS y TAM fueron registradas y son fundamentales para la validación de esta investigación.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Invitación destacada a evaluar cuando se finaliza la sesión -->
+            <div th:if="${param.cerrada != null and not evaluacionCompletada}" class="card border-0 rounded-4 shadow-sm p-3 mb-3 mx-auto text-start" style="max-width: 680px; background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%); border-left: 4px solid #7E22CE !important;">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                        <span class="badge rounded-pill text-white px-2 py-1 mb-1" style="background-color: #7E22CE; font-size: 0.72rem;">Validación de Tesis</span>
+                        <h6 class="fw-bold mb-1" style="color: #581C87;"><i class="bi bi-patch-question-fill me-1"></i>¿Cómo fue tu experiencia con el tutor? (3 min)</h6>
+                        <p class="small text-muted mb-0">Tu evaluación de usabilidad y aprendizaje socrático es indispensable para validar este trabajo de grado.</p>
+                    </div>
+                    <button type="button" class="btn btn-sm text-white rounded-3 px-3 py-2 fw-semibold shadow-sm" style="background-color: #7E22CE;" data-bs-toggle="modal" data-bs-target="#modalEvaluacionSusTam">
+                        <i class="bi bi-clipboard2-check me-1"></i>Responder Encuesta
+                    </button>
+                </div>
+            </div>
 
             <!-- Alerta de Feedback Enviado -->
             <div th:if="${feedbackEnviado}" class="alert alert-success alert-dismissible fade show rounded-3 p-3 mb-3 text-center small shadow-sm" role="alert">
@@ -463,8 +493,425 @@
         </div>
     </div>
 
+    <!-- MODAL: Evaluación Científica SUS + TAM (Investigación Tesis) -->
+    <div class="modal fade" id="modalEvaluacionSusTam" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
+            <form class="modal-content border-0 shadow rounded-4 overflow-hidden" 
+                  style="max-height: 90vh; display: flex; flex-direction: column;"
+                  th:action="@{/chat/{enlace}/evaluacion-sus-tam(enlace=${sesion.enlaceUnico})}" 
+                  method="post">
+                <div class="modal-header border-bottom p-3 flex-shrink-0" style="background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%);">
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge rounded-pill text-white" style="background-color: #7E22CE; font-size: 0.72rem;">Investigación de Grado</span>
+                            <span class="small text-muted" th:text="${sesion.tema}">POO</span>
+                        </div>
+                        <h6 class="modal-title fw-bold mb-0 mt-1" style="color: #581C87;">
+                            <i class="bi bi-clipboard2-check-fill me-2" style="color: #7E22CE;"></i>Evaluación de la Plataforma (SUS + TAM)
+                        </h6>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4" style="overflow-y: auto; flex-grow: 1;">
+                        <div class="alert alert-light border rounded-3 p-3 mb-4 small">
+                            <div class="fw-bold mb-1" style="color: #581C87;">
+                                <i class="bi bi-info-circle-fill me-1"></i>Instrucciones de Diligenciamiento:
+                            </div>
+                            <p class="text-muted mb-2">
+                                Califica las siguientes afirmaciones según tu experiencia en esta tutoría socrática. Tus respuestas son confidenciales y sirven exclusivamente para la validación científica de este trabajo de grado.
+                            </p>
+                            <div class="d-flex flex-wrap justify-content-between gap-2 p-2 rounded-2" style="background-color: #F8FAFC; font-size: 0.76rem;">
+                                <span><strong>1:</strong> Totalmente en desacuerdo</span>
+                                <span><strong>2:</strong> En desacuerdo</span>
+                                <span><strong>3:</strong> Neutral</span>
+                                <span><strong>4:</strong> De acuerdo</span>
+                                <span><strong>5:</strong> Totalmente de acuerdo</span>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN 1: USABILIDAD (SUS) -->
+                        <div class="mb-4">
+                            <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                                <span class="badge rounded-circle p-2 text-white" style="background-color: #6f42c1;">1</span>
+                                <h6 class="fw-bold mb-0 text-dark">Usabilidad de la Plataforma Web (Escala SUS)</h6>
+                            </div>
+
+                            <!-- SUS 1 a 10 en loop/bloques -->
+                            <div class="vstack gap-3">
+                                <!-- SUS 1 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">1. Creo que me gustaría utilizar esta plataforma con frecuencia para mis prácticas de programación.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus1" id="sus1_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus1" id="sus1_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus1" id="sus1_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus1" id="sus1_4" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus1" id="sus1_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 2 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">2. Encontré la plataforma innecesariamente compleja para ingresar o interactuar.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus2" id="sus2_1" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus2_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus2" id="sus2_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus2_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus2" id="sus2_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus2_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus2" id="sus2_4" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus2_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus2" id="sus2_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus2_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 3 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">3. Considero que la plataforma fue fácil de usar e intuitiva.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus3" id="sus3_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus3" id="sus3_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus3" id="sus3_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus3" id="sus3_4" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus3" id="sus3_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 4 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">4. Creo que necesitaría la ayuda de un profesor o monitor para poder utilizar esta plataforma.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus4" id="sus4_1" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus4_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus4" id="sus4_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus4_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus4" id="sus4_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus4_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus4" id="sus4_4" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus4_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus4" id="sus4_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus4_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 5 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">5. Sentí que las distintas funciones del sistema estaban bien integradas.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus5" id="sus5_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus5" id="sus5_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus5" id="sus5_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus5" id="sus5_4" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus5" id="sus5_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 6 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">6. Percibí demasiadas inconsistencias o fallas en el comportamiento del sistema.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus6" id="sus6_1" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus6_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus6" id="sus6_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus6_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus6" id="sus6_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus6_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus6" id="sus6_4" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus6_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus6" id="sus6_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus6_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 7 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">7. Imagino que la mayoría de estudiantes de programación aprenderían a usar esta plataforma muy rápidamente.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus7" id="sus7_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus7" id="sus7_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus7" id="sus7_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus7" id="sus7_4" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus7" id="sus7_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 8 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">8. Encontré la plataforma muy engorrosa o lenta de operar durante la actividad.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus8" id="sus8_1" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus8_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus8" id="sus8_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus8_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus8" id="sus8_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus8_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus8" id="sus8_4" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus8_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus8" id="sus8_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus8_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 9 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">9. Me sentí seguro y confiado interactuando con la plataforma.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus9" id="sus9_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus9" id="sus9_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus9" id="sus9_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus9" id="sus9_4" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus9" id="sus9_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- SUS 10 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">10. Necesité aprender demasiadas cosas antes de poder empezar a interactuar con el tutor.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="sus10" id="sus10_1" value="1" checked required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus10_1">1</label>
+                                            <input type="radio" class="btn-check" name="sus10" id="sus10_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus10_2">2</label>
+                                            <input type="radio" class="btn-check" name="sus10" id="sus10_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus10_3">3</label>
+                                            <input type="radio" class="btn-check" name="sus10" id="sus10_4" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus10_4">4</label>
+                                            <input type="radio" class="btn-check" name="sus10" id="sus10_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="sus10_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN 2: ACEPTACIÓN PEDAGÓGICA (TAM) -->
+                        <div class="mb-4">
+                            <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                                <span class="badge rounded-circle p-2 text-white" style="background-color: #6f42c1;">2</span>
+                                <h6 class="fw-bold mb-0 text-dark">Aceptación Pedagógica del Tutor Socrático (Modelo TAM)</h6>
+                            </div>
+
+                            <div class="vstack gap-3">
+                                <!-- TAM 1 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">11. [Utilidad Pedagógica] Recibir preguntas orientadoras y analogías en vez del código resuelto me ayudó a entender mejor la lógica de POO.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="tamUtilidad" id="tam1_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam1_1">1</label>
+                                            <input type="radio" class="btn-check" name="tamUtilidad" id="tam1_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam1_2">2</label>
+                                            <input type="radio" class="btn-check" name="tamUtilidad" id="tam1_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam1_3">3</label>
+                                            <input type="radio" class="btn-check" name="tamUtilidad" id="tam1_4" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam1_4">4</label>
+                                            <input type="radio" class="btn-check" name="tamUtilidad" id="tam1_5" value="5" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam1_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- TAM 2 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">12. [Autonomía Cognitiva] La interacción con el tutor me ayudó a identificar mis propios errores conceptuales y a avanzar en la solución por mí mismo.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_1">1</label>
+                                            <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_2">2</label>
+                                            <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_3">3</label>
+                                            <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_4" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_4">4</label>
+                                            <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- TAM 3 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">13. [Desafío vs. Frustración] Sentí que el tutor me desafió a pensar de forma constructiva, en lugar de generarme frustración por no darme el código de inmediato.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="tamFrustracion" id="tam3_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam3_1">1</label>
+                                            <input type="radio" class="btn-check" name="tamFrustracion" id="tam3_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam3_2">2</label>
+                                            <input type="radio" class="btn-check" name="tamFrustracion" id="tam3_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam3_3">3</label>
+                                            <input type="radio" class="btn-check" name="tamFrustracion" id="tam3_4" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam3_4">4</label>
+                                            <input type="radio" class="btn-check" name="tamFrustracion" id="tam3_5" value="5" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam3_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- TAM 4 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">14. [Claridad de la Mediación] Las analogías del mundo real y el ritmo de conversación (una pregunta a la vez) fueron claros y facilitaron mi aprendizaje.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="tamDialogo" id="tam4_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_1">1</label>
+                                            <input type="radio" class="btn-check" name="tamDialogo" id="tam4_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_2">2</label>
+                                            <input type="radio" class="btn-check" name="tamDialogo" id="tam4_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_3">3</label>
+                                            <input type="radio" class="btn-check" name="tamDialogo" id="tam4_4" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_4">4</label>
+                                            <input type="radio" class="btn-check" name="tamDialogo" id="tam4_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- TAM 5 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">15. [Ventaja vs. ChatGPT] Considero más provechoso para mi formación aprender con este tutor socrático que simplemente pidiéndole el código resuelto a herramientas como ChatGPT.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="tamVentaja" id="tam5_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam5_1">1</label>
+                                            <input type="radio" class="btn-check" name="tamVentaja" id="tam5_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam5_2">2</label>
+                                            <input type="radio" class="btn-check" name="tamVentaja" id="tam5_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam5_3">3</label>
+                                            <input type="radio" class="btn-check" name="tamVentaja" id="tam5_4" value="4">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam5_4">4</label>
+                                            <input type="radio" class="btn-check" name="tamVentaja" id="tam5_5" value="5" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam5_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+
+                                <!-- TAM 6 -->
+                                <div class="p-3 rounded-3 border bg-light-subtle">
+                                    <label class="form-label small fw-semibold text-dark mb-2 d-block">16. [Intención de Uso Futuro] Si esta plataforma estuviera disponible en futuras asignaturas de programación, la utilizaría voluntariamente para estudiar.</label>
+                                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                        <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
+                                        <div class="btn-group" role="group">
+                                            <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_1" value="1" required>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_1">1</label>
+                                            <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_2" value="2">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_2">2</label>
+                                            <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_3" value="3">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_3">3</label>
+                                            <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_4" value="4" checked>
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_4">4</label>
+                                            <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_5" value="5">
+                                            <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_5">5</label>
+                                        </div>
+                                        <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN 3: CUALITATIVO -->
+                        <div class="mb-2">
+                            <div class="d-flex align-items-center gap-2 mb-2 pb-2 border-bottom">
+                                <span class="badge rounded-circle p-2 text-white" style="background-color: #6f42c1;">3</span>
+                                <h6 class="fw-bold mb-0 text-dark">Retroalimentación Cualitativa (Opcional)</h6>
+                            </div>
+                            <label for="comentarioSusTam" class="form-label small text-muted">¿Qué fue lo más valioso de interactuar con este tutor inteligente y qué aspectos sugieres mejorar?</label>
+                            <textarea class="form-control rounded-3" id="comentarioSusTam" name="comentario" rows="3"
+                                      placeholder="Ej: Las pistas me ayudaron a entender encapsulamiento sin darme el código. Sugiero agregar un temporizador..."
+                                      th:text="${evaluacionSusTam != null ? evaluacionSusTam.comentario : ''}"></textarea>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer bg-light p-3 border-top flex-shrink-0">
+                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="submit" class="btn btn-sm rounded-3 px-4 fw-semibold text-white shadow-sm" style="background-color: #6f42c1;">
+                            <i class="bi bi-send-check me-1"></i>Guardar y Enviar Evaluación
+                        </button>
+                    </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         marked.setOptions({
@@ -472,10 +919,10 @@
             gfm: true
         });
 
-        // Renderizar Markdown en cada burbuja del tutor
+        // Renderizar Markdown sanitizado en cada burbuja del tutor
         document.querySelectorAll('.markdown-content').forEach(el => {
             const raw = el.getAttribute('data-raw') || '';
-            el.innerHTML = marked.parse(raw);
+            el.innerHTML = DOMPurify.sanitize(marked.parse(raw));
         });
 
         // Auto-scroll al final del chat
@@ -484,9 +931,128 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        // Auto-ajuste de altura del textarea y envío con Enter
+        // Auto-ajuste de altura del textarea y envío dinámico asincrónico (AJAX)
         const textarea = document.getElementById('mensajeInput');
         const form = document.getElementById('chatForm');
+        const sendBtn = form ? form.querySelector('.btn-send-message') : null;
+        const contentLimit = document.querySelector('.chat-content-limit');
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function scrollAlFinal() {
+            if (chatArea) {
+                chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
+        async function enviarMensajeAjax(e) {
+            if (e) e.preventDefault();
+            const mensajeTexto = textarea.value.trim();
+            if (!mensajeTexto || (sendBtn && sendBtn.disabled)) return;
+
+            // 1. Limpiar textarea y resetear altura
+            textarea.value = '';
+            textarea.style.height = 'auto';
+
+            // 2. Obtener hora actual formateada
+            const ahora = new Date();
+            const horaStr = ahora.getHours().toString().padStart(2, '0') + ':' + ahora.getMinutes().toString().padStart(2, '0');
+
+            // 3. Renderizar de inmediato la burbuja del estudiante
+            const estudianteHtml = `
+                <div class="msg-row student">
+                    <div class="bubble student">
+                        <div class="d-flex align-items-center justify-content-between gap-3 mb-1">
+                            <span class="fw-bold small opacity-75">Tú</span>
+                            <span class="msg-timestamp">${horaStr}</span>
+                        </div>
+                        <div style="white-space: pre-wrap;">${escapeHtml(mensajeTexto)}</div>
+                    </div>
+                </div>
+            `;
+            contentLimit.insertAdjacentHTML('beforeend', estudianteHtml);
+            scrollAlFinal();
+
+            // 4. Mostrar indicador de tipeo del tutor socrático
+            const typingId = 'tutorTypingIndicator_' + Date.now();
+            const typingHtml = `
+                <div class="msg-row tutor" id="${typingId}">
+                    <div class="bubble tutor">
+                        <div class="tutor-header mb-1">
+                            <div class="tutor-tag">
+                                <i class="bi bi-robot"></i>
+                                <span>Tutor Socrático</span>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 text-muted py-2" style="font-size: 0.85rem;">
+                            <div class="spinner-grow spinner-grow-sm text-primary" style="width: 0.75rem; height: 0.75rem;" role="status"></div>
+                            <span class="fst-italic">Tutor reflexionando tu consulta...</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            contentLimit.insertAdjacentHTML('beforeend', typingHtml);
+            scrollAlFinal();
+
+            // Deshabilitar botón durante el procesamiento
+            if (sendBtn) sendBtn.disabled = true;
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    body: new URLSearchParams({ mensaje: mensajeTexto })
+                });
+
+                const indicatorEl = document.getElementById(typingId);
+                if (indicatorEl) indicatorEl.remove();
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const rawContenido = data.tutorContenido || 'No se obtuvo respuesta.';
+                    const htmlParseado = DOMPurify.sanitize(marked.parse(rawContenido));
+
+                    const tutorHtml = `
+                        <div class="msg-row tutor">
+                            <div class="bubble tutor">
+                                <div class="tutor-header">
+                                    <div class="tutor-tag">
+                                        <i class="bi bi-robot"></i>
+                                        <span>Tutor Socrático</span>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="msg-timestamp">${data.hora || horaStr}</span>
+                                    </div>
+                                </div>
+                                <div class="markdown-render markdown-content">${htmlParseado}</div>
+                            </div>
+                        </div>
+                    `;
+                    contentLimit.insertAdjacentHTML('beforeend', tutorHtml);
+                    scrollAlFinal();
+                } else {
+                    // Si ocurre un error, enviar via submit tradicional como fallback
+                    form.submit();
+                }
+            } catch (err) {
+                console.error("Error en comunicación asincrónica:", err);
+                const indicatorEl = document.getElementById(typingId);
+                if (indicatorEl) indicatorEl.remove();
+                // Fallback clásico
+                form.submit();
+            } finally {
+                if (sendBtn) sendBtn.disabled = false;
+                textarea.focus();
+            }
+        }
 
         if (textarea && form) {
             textarea.addEventListener('input', function () {
@@ -498,9 +1064,14 @@
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     if (this.value.trim().length > 0) {
-                        form.submit();
+                        enviarMensajeAjax();
                     }
                 }
+            });
+
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                enviarMensajeAjax();
             });
         }
     </script>
