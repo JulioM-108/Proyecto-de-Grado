@@ -287,6 +287,7 @@
 
             <!-- Botón Evaluación SUS + TAM para la Investigación (Nuevo) -->
             <button type="button" 
+                    id="btnEncuestaSusTam"
                     th:class="${evaluacionCompletada ? 'btn btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2 border' : 'btn btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2 shadow-sm text-white'}"
                     th:style="${evaluacionCompletada ? 'background-color: #F3E8FF; border-color: #D8B4FE !important; color: #6B21A8;' : 'background-color: #6f42c1; border-color: #6f42c1; color: white;'}"
                     data-bs-toggle="modal" data-bs-target="#modalEvaluacionSusTam">
@@ -295,7 +296,8 @@
             </button>
 
             <!-- Botón Finalizar Sesión -->
-            <form th:if="${not #lists.isEmpty(mensajes) and param.cerrada == null}" 
+            <form th:if="${not #lists.isEmpty(mensajes) and param.cerrada == null and not sesionCompletada}" 
+                  id="formFinalizarSesion"
                   th:action="@{/chat/{enlace}/cerrar(enlace=${sesion.enlaceUnico})}" 
                   method="post"
                   onsubmit="return confirm('¿Deseas finalizar la sesión? Se generará la síntesis de tu progreso para el docente y tu próxima sesión.');">
@@ -319,6 +321,41 @@
     <!-- 2. Área de Mensajes con Scroll -->
     <main class="chat-scroll-area" id="chatArea">
         <div class="chat-content-limit">
+
+            <!-- Alerta / Banner de Ruta de Preguntas Guía Completada -->
+            <div th:if="${sesionCompletada or param.completada != null}" id="bannerRutaCompletada" 
+                 class="card border-0 rounded-4 shadow-sm p-3 mb-3 mx-auto text-start" 
+                 style="max-width: 680px; background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border-left: 4px solid #059669 !important;">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                        <span class="badge rounded-pill text-white px-2 py-1 mb-1" style="background-color: #059669; font-size: 0.72rem;">
+                            <i class="bi bi-award-fill me-1"></i>Hitos Socráticos Completados
+                        </span>
+                        <h6 class="fw-bold mb-1 text-success-emphasis">
+                            <i class="bi bi-check-circle-fill me-1"></i>¡Excelente trabajo! Has completado la ruta de preguntas de esta clase
+                        </h6>
+                        <p class="small text-muted mb-0">Tu tutor socrático ha generado la síntesis pedagógica para tu docente. Recuerda responder la breve encuesta de evaluación de la plataforma.</p>
+                    </div>
+                    <button type="button" class="btn btn-sm text-white rounded-3 px-3 py-2 fw-semibold shadow-sm" 
+                            style="background-color: #6B21A8;" 
+                            data-bs-toggle="modal" data-bs-target="#modalEvaluacionSusTam">
+                        <i class="bi bi-clipboard2-check me-1"></i>Evaluar Plataforma (SUS+TAM)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Banner sutil de sugerencia de cierre cuando el alumno expresa agradecimiento -->
+            <div id="bannerSugerenciaCierre" class="card border-0 rounded-4 shadow-sm p-2 mb-3 mx-auto text-start d-none" 
+                 style="max-width: 680px; background-color: #EFF6FF; border-left: 4px solid #2563EB !important;">
+                <div class="d-flex align-items-center justify-content-between gap-2 px-2">
+                    <span class="small text-primary-emphasis">
+                        <i class="bi bi-info-circle-fill me-1 text-primary"></i>¿Resolviste tu duda? Puedes finalizar la sesión para consolidar tu avance.
+                    </span>
+                    <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-0 px-2 small" onclick="confirmarCierreVoluntario()">
+                        Finalizar Sesión
+                    </button>
+                </div>
+            </div>
 
             <!-- Alerta de Evaluación SUS+TAM Exitosa -->
             <div th:if="${evaluacionExitosa or param.evaluacionExitosa != null}" class="alert alert-dismissible fade show rounded-3 p-3 mb-3 text-center small shadow-sm border" style="background-color: #F3E8FF; border-color: #D8B4FE; color: #581C87;" role="alert">
@@ -428,10 +465,10 @@
             <form th:action="@{/chat/{enlace}/mensaje(enlace=${sesion.enlaceUnico})}" method="post" id="chatForm" class="d-flex gap-2 align-items-end">
                 <textarea name="mensaje" id="mensajeInput" class="form-control textarea-chat" 
                           rows="1" 
-                          th:placeholder="${sesion.estado == false ? 'Esta sesión ha sido pausada por el profesor...' : 'Escribe tu reflexión o consulta de POO... (Enter para enviar, Shift+Enter para salto de línea)'}" 
-                          th:disabled="${sesion.estado == false}"
+                          th:placeholder="${sesion.estado == false ? 'Esta sesión ha sido pausada por el profesor...' : (sesionCompletada ? '¡Felicitaciones! Has completado todas las preguntas guía de esta sesión.' : 'Escribe tu reflexión o consulta de POO... (Enter para enviar, Shift+Enter para salto de línea)')}" 
+                          th:disabled="${sesion.estado == false or sesionCompletada}"
                           required autofocus></textarea>
-                <button type="submit" class="btn-send-message" title="Enviar Mensaje" th:disabled="${sesion.estado == false}">
+                <button type="submit" class="btn-send-message" title="Enviar Mensaje" th:disabled="${sesion.estado == false or sesionCompletada}">
                     <i class="bi bi-arrow-up fs-5"></i>
                 </button>
             </form>
@@ -1038,6 +1075,13 @@
                     `;
                     contentLimit.insertAdjacentHTML('beforeend', tutorHtml);
                     scrollAlFinal();
+
+                    // Si el tutor determinó que se completaron todas las preguntas guía
+                    if (data.sesionCompletada) {
+                        activarCelebracionRutaCompletada();
+                    } else if (detectarIntencionCierre(mensajeTexto)) {
+                        mostrarSugerenciaCierre();
+                    }
                 } else {
                     // Si ocurre un error, enviar via submit tradicional como fallback
                     form.submit();
@@ -1049,10 +1093,87 @@
                 // Fallback clásico
                 form.submit();
             } finally {
-                if (sendBtn) sendBtn.disabled = false;
-                textarea.focus();
+                const yaTerminada = document.getElementById('bannerRutaCompletada') !== null;
+                if (sendBtn && !yaTerminada) sendBtn.disabled = false;
+                if (textarea && !yaTerminada) textarea.focus();
             }
         }
+
+        function activarCelebracionRutaCompletada() {
+            if (textarea) {
+                textarea.disabled = true;
+                textarea.placeholder = '¡Felicitaciones! Has completado todas las preguntas guía de esta sesión.';
+            }
+            const sendBtn = form ? form.querySelector('button[type="submit"]') : null;
+            if (sendBtn) sendBtn.disabled = true;
+
+            const contentLimit = document.querySelector('.chat-content-limit');
+            if (contentLimit && !document.getElementById('bannerRutaCompletada')) {
+                const bannerHtml = `
+                    <div id="bannerRutaCompletada" class="card border-0 rounded-4 shadow-sm p-3 mb-3 mx-auto text-start" 
+                         style="max-width: 680px; background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border-left: 4px solid #059669 !important;">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div>
+                                <span class="badge rounded-pill text-white px-2 py-1 mb-1" style="background-color: #059669; font-size: 0.72rem;">
+                                    <i class="bi bi-award-fill me-1"></i>Hitos Socráticos Completados
+                                </span>
+                                <h6 class="fw-bold mb-1 text-success-emphasis">
+                                    <i class="bi bi-check-circle-fill me-1"></i>¡Excelente trabajo! Has completado la ruta de preguntas de esta clase
+                                </h6>
+                                <p class="small text-muted mb-0">Tu tutor socrático ha generado la síntesis pedagógica para tu docente. Recuerda responder la breve encuesta de evaluación de la plataforma.</p>
+                            </div>
+                            <button type="button" class="btn btn-sm text-white rounded-3 px-3 py-2 fw-semibold shadow-sm" 
+                                    style="background-color: #6B21A8;" 
+                                    data-bs-toggle="modal" data-bs-target="#modalEvaluacionSusTam">
+                                <i class="bi bi-clipboard2-check me-1"></i>Evaluar Plataforma (SUS+TAM)
+                            </button>
+                        </div>
+                    </div>
+                `;
+                contentLimit.insertAdjacentHTML('afterbegin', bannerHtml);
+            }
+
+            const formCerrar = document.getElementById('formFinalizarSesion');
+            if (formCerrar) formCerrar.style.display = 'none';
+
+            const sugerencia = document.getElementById('bannerSugerenciaCierre');
+            if (sugerencia) sugerencia.classList.add('d-none');
+        }
+
+        // Respaldo 3: Detección sutil de intención conversacional de cierre
+        const palabrasCierre = ['ya entendí', 'ya me quedó claro', 'muchas gracias', 'muchas gracias profe', 'listo profe', 'ya terminé', 'eso era todo', 'ya quedó claro'];
+        function detectarIntencionCierre(texto) {
+            if (!texto) return false;
+            const t = texto.toLowerCase();
+            return palabrasCierre.some(p => t.includes(p));
+        }
+
+        function mostrarSugerenciaCierre() {
+            const sugerencia = document.getElementById('bannerSugerenciaCierre');
+            if (sugerencia && !document.getElementById('bannerRutaCompletada')) {
+                sugerencia.classList.remove('d-none');
+            }
+        }
+
+        function confirmarCierreVoluntario() {
+            const formCerrar = document.getElementById('formFinalizarSesion');
+            if (formCerrar) {
+                formCerrar.querySelector('button').click();
+            } else {
+                window.location.href = window.location.pathname + '?cerrada=true';
+            }
+        }
+
+        // Respaldo 4: Alerta preventiva beforeunload si el estudiante intenta cerrar con interacción activa
+        window.addEventListener('beforeunload', function (e) {
+            const completada = document.getElementById('bannerRutaCompletada') !== null;
+            const numMensajes = document.querySelectorAll('.msg-row').length;
+            if (!completada && numMensajes > 1) {
+                e.preventDefault();
+                e.returnValue = 'Tienes una sesión socrática en curso. ¿Deseas salir?';
+                return e.returnValue;
+            }
+        });
 
         if (textarea && form) {
             textarea.addEventListener('input', function () {

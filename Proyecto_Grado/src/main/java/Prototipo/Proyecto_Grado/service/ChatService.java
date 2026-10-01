@@ -125,24 +125,44 @@ public class ChatService {
         // Fase 2 (FUERA de transacción JDBC, 5-35s): llamada HTTP a Gemini
         String respuestaTutor = geminiService.generarRespuesta(contexto.promptFinal());
 
+        // Detección automática del fin de la ruta pedagógica (Preguntas Guía completadas)
+        boolean rutaCompletada = respuestaTutor != null && respuestaTutor.contains("<!-- RUTA_COMPLETADA -->");
+        String contenidoLimpio = respuestaTutor != null
+                ? respuestaTutor.replace("<!-- RUTA_COMPLETADA -->", "").trim()
+                : "";
+
         // Fase 3 (Transacción corta ~50ms): persistir respuesta del tutor
-        return transactionTemplate.execute(status -> {
+        MensajeDto dto = transactionTemplate.execute(status -> {
             Participacion participacion = participacionRepository.findById(contexto.participacionId())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Participación no encontrada: " + contexto.participacionId()));
 
             mensajeRepository.save(Mensaje.builder()
                     .emisor(false)
-                    .contenido(respuestaTutor)
+                    .contenido(contenidoLimpio)
                     .participacion(participacion)
                     .build());
 
             return MensajeDto.builder()
                     .emisor("TUTOR")
-                    .contenido(respuestaTutor)
+                    .contenido(contenidoLimpio)
                     .reformuladoPorAuditor(false)
+                    .sesionCompletada(rutaCompletada)
                     .build();
         });
+
+        // Si el tutor determinó que se completaron todas las preguntas guía, generar la síntesis inmediatamente
+        if (rutaCompletada) {
+            try {
+                log.info("Ruta de aprendizaje socrática completada para participación {}. Generando progreso_md automáticamente.",
+                        contexto.participacionId());
+                cerrarSesionYGenerarProgreso(contexto.participacionId());
+            } catch (Exception e) {
+                log.warn("Error al generar automáticamente progreso_md tras completar ruta socrática: {}", e.getMessage());
+            }
+        }
+
+        return dto;
     }
 
     // ─── Flujo 3: Cierre de Sesión y Síntesis Pedagógica ─────────────────────

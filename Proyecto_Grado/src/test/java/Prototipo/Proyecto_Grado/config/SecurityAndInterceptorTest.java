@@ -102,4 +102,30 @@ class SecurityAndInterceptorTest {
         assertFalse(authService.esDominioJaveriano(""));
         assertFalse(authService.esDominioJaveriano(null));
     }
+
+    @Test
+    @DisplayName("AuthService verifica contraseñas tanto con BCrypt como con fallback de texto plano")
+    void testVerificacionPasswordBcryptYTextoPlano() {
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        AuthService authService = new AuthService(null, null, encoder);
+
+        String rawPassword = "MiPasswordSegura123";
+        String bcryptHash = encoder.encode(rawPassword);
+
+        // 1. Detección de formato BCrypt
+        assertTrue(authService.esHashBcrypt(bcryptHash));
+        assertFalse(authService.esHashBcrypt(rawPassword));
+
+        // 2. Verificación con hash BCrypt
+        assertTrue(authService.verificarPassword(rawPassword, bcryptHash));
+        assertFalse(authService.verificarPassword("Incorrecta", bcryptHash));
+
+        // 3. Verificación con contraseña heredada en texto plano (sin warning de BCrypt)
+        assertTrue(authService.verificarPassword(rawPassword, rawPassword));
+        assertFalse(authService.verificarPassword("Incorrecta", rawPassword));
+
+        // 4. Casos nulos o vacíos
+        assertFalse(authService.verificarPassword(null, bcryptHash));
+        assertFalse(authService.verificarPassword(rawPassword, null));
+    }
 }

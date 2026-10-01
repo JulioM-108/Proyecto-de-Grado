@@ -94,6 +94,8 @@ public class ChatController {
         model.addAttribute("participacion", participacion);
         model.addAttribute("mensajes", mensajes);
         model.addAttribute("feedbackEnviado", Boolean.TRUE.equals(feedbackEnviado));
+        boolean sesionCompletada = participacion.getProgresoMd() != null && !participacion.getProgresoMd().isBlank();
+        model.addAttribute("sesionCompletada", sesionCompletada);
         model.addAttribute("evaluacionSusTam", evaluacionDTO);
         model.addAttribute("evaluacionCompletada", evaluacionDTO != null);
         model.addAttribute("evaluacionExitosa", Boolean.TRUE.equals(evaluacionExitosa));
@@ -201,11 +203,16 @@ public class ChatController {
         if (esAjax) {
             String horaActual = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
                     .format(java.time.LocalTime.now());
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "tutorContenido", respuestaTutor != null ? respuestaTutor.getContenido() : "",
-                    "hora", horaActual
-            ));
+            java.util.Map<String, Object> respMap = new java.util.HashMap<>();
+            respMap.put("success", true);
+            respMap.put("tutorContenido", respuestaTutor != null ? respuestaTutor.getContenido() : "");
+            respMap.put("hora", horaActual);
+            respMap.put("sesionCompletada", respuestaTutor != null && respuestaTutor.isSesionCompletada());
+            return ResponseEntity.ok(respMap);
+        }
+
+        if (respuestaTutor != null && respuestaTutor.isSesionCompletada()) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace + "?completada=true")).build();
         }
 
         return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace)).build();

@@ -611,13 +611,17 @@
 
             if (!rawText || rawText === 'En diálogo...') {
                 container.innerHTML = `
-                    <div class="text-center py-5">
+                    <div class="text-center py-4">
                         <i class="bi bi-chat-left-dots text-primary fs-1 d-block mb-3 opacity-75"></i>
-                        <h6 class="fw-bold text-dark">Diálogo Socrático en Curso</h6>
-                        <p class="text-muted small mx-auto mb-0" style="max-width: 440px; line-height: 1.6;">
-                            El estudiante aún no cuenta con un diagnóstico cerrado. Se encuentra en interacción activa con el tutor socrático.
-                            El informe completo de conceptos dominados, falencias y recomendaciones se consolidará al finalizar la sesión.
+                        <h6 class="fw-bold text-dark">Diálogo Socrático sin Cierre Formal</h6>
+                        <p class="text-muted small mx-auto mb-3" style="max-width: 440px; line-height: 1.6;">
+                            El estudiante interactuó con el tutor pero la sesión no fue cerrada formalmente. Puedes generar la síntesis pedagógica ahora mismo con IA a partir de las consultas acumuladas.
                         </p>
+                        <button type="button" class="btn btn-primary btn-sm rounded-3 px-3 py-2 fw-semibold shadow-sm"
+                                id="btnGenerarDiagnostico"
+                                onclick="generarDiagnosticoBajoDemanda('${partId}', '${escapeHtml(nombreEstudiante)}')">
+                            <i class="bi bi-magic me-1"></i>Generar Diagnóstico Pedagógico Ahora
+                        </button>
                     </div>
                 `;
             } else {
@@ -679,6 +683,40 @@
 
             const modal = new bootstrap.Modal(document.getElementById('modalDiagnosticoCognitivo'));
             modal.show();
+        }
+
+        function generarDiagnosticoBajoDemanda(partId, nombreEstudiante) {
+            const btn = document.getElementById('btnGenerarDiagnostico');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sintetizando con IA...';
+            }
+
+            fetch('/docente/api/participaciones/' + partId + '/generar-diagnostico', {
+                method: 'POST'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.progresoMd) {
+                    const dataDiv = document.getElementById('progreso-data-' + partId);
+                    if (dataDiv) dataDiv.innerText = data.progresoMd;
+                    abrirDiagnostico(partId, nombreEstudiante);
+                } else {
+                    alert(data.error || 'No se pudo generar el diagnóstico.');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-magic me-1"></i>Reintentar Generar';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Error de conexión al generar el diagnóstico con IA.');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-magic me-1"></i>Reintentar Generar';
+                }
+            });
         }
     </script>
 </body>

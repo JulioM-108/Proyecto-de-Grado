@@ -44,7 +44,7 @@ public class AuthService {
                 throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             Profesor prof = profesorOpt.get();
-            if (!verificarPassword(password, prof.getContrasena())) {
+            if (!verificarYMigrarPasswordProfesor(prof, password)) {
                 throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             return new UsuarioAutenticado(prof.getId(), prof.getNombre(), prof.getCorreo(), "DOCENTE");
@@ -56,11 +56,49 @@ public class AuthService {
                 throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             Estudiante est = estudianteOpt.get();
-            if (!verificarPassword(password, est.getContrasena())) {
+            if (!verificarYMigrarPasswordEstudiante(est, password)) {
                 throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             return new UsuarioAutenticado(est.getId(), est.getNombre(), est.getCorreo(), "ESTUDIANTE");
         }
+    }
+
+    /**
+     * Verifica y actualiza transparentemente a BCrypt si la contraseña almacenada estaba en texto plano.
+     */
+    private boolean verificarYMigrarPasswordProfesor(Profesor prof, String passwordIngresada) {
+        if (!verificarPassword(passwordIngresada, prof.getContrasena())) {
+            return false;
+        }
+        if (!esHashBcrypt(prof.getContrasena()) && profesorRepository != null) {
+            try {
+                prof.setContrasena(passwordEncoder.encode(passwordIngresada));
+                profesorRepository.save(prof);
+                log.info("Contraseña de docente {} migrada exitosamente a hash BCrypt.", prof.getCorreo());
+            } catch (Exception e) {
+                log.warn("No se pudo persistir la migración a BCrypt para docente {}: {}", prof.getCorreo(), e.getMessage());
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Verifica y actualiza transparentemente a BCrypt si la contraseña almacenada estaba en texto plano.
+     */
+    private boolean verificarYMigrarPasswordEstudiante(Estudiante est, String passwordIngresada) {
+        if (!verificarPassword(passwordIngresada, est.getContrasena())) {
+            return false;
+        }
+        if (!esHashBcrypt(est.getContrasena()) && estudianteRepository != null) {
+            try {
+                est.setContrasena(passwordEncoder.encode(passwordIngresada));
+                estudianteRepository.save(est);
+                log.info("Contraseña de estudiante {} migrada exitosamente a hash BCrypt.", est.getCorreo());
+            } catch (Exception e) {
+                log.warn("No se pudo persistir la migración a BCrypt para estudiante {}: {}", est.getCorreo(), e.getMessage());
+            }
+        }
+        return true;
     }
 
     /**
@@ -85,18 +123,36 @@ public class AuthService {
     }
 
     /**
-     * Verifica la contraseña contra el hash BCrypt almacenado.
+     * Determina si la contraseña almacenada tiene formato de hash BCrypt ($2a$, $2b$ o $2y$).
+     */
+    public boolean esHashBcrypt(String passwordAlmacenada) {
+        return passwordAlmacenada != null && (
+                passwordAlmacenada.startsWith("$2a$") ||
+                passwordAlmacenada.startsWith("$2b$") ||
+                passwordAlmacenada.startsWith("$2y$")
+        );
+    }
+
+    /**
+     * Verifica la contraseña contra el valor almacenado.
+     * Soporta hashes BCrypt y realiza fallback transparente para contraseñas heredadas en texto plano,
+     * evitando advertencias innecesarias en el log de Spring Security.
      */
     public boolean verificarPassword(String passwordIngresada, String passwordAlmacenada) {
         if (passwordAlmacenada == null || passwordIngresada == null) {
             return false;
         }
 
-        try {
-            return passwordEncoder.matches(passwordIngresada, passwordAlmacenada);
-        } catch (Exception e) {
-            log.warn("Error al verificar contraseña con BCrypt: {}", e.getMessage());
-            return false;
+        if (esHashBcrypt(passwordAlmacenada)) {
+            try {
+                return passwordEncoder.matches(passwordIngresada, passwordAlmacenada);
+            } catch (Exception e) {
+                log.warn("Error al verificar contraseña con BCrypt: {}", e.getMessage());
+                return false;
+            }
         }
+
+        // Fallback para usuarios heredados cuya contraseña fue creada originalmente en texto plano
+        return passwordIngresada.equals(passwordAlmacenada);
     }
 }

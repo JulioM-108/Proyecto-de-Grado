@@ -534,3 +534,26 @@ Se realizó una auditoría exhaustiva de seguridad y eficiencia sobre la totalid
 
 * **RF-10 (Auditor Socrático):** Se decidió explícitamente no implementar el servicio `SocraticAuditorService` como componente independiente. La auditoría socrática se gestiona de forma unificada dentro de las reglas de la Capa 1 del prompt del sistema, las cuales prohíben al modelo entregar código o soluciones directas. Se actualizaron los comentarios del código para reflejar esta decisión arquitectónica.
 * **Spring Security con roles formales:** Se mantiene la autenticación basada en sesión HTTP con validación manual por controlador como decisión de prototipo, dado que la implementación de roles Spring Security formales requeriría una reestructuración mayor del flujo de autenticación actual (correo institucional + 2FA manual).
+
+---
+
+### 14.9. Mecanismo de Finalización de Tutoría por Preguntas Guía y Resguardos de Síntesis Pedagógica (`progreso_md`)
+
+Para resolver la incertidumbre de determinar cuándo un estudiante finaliza su proceso formativo con el tutor socrático y garantizar que el docente siempre cuente con la síntesis diagnóstica en Markdown (`progreso_md`), se implementó un mecanismo híbrido de detección pedagógica de fin de ruta acompañado de cuatro (4) mecanismos de respaldo operativo:
+
+#### 14.9.1. Detección Pedagógica Automática por Hitos Guiados (`<!-- RUTA_COMPLETADA -->`)
+* **Enfoque Pedagógico:** En lugar de basarse en temporizadores rígidos o depender exclusivamente del botón manual `[Finalizar Sesión]` (el cual los estudiantes suelen omitir al cerrar la ventana o retirarse tras resolver su duda), el sistema utiliza la comprensión del diálogo por parte de la IA para certificar el cierre.
+* **Prompt del Sistema (`capa1_socratico.md`):** Se incorporó la regla pedagógica *5. Culminación de la Ruta de Aprendizaje (Hito Final Superado)*. Cuando el estudiante demuestra asimilación conceptual del último hito o pregunta orientadora de la sesión, el tutor emite una felicitación reflexiva, sintetiza el logro alcanzado y añade de forma silenciosa la meta-etiqueta `<!-- RUTA_COMPLETADA -->`.
+* **Procesamiento en Backend (`ChatService.java`):** Al recibir la respuesta del LLM, el servicio detecta la presencia de la meta-etiqueta, la suprime del texto visible presentado al estudiante para preservar la naturalidad del diálogo (`contenidoLimpio`), invoca de manera automática la generación de la síntesis diagnóstica (`cerrarSesionYGenerarProgreso(participacionId)`) y marca la bandera `sesionCompletada = true` en el `MensajeDto`.
+* **Interfaz de Chat (`chat.html`):** Al activarse la bandera `sesionCompletada`, la vista despliega un banner institucional de felicitación (`#bannerRutaCompletada`), deshabilita el área de texto para prevenir mensajes redundantes y ofrece acceso directo e inequívoco a la evaluación de usabilidad y aceptación tecnológica (SUS+TAM).
+
+#### 14.9.2. Los Cuatro (4) Mecanismos de Respaldo Operativo
+1. **Generación Bajo Demanda en el Dashboard Docente (Lazy Synthesis):**
+   * Si un estudiante interactuó con el tutor pero interrumpió la sesión antes de que se detonara el cierre formal, el docente puede visualizar su participación en el dashboard y generar el diagnóstico en tiempo real mediante el botón `[Generar Diagnóstico Pedagógico Ahora]`.
+   * Implementado mediante el endpoint seguro `POST /docente/api/participaciones/{participacionId}/generar-diagnostico`, el cual valida que la sesión pertenezca al docente en sesión antes de invocar la IA.
+2. **Cierre Masivo al Pausar o Cerrar la Clase:**
+   * En [`DocenteController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/DocenteController.java), al alternar el estado de la sesión (`POST /docente/sesiones/{id}/estado`) hacia inactivo (`activa = false`), el sistema busca automáticamente todas las participaciones abiertas con interacción real (dos o más mensajes) y genera de forma asíncrona/secuencial su respectivo `progreso_md`, asegurando reportes completos al terminar la jornada de clase.
+3. **Detección Conversacional Socrática de Cierre:**
+   * En el cliente [`chat.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/estudiante/chat.html), un detector léxico analiza si el estudiante introduce expresiones coloquiales de cierre ("gracias tutor, ya entendí", "todo claro", "listo ya terminé", etc.) antes de la culminación formal, desplegando una tarjeta contextual invitándolo a presionar `[Finalizar Sesión]` y completar la encuesta.
+4. **Alerta de Salida Accidental en el Navegador (`beforeunload`):**
+   * Se integró un manejador de evento `window.addEventListener('beforeunload')` que intercepta intentos involuntarios de cerrar la pestaña o recargar mientras la sesión tenga interacciones activas y aún no haya sido completada o evaluada, previniendo el abandono accidental de la actividad académica.

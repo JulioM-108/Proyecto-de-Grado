@@ -15,6 +15,7 @@ import Prototipo.Proyecto_Grado.repository.ParticipacionRepository;
 import Prototipo.Proyecto_Grado.repository.ProfesorRepository;
 import Prototipo.Proyecto_Grado.repository.SesionRepository;
 import Prototipo.Proyecto_Grado.service.AnalyticsService;
+import Prototipo.Proyecto_Grado.service.AuthService;
 import Prototipo.Proyecto_Grado.service.ChatService;
 import Prototipo.Proyecto_Grado.service.PromptAssistantService;
 import Prototipo.Proyecto_Grado.service.TotpService;
@@ -53,6 +54,7 @@ public class DocenteController {
     private final AnalyticsService analyticsService;
     private final TotpService totpService;
     private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
 
     private static final String CARACTERES_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private final SecureRandom random = new SecureRandom();
@@ -227,11 +229,69 @@ public class DocenteController {
         Sesion sesion = sesionRepository.findById(id).orElse(null);
 
         if (sesion != null && sesion.getProfesor().getId().equals(profesor.getId())) {
-            sesion.setEstado(!Boolean.TRUE.equals(sesion.getEstado()));
+            boolean nuevoEstado = !Boolean.TRUE.equals(sesion.getEstado());
+            sesion.setEstado(nuevoEstado);
             sesionRepository.save(sesion);
+
+            // Respaldo 2: Al pausar la sesión (cierre de la clase presencial), consolidar
+            // automáticamente a todos los estudiantes con mensajes cuyo diagnóstico no se haya generado
+            if (!nuevoEstado) {
+                List<Participacion> participaciones = participacionRepository.findBySesion(sesion);
+                for (Participacion part : participaciones) {
+                    if (part.getProgresoMd() == null || part.getProgresoMd().isBlank()) {
+                        long totalMsgs = mensajeRepository.countByParticipacion(part);
+                        if (totalMsgs >= 2) {
+                            try {
+                                chatService.cerrarSesionYGenerarProgreso(part.getId());
+                                log.info("Consolidación masiva: progreso_md generado para participación {} al pausar clase", part.getId());
+                            } catch (Exception e) {
+                                log.warn("Error al consolidar participación {} al pausar sesión: {}", part.getId(), e.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         return "redirect:/docente/sesiones";
+    }
+
+    // ─── 5.1 Diagnóstico Pedagógico Bajo Demanda (Lazy Synthesis) ─────────────
+
+    public record GenerarDiagnosticoResponse(boolean success, String progresoMd, String error) {}
+
+    @PostMapping("/api/participaciones/{participacionId}/generar-diagnostico")
+    @ResponseBody
+    public ResponseEntity<GenerarDiagnosticoResponse> generarDiagnosticoBajoDemanda(
+            @PathVariable UUID participacionId,
+            HttpSession session) {
+
+        Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new GenerarDiagnosticoResponse(false, null, "No autorizado."));
+        }
+
+        Participacion part = participacionRepository.findById(participacionId).orElse(null);
+        if (part == null || part.getSesion() == null || !part.getSesion().getProfesor().getId().equals(profesor.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new GenerarDiagnosticoResponse(false, null, "Participación no encontrada o no pertenece a sus clases."));
+        }
+
+        long count = mensajeRepository.countByParticipacion(part);
+        if (count == 0) {
+            return ResponseEntity.badRequest()
+                    .body(new GenerarDiagnosticoResponse(false, null, "El estudiante no registra mensajes en esta sesión."));
+        }
+
+        try {
+            chatService.cerrarSesionYGenerarProgreso(participacionId);
+            Participacion actualizada = participacionRepository.findById(participacionId).orElse(part);
+            return ResponseEntity.ok(new GenerarDiagnosticoResponse(true, actualizada.getProgresoMd(), null));
+        } catch (Exception e) {
+            log.error("Error al generar diagnóstico bajo demanda con IA: {}", e.getMessage(), e);
+            return ResponseEntity.ok(new GenerarDiagnosticoResponse(false, null, "Error al procesar la síntesis con el motor de IA."));
+        }
     }
 
     // ─── 6. Eliminar Sesión de Clase (con limpieza en cascada) ─────────────────
@@ -459,7 +519,7 @@ public class DocenteController {
         Profesor profesor = obtenerProfesorActual(session);
         if (profesor == null) return "redirect:/login";
 
-        if (!passwordEncoder.matches(contrasena, profesor.getContrasena())) {
+        if (!authService.verificarPassword(contrasena, profesor.getContrasena())) {
             return "redirect:/docente?error2fa=contrasenaIncorrecta";
         }
 
