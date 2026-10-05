@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * Servicio del Asistente IA para la Configuración de Prompts Pedagógicos (Módulo 3).
- * Utiliza Gemini 2.5 Flash para asistir al profesor en la construcción de directrices
+ * Utiliza Gemini (GeminiService) para asistir al profesor en la construcción de directrices
  * socráticas estructuradas bajo el framework CRAFT (Context, Role, Audience, Format, Tone).
  */
 @Service
@@ -40,7 +40,7 @@ public class PromptAssistantService {
               "context": "Contexto del tema dentro de POO, prerequisitos y pertinencia en el software.",
               "role": "Rol pedagógico socrático asignado al tutor (ej. guía reflexivo que descompone dudas mediante preguntas clave y analogías cotidianas).",
               "audience": "Perfil del grupo objetivo (ej. estudiantes universitarios de ingeniería de sistemas en etapa de fundamentación).",
-              "format": "Formato de intervención (ej. 1 analogía del mundo real seguida de 1 o 2 preguntas orientadoras, prohibido entregar bloques de código funcionales).",
+              "format": "Formato de intervención (ej. 1 analogía del mundo real seguida de UNA sola pregunta orientadora, prohibido entregar bloques de código funcionales).",
               "tone": "Tono comunicativo (ej. empático, constructivo, motivador y riguroso)."
             }
             """.formatted(temaLimpio);
@@ -52,10 +52,6 @@ public class PromptAssistantService {
             log.error("Error generando propuesta CRAFT con Gemini: {}", e.getMessage(), e);
             return generarPropuestaFallback(temaLimpio);
         }
-    }
-
-    public CraftConfigDto generarDirectricesCraft(String tema, String objetivos) {
-        return generarDirectricesCraft(tema);
     }
 
     private CraftConfigDto extraerCraftDeJson(String rawText, String tema) {

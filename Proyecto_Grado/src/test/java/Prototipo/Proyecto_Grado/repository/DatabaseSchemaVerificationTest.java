@@ -39,6 +39,9 @@ public class DatabaseSchemaVerificationTest {
     @Autowired
     private MetricaRepository metricaRepository;
 
+    @Autowired
+    private ProfesorEstudianteRepository profesorEstudianteRepository;
+
     @Test
     void verificarTablasYColumnasEnSupabase() {
         // Asegurar que la columna evaluacion_sus_tam exista en Supabase
@@ -108,9 +111,13 @@ public class DatabaseSchemaVerificationTest {
         assertDoesNotThrow(() -> {
             List<Participacion> participaciones = participacionRepository.findAll();
             System.out.println("Participacion: " + participaciones.size() + " registros encontrados.");
+            for (Participacion part : participaciones) {
+                String estCorreo = part.getEstudiante() != null ? part.getEstudiante().getCorreo() : "null";
+                String sesTema = part.getSesion() != null ? part.getSesion().getTema() : "null";
+                System.out.println("   -> ID: " + part.getId() + " | Estudiante: " + estCorreo + " | Sesion: " + sesTema);
+            }
             if (!participaciones.isEmpty()) {
                 Participacion part = participaciones.get(0);
-                System.out.println("   Ejemplo: id=" + part.getId() + ", feedback=" + part.getFeedbackEstudiante() + ", valoracion=" + part.getValoracionEstudiante());
                 participacionRepository.findByEstudianteOrderByCreatedAtDesc(part.getEstudiante());
                 participacionRepository.findFirstByEstudianteAndSesionOrderByCreatedAtDesc(part.getEstudiante(), part.getSesion());
                 participacionRepository.findBySesion(part.getSesion());
@@ -150,6 +157,15 @@ public class DatabaseSchemaVerificationTest {
                 if (met.getCodigo() != null) {
                     metricaRepository.findByCodigo(met.getCodigo());
                 }
+            }
+        });
+
+        // ProfesorEstudiante
+        assertDoesNotThrow(() -> {
+            List<ProfesorEstudiante> vinculos = profesorEstudianteRepository.findAll();
+            System.out.println("ProfesorEstudiante: " + vinculos.size() + " registros encontrados.");
+            for (ProfesorEstudiante pe : vinculos) {
+                System.out.println("   -> Profesor: " + pe.getProfesor().getCorreo() + " <-> Estudiante: " + pe.getEstudiante().getCorreo() + " (" + pe.getEstudiante().getNombre() + ")");
             }
         });
     }

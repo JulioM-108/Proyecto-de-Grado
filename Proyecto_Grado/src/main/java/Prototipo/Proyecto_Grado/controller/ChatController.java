@@ -12,9 +12,11 @@ import Prototipo.Proyecto_Grado.repository.ParticipacionRepository;
 import Prototipo.Proyecto_Grado.repository.SesionRepository;
 import Prototipo.Proyecto_Grado.service.AuthService;
 import Prototipo.Proyecto_Grado.service.ChatService;
+import Prototipo.Proyecto_Grado.service.LoginRateLimiterService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -40,6 +42,7 @@ import java.util.Map;
 @Controller
 @RequestMapping("/chat")
 @RequiredArgsConstructor
+@Slf4j
 public class ChatController {
 
     private final ChatService chatService;
@@ -49,6 +52,7 @@ public class ChatController {
     private final MensajeRepository mensajeRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
+    private final LoginRateLimiterService rateLimiterService;
 
     /**
      * Muestra la interfaz de chat o redirige al formulario de registro (RF-01).
@@ -57,8 +61,11 @@ public class ChatController {
     @GetMapping("/{enlace}")
     public String verChat(@PathVariable String enlace,
                           @RequestParam(value = "error", required = false) String error,
+                          @RequestParam(value = "modo", required = false) String modo,
                           @RequestParam(value = "feedbackEnviado", required = false) Boolean feedbackEnviado,
                           @RequestParam(value = "evaluacionExitosa", required = false) Boolean evaluacionExitosa,
+                          @RequestParam(value = "cerrada", required = false) Boolean cerrada,
+                          @RequestParam(value = "completada", required = false) Boolean completada,
                           HttpSession httpSession,
                           Model model) {
 
@@ -71,9 +78,20 @@ public class ChatController {
         if (estudiante == null) {
             model.addAttribute("enlace", enlace);
             model.addAttribute("tituloSesion", sesion.getTema());
-            // Mostrar error de credenciales si aplica
-            if ("credenciales".equals(error)) {
+            model.addAttribute("modoActivo", "login".equalsIgnoreCase(modo) ? "login" : "registro");
+
+            if ("bloqueado".equals(error)) {
+                model.addAttribute("error", "Demasiados intentos fallidos. Por seguridad, el acceso ha sido bloqueado temporalmente durante 10 minutos.");
+            } else if ("credenciales".equals(error)) {
                 model.addAttribute("error", "Contraseña incorrecta. Verifica tus credenciales e intenta de nuevo.");
+            } else if ("dominio".equals(error)) {
+                model.addAttribute("error", "Debes ingresar con un correo institucional (@javerianacali.edu.co o @javeriana.edu.co).");
+            } else if ("no_registrado".equals(error)) {
+                model.addAttribute("error", "No existe una cuenta registrada con este correo. Por favor selecciona 'Soy nuevo estudiante' para registrarte.");
+                model.addAttribute("modoActivo", "registro");
+            } else if ("ya_registrado".equals(error)) {
+                model.addAttribute("error", "Este correo ya está registrado en la plataforma. Por favor selecciona 'Ya tengo cuenta' e ingresa tu contraseña.");
+                model.addAttribute("modoActivo", "login");
             }
             return "estudiante/registro";
         }
@@ -94,8 +112,13 @@ public class ChatController {
         model.addAttribute("participacion", participacion);
         model.addAttribute("mensajes", mensajes);
         model.addAttribute("feedbackEnviado", Boolean.TRUE.equals(feedbackEnviado));
-        boolean sesionCompletada = participacion.getProgresoMd() != null && !participacion.getProgresoMd().isBlank();
+        // La existencia de progreso_md (p. ej. generado por el docente) NO cierra la tutoría del estudiante.
+        boolean sesionCompletada = participacion.isTutoriaFinalizada()
+                || Boolean.TRUE.equals(cerrada)
+                || Boolean.TRUE.equals(completada);
         model.addAttribute("sesionCompletada", sesionCompletada);
+        model.addAttribute("rutaCompletada", Boolean.TRUE.equals(participacion.getRutaCompletada()));
+        model.addAttribute("sesionCerrada", Boolean.TRUE.equals(cerrada) || participacion.getEvaluacionSusTam() != null || participacion.getValoracionEstudiante() != null);
         model.addAttribute("evaluacionSusTam", evaluacionDTO);
         model.addAttribute("evaluacionCompletada", evaluacionDTO != null);
         model.addAttribute("evaluacionExitosa", Boolean.TRUE.equals(evaluacionExitosa));
@@ -104,47 +127,51 @@ public class ChatController {
 
     /**
      * RF-01: Registro/autenticación del estudiante al acceder por enlace único.
-     * Si ya existe un estudiante con ese correo, valida su contraseña.
-     * Si es nuevo, lo registra con la contraseña hasheada con BCrypt.
-     * Sincroniza todas las variables de sesión HTTP para compatibilidad con EstudianteController.
+     * Soporta dos modos dentro de la misma interfaz:
+     * - "login": Estudiante con cuenta previa; solo requiere correo institucional y contraseña.
+     * - "registro": Estudiante nuevo; requiere nombre completo, correo institucional y contraseña.
      */
     @PostMapping("/{enlace}/registro")
     public String registrarEstudiante(@PathVariable String enlace,
-                                      @RequestParam String nombre,
-                                      @RequestParam String correo,
-                                      @RequestParam String contrasena,
+                                      @RequestParam(value = "nombre", required = false) String nombre,
+                                      @RequestParam("correo") String correo,
+                                      @RequestParam("contrasena") String contrasena,
+                                      @RequestParam(value = "modo", required = false, defaultValue = "registro") String modo,
                                       jakarta.servlet.http.HttpServletRequest request,
                                       HttpSession httpSession) {
 
         String correoLimpio = correo != null ? correo.trim().toLowerCase() : "";
         if (!authService.esDominioJaveriano(correoLimpio)) {
-            return "redirect:/chat/" + enlace + "?error=dominio";
+            return "redirect:/chat/" + enlace + "?error=dominio&modo=" + modo;
+        }
+
+        // Mismo límite de intentos que el login principal (5 fallos → bloqueo de 10 min por correo + IP)
+        String claveRateLimit = correoLimpio + "_" + request.getRemoteAddr();
+        if (rateLimiterService.estaBloqueado(claveRateLimit)) {
+            return "redirect:/chat/" + enlace + "?error=bloqueado&modo=" + modo;
         }
 
         java.util.Optional<Estudiante> existente = estudianteRepository.findByCorreoIgnoreCase(correoLimpio);
 
         Estudiante estudiante;
         if (existente.isPresent()) {
-            // Estudiante ya registrado: validar contraseña mediante AuthService (elimina duplicación)
             estudiante = existente.get();
-            String passwordAlmacenada = estudiante.getContrasena();
-
-            boolean coincide = authService.verificarPassword(contrasena, passwordAlmacenada);
-
-            if (!coincide) {
-                return "redirect:/chat/" + enlace + "?error=credenciales";
+            if (!authService.verificarPasswordEstudiante(contrasena, estudiante.getContrasena())) {
+                rateLimiterService.registrarIntentoFallido(claveRateLimit);
+                return "redirect:/chat/" + enlace + "?error=credenciales&modo=" + modo;
             }
-
-            // Migración segura y transparente a BCrypt si estaba en texto plano
-            if (passwordAlmacenada != null && !passwordAlmacenada.startsWith("$2a$") && !passwordAlmacenada.startsWith("$2b$")) {
-                estudiante.setContrasena(passwordEncoder.encode(contrasena));
-                estudianteRepository.save(estudiante);
-            }
+            rateLimiterService.limpiarIntentos(claveRateLimit);
         } else {
-            // Estudiante nuevo: registrar con contraseña hasheada
+            // Si intentó ingresar en modo login con correo inexistente
+            if ("login".equalsIgnoreCase(modo)) {
+                return "redirect:/chat/" + enlace + "?error=no_registrado&modo=login";
+            }
+
+            // Registro de nuevo estudiante
+            String nombreValido = (nombre != null && !nombre.isBlank()) ? nombre.trim() : "Estudiante";
             estudiante = estudianteRepository.save(
                     Estudiante.builder()
-                            .nombre(nombre.trim())
+                            .nombre(nombreValido)
                             .correo(correoLimpio)
                             .contrasena(passwordEncoder.encode(contrasena))
                             .build()
@@ -186,7 +213,14 @@ public class ChatController {
         }
 
         Sesion sesion = sesionRepository.findByEnlaceUnico(enlace).orElse(null);
-        if (sesion != null && Boolean.FALSE.equals(sesion.getEstado())) {
+        if (sesion == null) {
+            if (esAjax) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "La sesión de clase ya no existe."));
+            }
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/estudiante")).build();
+        }
+        if (Boolean.FALSE.equals(sesion.getEstado())) {
             if (esAjax) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(Map.of("error", "Esta sesión ha sido pausada por el profesor"));
@@ -194,10 +228,58 @@ public class ChatController {
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace + "?pausada=true")).build();
         }
 
+        // Validación de sesión cerrada / finalizada para el estudiante
+        Participacion partActiva = participacionRepository
+                .findFirstByEstudianteAndSesionOrderByCreatedAtDesc(estudiante, sesion)
+                .orElse(null);
+
+        if (partActiva != null && partActiva.isTutoriaFinalizada()) {
+            if (esAjax) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                        "success", false,
+                        "error", "La sesión de tutoría ha finalizado. No es posible enviar más preguntas."
+                ));
+            }
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace + "?cerrada=true")).build();
+        }
+
+        // Validación de longitud máxima del payload (2500 caracteres)
+        if (mensaje != null && mensaje.trim().length() > 2500) {
+            if (esAjax) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "El mensaje excede el límite máximo permitido (2500 caracteres)."));
+            }
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace + "?errorLongitud=true")).build();
+        }
+
+        // Rate limiting defensivo (debounce de 1.5s entre mensajes por estudiante)
+        Long ultimoEnvioMs = (Long) httpSession.getAttribute("ultimoEnvioChatMs");
+        long ahoraMs = System.currentTimeMillis();
+        if (ultimoEnvioMs != null && (ahoraMs - ultimoEnvioMs) < 1500) {
+            if (esAjax) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(Map.of("error", "Por favor espera un momento antes de enviar otra consulta."));
+            }
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace)).build();
+        }
+        httpSession.setAttribute("ultimoEnvioChatMs", ahoraMs);
+
         MensajeDto respuestaTutor = null;
         if (mensaje != null && !mensaje.trim().isEmpty()) {
             respuestaTutor = chatService.procesarMensajeEstudiante(
                     estudiante.getCorreo(), enlace, mensaje.trim(), null);
+        }
+
+        // La IA no respondió: no se guardó nada, el estudiante conserva su mensaje y puede reintentar
+        if (respuestaTutor != null && respuestaTutor.isErrorIa()) {
+            if (esAjax) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                        "success", false,
+                        "reintentable", true,
+                        "error", respuestaTutor.getContenido()
+                ));
+            }
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace + "?errorIa=true")).build();
         }
 
         if (esAjax) {
@@ -236,7 +318,12 @@ public class ChatController {
 
         participacionRepository
                 .findFirstByEstudianteAndSesionOrderByCreatedAtDesc(estudiante, sesion)
-                .ifPresent(p -> chatService.cerrarSesionYGenerarProgreso(p.getId()));
+                .ifPresent(p -> {
+                    // Al cerrar sesión sin terminar la ruta pedagógica, no se genera diagnóstico con IA.
+                    // Las métricas cuantitativas (turnos M-02, alertas RF-10) ya quedan acumuladas
+                    // en la base de datos de manera inmediata con cada consulta enviada.
+                    log.info("Estudiante {} cerró su sesión en la clase {}", estudiante.getCorreo(), sesion.getTema());
+                });
 
         return "redirect:/chat/" + enlace + "?cerrada=true";
     }
@@ -269,9 +356,10 @@ public class ChatController {
                         p.setFeedbackEstudiante(comentario.trim());
                     }
                     participacionRepository.save(p);
+                    log.info("Estudiante {} envió feedback de la clase {}. Sesión finalizada.", estudiante.getCorreo(), sesion.getTema());
                 });
 
-        return "redirect:/chat/" + enlace + "?feedbackEnviado=true";
+        return "redirect:/chat/" + enlace + "?cerrada=true&feedbackEnviado=true";
     }
 
     /**
@@ -339,9 +427,10 @@ public class ChatController {
 
                     p.setEvaluacionSusTam(dto.toJson());
                     participacionRepository.save(p);
+                    log.info("Estudiante {} completó la evaluación SUS/TAM para la clase {}. Sesión finalizada.", estudiante.getCorreo(), sesion.getTema());
                 });
 
-        return "redirect:/chat/" + enlace + "?evaluacionExitosa=true";
+        return "redirect:/chat/" + enlace + "?cerrada=true&evaluacionExitosa=true";
     }
 
     private boolean validarRangoLikert(Integer... valores) {

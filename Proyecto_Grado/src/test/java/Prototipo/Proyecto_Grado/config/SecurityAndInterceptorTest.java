@@ -104,8 +104,8 @@ class SecurityAndInterceptorTest {
     }
 
     @Test
-    @DisplayName("AuthService verifica contraseñas tanto con BCrypt como con fallback de texto plano")
-    void testVerificacionPasswordBcryptYTextoPlano() {
+    @DisplayName("Estudiantes: solo BCrypt. Docentes: BCrypt o texto plano (docente de prueba creado en Supabase)")
+    void testVerificacionPasswordPorRol() {
         BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
         AuthService authService = new AuthService(null, null, encoder);
 
@@ -116,16 +116,20 @@ class SecurityAndInterceptorTest {
         assertTrue(authService.esHashBcrypt(bcryptHash));
         assertFalse(authService.esHashBcrypt(rawPassword));
 
-        // 2. Verificación con hash BCrypt
-        assertTrue(authService.verificarPassword(rawPassword, bcryptHash));
-        assertFalse(authService.verificarPassword("Incorrecta", bcryptHash));
+        // 2. Estudiante: hash BCrypt válido, texto plano siempre rechazado
+        assertTrue(authService.verificarPasswordEstudiante(rawPassword, bcryptHash));
+        assertFalse(authService.verificarPasswordEstudiante("Incorrecta", bcryptHash));
+        assertFalse(authService.verificarPasswordEstudiante(rawPassword, rawPassword));
 
-        // 3. Verificación con contraseña heredada en texto plano (sin warning de BCrypt)
-        assertTrue(authService.verificarPassword(rawPassword, rawPassword));
-        assertFalse(authService.verificarPassword("Incorrecta", rawPassword));
+        // 3. Docente: acepta hash BCrypt y texto plano
+        assertTrue(authService.verificarPasswordDocente(rawPassword, bcryptHash));
+        assertTrue(authService.verificarPasswordDocente(rawPassword, rawPassword));
+        assertFalse(authService.verificarPasswordDocente("Incorrecta", rawPassword));
 
-        // 4. Casos nulos o vacíos
-        assertFalse(authService.verificarPassword(null, bcryptHash));
-        assertFalse(authService.verificarPassword(rawPassword, null));
+        // 4. Casos nulos
+        assertFalse(authService.verificarPasswordEstudiante(null, bcryptHash));
+        assertFalse(authService.verificarPasswordEstudiante(rawPassword, null));
+        assertFalse(authService.verificarPasswordDocente(null, rawPassword));
+        assertFalse(authService.verificarPasswordDocente(rawPassword, null));
     }
 }

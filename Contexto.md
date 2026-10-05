@@ -93,7 +93,7 @@ El proyecto adopta un **modelo incremental y evolutivo**, organizado en cuatro f
   ├── 3.4 Desarrollo del Panel de Configuración de Prompts (CRAFT)
   ├── 3.5 Construcción del Panel de Métricas Docente (Analítica)
   ├── 3.6 Implementación del Chat Socrático del Estudiante
-  └── 3.7 Implementación del filtro auditor de respuestas directas (RF-10)
+  └── 3.7 Implementación de la detección de solicitudes de respuesta directa (RF-10)
            │
            ▼
 [Fase 4: Evaluación del Prototipo]
@@ -154,13 +154,13 @@ Frente a otros marcos como CO-STAR (orientado a tareas genéricas de NLP) o RCFO
 * **RF-01 (Acceso simplificado a sesiones):** El docente crea una sesión que genera automáticamente un enlace único de acceso. Al abrirlo, el estudiante realiza un registro mínimo con nombre y correo institucional, quedando vinculado inmediatamente sin pasos extra.
 * **RF-02 (Tutoría Socrática):** El chat con el ITS debe implementar el método socrático, utilizando pistas y preguntas reflexivas sin revelar código ni soluciones directas.
 * **RF-03 (Retroalimentación Inmediata):** Respuestas conversacionales instantáneas en cada turno del estudiante para favorecer ciclos rápidos de ensayo y error.
-* **RF-04 (Persistencia de Historial y Evolución):** Almacenar el historial de interacción para retomar sesiones previas, detectar patrones de error y adaptar el discurso evolutivamente.
+* **RF-04 (Persistencia de Historial dentro de la Sesión):** Almacenar el historial de interacción para que, si el estudiante sale de una sesión sin terminarla, al volver el tutor retome todo lo trabajado en esa misma sesión (el historial completo se inyecta en la Capa 3).
 * **RF-05 (Configuración Guiada de Prompts):** Paso a paso estructurado asistido por IA para que el profesor defina tema, nivel y tono bajo CRAFT sin requerir conocimientos avanzados de ingeniería de prompts.
 * **RF-06 (Detección de Falencias Críticas):** Visualización en el panel docente de los conceptos con mayor frecuencia de error a nivel individual y grupal.
-* **RF-07 (Evolución entre Sesiones):** Comparativa del desempeño del estudiante a lo largo del tiempo, indicando si supera o reincide en los mismos errores.
+* **RF-07 (Evolución dentro de la Sesión):** Seguimiento del desempeño del estudiante a lo largo de la sesión (estado de evolución y diagnóstico generado por el docente). *La comparativa entre sesiones distintas queda como trabajo futuro (§13).*
 * **RF-08 (Resumen Pedagógico Automatizado):** Generación automática en lenguaje natural de un informe que interprete las métricas del grupo y sugiera intervenciones didácticas concretas al profesor.
 * **RF-09 (Monitoreo de Desenganche y Abandono):** Registro de cantidad de sesiones, frecuencia de uso y duración promedio para detectar estudiantes en riesgo.
-* **RF-10 (Auditor Socrático / Doble Verificación Interna):** Mecanismo de control interno que intercepta y rechaza cualquier respuesta del modelo que filtre la solución directa de código, forzando su reformulación antes de ser enviada al frontend.
+* **RF-10 (Detección de Solicitudes de Respuesta Directa):** La prevención de entregar código la garantizan las reglas inmutables de la Capa 1. RF-10 detecta y registra (métrica M-04) cada vez que el estudiante pide explícitamente el código o la solución, mediante un patrón de texto normalizado y la meta-etiqueta oculta `<!-- ATAJO_DETECTADO -->` emitida por el tutor (ver §9.1).
 
 ### 7.3. Requisitos No Funcionales (RNF)
 * **RNF-01 (Confidencialidad y Aislamiento de Conversaciones):** El sistema restringe el acceso al chat exclusivamente al estudiante propietario y al docente titular de la sesión.
@@ -171,9 +171,21 @@ Frente a otros marcos como CO-STAR (orientado a tareas genéricas de NLP) o RCFO
 | :--- | :--- | :--- | :--- | :--- |
 | **M-01** | **Frecuencia de error por concepto** | Número de veces que un concepto específico genera error en el grupo durante una sesión. | *"Este es el tema que más le está costando al grupo. Considera dedicarle más tiempo en clase."* | (Colby, 2017) |
 | **M-02** | **Intentos por concepto** | Número de turnos de conversación requeridos por el estudiante antes de alcanzar la comprensión. | *"Este estudiante necesita muchos intentos para entender el concepto. Puede requerir atención personalizada."* | (Colby, 2017; Kurup et al., 2016) |
-| **M-03** | **Evolución entre sesiones** | Comparación del desempeño del estudiante en un mismo concepto en sesiones distintas. | *"Este estudiante mejoró / sigue fallando en el mismo punto que la semana pasada."* | (Kurup et al., 2016) |
+| **M-03** | **Evolución en la sesión** | Estado de madurez cognitiva del estudiante en la sesión (*En diálogo activo*, *Dudas en progreso*, *Consolidado*), derivado del diagnóstico generado por el docente. *La comparación entre sesiones distintas queda como trabajo futuro.* | *"Este estudiante consolidó el concepto / sigue con dudas en este punto."* | (Kurup et al., 2016) |
 | **M-04** | **Tasa de solicitudes de respuesta directa** | Conteo de ocasiones en que el alumno exige explícitamente el código o la solución directa. | *"Este estudiante muestra señales de frustración. Puede necesitar una estrategia didáctica diferente."* | (Castellanos et al., 2026) |
 | **M-05** | **Frecuencia y duración de sesiones** | Número de sesiones completadas y tiempo promedio por sesión por estudiante. | *"Este estudiante no ha usado la plataforma en varios días. Puede estar en riesgo de abandono."* | (Castellanos et al., 2026) |
+
+#### 7.4.1. Implementación real de las métricas
+* **M-01** no tiene columna propia: el dashboard la extrae de la sección *"Errores recurrentes"* de los diagnósticos (`progreso_md`) que el docente genera manualmente. Mientras no haya diagnósticos, la gráfica muestra el volumen de consultas del tema, y el dashboard indica en cuántos diagnósticos se basa (*"Basado en N de M diagnósticos generados"*).
+* **M-02** se calcula con el conteo de mensajes del estudiante; **M-03** con el estado del diagnóstico; **M-05** con la fecha del último mensaje.
+* Códigos almacenados en la tabla `metrica` (columna `codigo`):
+
+| `codigo` | `concepto` | Significado | Métrica |
+| :---: | :--- | :--- | :---: |
+| 2 | Tema de la sesión | Mensajes acumulados en la participación tras cada turno del estudiante | M-02 |
+| 3 | `sesion_cerrada` | Marca de que el docente generó el diagnóstico (valor = mensajes en ese momento) | — |
+| 5 | `turnos_totales` | Total de mensajes al generar el diagnóstico | apoyo M-05 |
+| 10 | `RF-10` | Solicitud de código / respuesta directa detectada en un turno | M-04 |
 
 ---
 
@@ -189,6 +201,7 @@ Para seleccionar el modelo de lenguaje se utilizaron datos objetivos de benchmar
 | **GPT-5 mini (high)** | OpenAI | 26 pts | Cuarto lugar | $0.25 | $2.00 |
 
 * **Justificación de la Selección:** **Gemini 3 Flash** obtuvo el puntaje más alto en el índice general de inteligencia y en **LiveCodeBench** (evaluación de generación, autorreparación y ejecución de código competitivo libre de contaminación). Aunque modelos de gama ultra alta (como Claude Opus 5) ofrecen puntajes elevados, su costo es inviable para un proyecto autofinanciado. Gemini 3 Flash ofrece la mejor relación calidad-costo-latencia para diálogos educativos de programación.
+* **Modelo auxiliar de contingencia:** si el modelo principal (`gemini-3-flash-preview`) no responde tras los reintentos, `GeminiService` conmuta a **`gemini-3.1-flash-lite-preview`** (variables `GEMINI_MODEL` y `GEMINI_MODEL_AUXILIARY` del `.env`). Por ser menos fiable con reglas condicionales, sus respuestas **no pueden** cerrar la ruta socrática (§14.12).
 
 ---
 
@@ -213,19 +226,22 @@ En lugar de un prompt monolítico (difícil de mantener y propenso a que el doce
                                    │
 ┌──────────────────────────────────▼─────────────────────────────────────┐
 │  CAPA 3: DINÁMICA (Estudiante / Sesión)                                │
-│  - Progreso Markdown heredado de sesiones anteriores (si existe).      │
-│  - Historial secuencial de mensajes de la sesión activa.              │
+│  - Historial COMPLETO de la sesión actual (misma participación).       │
+│  - (No incluye progreso_md: el diagnóstico es del docente.)           │
 │  - Nuevo mensaje enviado por el estudiante.                            │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 9.1. Doble Verificación Interna (Auditor Socrático - RF-10)
-Al recibir la respuesta de Gemini 3 Flash, el backend ejecuta una validación para asegurar que no se hayan filtrado fragmentos de código resolutivos. Si la regla se viola, el servicio solicita automáticamente una reformulación en modo socrático antes de enviar la respuesta al navegador.
+### 9.1. Prevención de Respuestas Directas y Detección de Atajos (RF-10)
+No existe un auditor que reformule las respuestas (decisión del §14.8.4): la prevención de entregar código o soluciones la garantizan las reglas inmutables de la **Capa 1**. RF-10 opera como **detección** de las solicitudes del estudiante:
+1. **Patrón de texto** (`ChatService.esSolicitudAtajo`): normaliza el mensaje (sin tildes, mayúsculas ni puntuación) y reconoce verbos de petición + objeto (*"pásame el código"*, *"dame directamente la respuesta"*) y frases completas (*"no quiero preguntas"*).
+2. **Señal del tutor**: la Capa 1 instruye al modelo a añadir la meta-etiqueta oculta `<!-- ATAJO_DETECTADO -->` cuando el estudiante pide explícitamente la solución; el backend la elimina antes de mostrar o guardar la respuesta.
+Si cualquiera de las dos se activa, se registra la métrica `codigo=10` (M-04) en la tabla `metrica`.
 
 ### 9.2. Esquema de Persistencia Híbrida: Numérico + Markdown (`progreso_md`)
 Se descartó el almacenamiento intermedio en JSON por riesgo de errores sintácticos de parseo y sobrecosto de deserialización. Se adoptó una persistencia híbrida en **Supabase**:
 1. **Datos Cuantitativos:** Columnas numéricas indexadas (conteo de turnos, intentos por concepto, peticiones de respuesta directa) para consultas analíticas directas en SQL.
-2. **Datos Cualitativos (`progreso_md`):** Texto Markdown estructurado que se genera al cierre de la sesión y se guarda en la tabla `participacion`. Al iniciar una sesión futura del mismo tema, este texto se inyecta directamente en la Capa 3 sin requerir transformación.
+2. **Datos Cualitativos (`progreso_md`):** Diagnóstico Markdown estructurado que el **docente genera manualmente** desde el dashboard y que se guarda en la tabla `participacion`. Es material de análisis para el profesor: **no** se inyecta en la Capa 3 del tutor. *La reutilización del diagnóstico en sesiones futuras queda como trabajo futuro.*
 
 #### Estructura Estricta de Cierre de Sesión (`progreso_md`):
 ```markdown
@@ -259,21 +275,21 @@ Se descartó el almacenamiento intermedio en JSON por riesgo de errores sintáct
 
 ### Flujo 2: Interacción Conversacional Socrática
 1. El estudiante envía su duda desde la interfaz Thymeleaf (`POST /chat/mensaje`).
-2. Spring Boot recupera de Supabase el historial de la sesión y el `progreso_md` previo si existe.
+2. Spring Boot recupera de Supabase el historial completo de la sesión actual (misma participación).
 3. Se ensambla el prompt con las 3 capas:
    * **Capa 1:** Reglas fijas del sistema.
    * **Capa 2:** CRAFT + Preguntas guía de la sesión.
-   * **Capa 3:** Progreso heredado + Historial de turnos + Nuevo mensaje.
-4. El cliente HTTP envía la petición a la API de Gemini 3 Flash.
-5. Se valida el cumplimiento socrático (RF-10).
-6. Spring Boot almacena el mensaje del alumno y la respuesta en la tabla `mensaje`, y actualiza las métricas estructuradas en la tabla `metrica`.
+   * **Capa 3:** Historial completo de la sesión + Nuevo mensaje.
+4. El cliente HTTP envía la petición a la API de Gemini 3 Flash (o al modelo auxiliar en contingencia).
+5. Se procesan las meta-etiquetas: `ATAJO_DETECTADO` (RF-10) y `RUTA_COMPLETADA` (validada en servidor, §14.12).
+6. Spring Boot almacena el mensaje del alumno y la respuesta en la tabla `mensaje`, y actualiza las métricas estructuradas en la tabla `metrica`. Si la IA no responde, no se guarda nada y el estudiante puede reintentar.
 7. Thymeleaf renderiza el fragmento HTML y lo entrega al estudiante.
 
-### Flujo 3: Cierre de Sesión y Síntesis Pedagógica
-1. Al terminar la sesión, Spring Boot solicita a Gemini un análisis global del historial completo.
-2. Gemini responde con la plantilla de 4 secciones en Markdown, la cual se persiste en la columna `progreso_md` de la tabla `participacion`.
-3. Las métricas numéricas acumuladas se consolidan en la tabla `metrica`.
-4. Cuando el docente abre el panel analítico, Spring Boot consulta las métricas estructuradas y le pide a Gemini un resumen en lenguaje natural con recomendaciones directas para la siguiente clase magistral.
+### Flujo 3: Cierre de la Tutoría y Diagnóstico Pedagógico (Manual)
+1. La tutoría del estudiante se cierra cuando el tutor certifica (y el servidor valida) que completó la ruta de preguntas guía (`ruta_completada = true`), o cuando el estudiante envía su feedback o la encuesta SUS+TAM. Al cerrarse **no** se genera ningún diagnóstico.
+2. El diagnóstico individual lo genera **solo el docente**, con el botón *"Ver / Generar"* del dashboard (`POST /docente/api/participaciones/{id}/generar-diagnostico`). Gemini responde con la plantilla de 4 secciones en Markdown, que se persiste en `participacion.progreso_md`. Generarlo no cierra la tutoría del estudiante.
+3. Las métricas numéricas ya se acumulan en la tabla `metrica` en cada turno.
+4. La síntesis grupal también es manual: el docente pulsa *"Generar Síntesis Consolidada con IA"* y Gemini redacta las recomendaciones para la siguiente clase presencial.
 
 ---
 
@@ -296,11 +312,12 @@ Se descartó el almacenamiento intermedio en JSON por riesgo de errores sintáct
 * **Contenedor 2 - Módulo de Orquestación de IA (Servicios Spring):**
   * Ensamblador de prompts multi-capa.
   * Cliente HTTP REST para comunicación con Gemini 3 Flash.
-  * Auditor de respuestas socráticas (RF-10).
+  * Detección de solicitudes de respuesta directa (RF-10) y validación de la meta-etiqueta de cierre de ruta.
 * **Contenedor 3 - Base de Datos (PostgreSQL en Supabase):**
   * Instancia relacional gestionada que persiste usuarios, sesiones, mensajes y métricas.
 * **Contenedor 4 - Infraestructura de Ejecución (Docker):**
   * Empaquetado en imagen ligera para ejecución local o en VPS (ej. Render/Servidor privado).
+  * `Dockerfile` multi-etapa y `docker-compose.yml` (servicio `tutor-socratico-app`, variables desde `.env`); se ejecuta con `docker compose up --build`. La base de datos no forma parte del compose porque vive en Supabase (servicio externo).
 
 ### 11.3. Nivel 3: Diagrama de Componentes (Módulo de Orquestación de IA)
 1. **Controlador de Sesión Socrática (`@Controller` / `@Service`):** Coordina la recepción de la petición y delega la ejecución.
@@ -392,7 +409,8 @@ El prototipo valida la viabilidad de integrar IA Generativa en la educación sup
 
 1. **Secuencias de Pistas Progresivas Automatizadas:** Implementar un agente especializado (o ajuste fino de modelo) capaz de calibrar la progresividad de las pistas (*puntero*, *didáctica* y *de fondo*) de manera determinística, mitigando la variabilidad inherente de los LLMs.
 2. **Modelado Cognitivo Probabilístico (BKT):** Incorporar algoritmos de *Bayesian Knowledge Tracing* para transitar del seguimiento descriptivo en Markdown hacia una estimación matemática continua de la probabilidad de maestría por habilidad.
-3. **Andamiaje (*Scaffolding*) Dinámico en la Zona de Desarrollo Próximo:** Retirar o elevar automáticamente el nivel de asistencia del tutor a medida que el modelo cognitivo confirme que el alumno consolida las competencias de programación.
+3. **Evolución entre Sesiones:** Inyectar en la Capa 3 el diagnóstico de sesiones anteriores del mismo estudiante y comparar su desempeño entre sesiones (versión completa de RF-07 y M-03); el prototipo actual limita la memoria del tutor a la sesión en curso.
+4. **Andamiaje (*Scaffolding*) Dinámico en la Zona de Desarrollo Próximo:** Retirar o elevar automáticamente el nivel de asistencia del tutor a medida que el modelo cognitivo confirme que el alumno consolida las competencias de programación.
 
 ---
 
@@ -438,7 +456,7 @@ Para evitar ambigüedades operativas y pérdidas involuntarias de datos durante 
 ### 14.5. Fortalecimiento Arquitectónico, Persistencia y Seguridad
 * **Mitigación de `LazyInitializationException`:** Se optimizó el repositorio [`ParticipacionRepository.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/repository/ParticipacionRepository.java) mediante consultas JPQL con `JOIN FETCH` (`findByProfesorWithEstudianteAndSesion`, `findByEstudianteWithSesionOrderByCreatedAtDesc`), asegurando la carga ansiosa controlada de las relaciones `estudiante` y `sesion` en una sola consulta SQL, evitando consultas *N+1* y fallos en contextos desacoplados.
 * **Habilitación de *Open-In-View*:** Se configuró explícitamente `spring.jpa.open-in-view=true` en `application.properties`, garantizando la disponibilidad de la sesión de Hibernate durante la fase de renderizado de vistas en Thymeleaf.
-* **Seguridad Criptográfica en Credenciales:** Se implementó el hasheo seguro y salado de contraseñas de estudiantes mediante `BCryptPasswordEncoder`, eliminando el almacenamiento en texto plano y alineando la autenticación de la plataforma con los estándares modernos de seguridad informática.
+* **Seguridad Criptográfica en Credenciales:** Se implementó el hasheo seguro y salado de contraseñas de estudiantes mediante `BCryptPasswordEncoder`, eliminando el almacenamiento en texto plano y alineando la autenticación de la plataforma con los estándares modernos de seguridad informática. *(Política vigente de contraseñas por rol: ver §14.8.1 #2.)*
 
 ### 14.6. Rediseño del Dashboard Analítico y Adecuación Pedagógica de Métricas (Eliminación de 'RF-10' en UI)
 * **Depuración de Jerga Técnica ('RF-10'):** Se eliminó la etiqueta de requisito de software *"Auditor RF-10"* de la interfaz gráfica docente. Al profesor se le presentan ahora métricas orientadas al aprendizaje del estudiante y no a mecanismos de control interno del backend.
@@ -494,8 +512,10 @@ Se realizó una auditoría exhaustiva de seguridad y eficiencia sobre la totalid
    * Se removieron los valores por defecto de las credenciales de la base de datos en `application.properties` (URL, usuario y contraseña de Supabase). Las propiedades ahora exigen estrictamente la provisión de variables de entorno (`${DB_URL}`, `${DB_USERNAME}`, `${DB_PASSWORD}`) sin fallback, previniendo la exposición accidental de secretos en el control de versiones.
    * Se procedió a rotar la contraseña de la base de datos en el panel de administración de Supabase.
 
-2. **Eliminación del Fallback de Contraseñas en Texto Plano:**
-   * En [`AuthService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/AuthService.java), se eliminó el bloque de comparación directa (`passwordIngresada.equals(passwordAlmacenada)`) que permitía autenticar usuarios con contraseñas no hasheadas. La verificación ahora opera exclusivamente a través de `BCryptPasswordEncoder.matches()`.
+2. **Política de Contraseñas por Rol:**
+   * **Estudiantes (estricto):** la contraseña se hashea con BCrypt al registrarse y al cambiarla; al ingresar se verifica exclusivamente con `BCryptPasswordEncoder.matches()` (`AuthService.verificarPasswordEstudiante`). Una contraseña de estudiante almacenada en texto plano es rechazada.
+   * **Docente (prueba controlada):** el docente de la evaluación se crea manualmente en Supabase, por lo que se admite su contraseña en texto plano **sin migrarla** (queda legible en Supabase); si ya fuera un hash BCrypt, se verifica como tal (`AuthService.verificarPasswordDocente`, comparación en tiempo constante).
+   * Se eliminó toda migración automática de contraseñas a BCrypt durante el inicio de sesión.
 
 3. **Corrección de IDOR en Eliminación de Estudiantes:**
    * En [`DocenteController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/DocenteController.java), el endpoint `POST /docente/estudiantes/{estudianteId}/eliminar` fue refactorizado para verificar que el estudiante a eliminar tenga participaciones exclusivamente en sesiones pertenecientes al docente autenticado. Se previene así la eliminación arbitraria de estudiantes ajenos.
@@ -504,7 +524,7 @@ Se realizó una auditoría exhaustiva de seguridad y eficiencia sobre la totalid
    * Se reemplazó la dependencia del servicio externo `api.qrserver.com` por la generación local del código QR en el servidor mediante la librería ZXing (`com.google.zxing:core`). El secreto TOTP del docente ya no se transmite a terceros y la imagen QR se retorna como cadena Base64 (`data:image/png;base64,...`) directamente en la vista.
 
 5. **Desacoplamiento Transaccional de Llamadas a la API de Gemini (Connection Pool Starvation):**
-   * En [`ChatService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/ChatService.java), se separó el método `procesarMensajeEstudiante()` en tres fases: (1) persistencia del mensaje del estudiante y construcción del prompt en una transacción corta, (2) invocación de la API de Gemini fuera de contexto transaccional, y (3) persistencia de la respuesta del tutor en una segunda transacción corta. Esto evita que una conexión JDBC del pool HikariCP (limitado a 5) quede retenida durante los 5–35 segundos de la llamada HTTP externa.
+   * En [`ChatService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/ChatService.java), se separó el método `procesarMensajeEstudiante()` en tres fases: (1) persistencia del mensaje del estudiante y construcción del prompt en una transacción corta, (2) invocación de la API de Gemini fuera de contexto transaccional, y (3) persistencia de la respuesta del tutor en una segunda transacción corta. Esto evita que una conexión JDBC del pool HikariCP (configurado con un máximo de 13 conexiones, `spring.datasource.hikari.maximum-pool-size=13`) quede retenida durante los 5–35 segundos de la llamada HTTP externa.
    * Se desactivó `spring.jpa.open-in-view` (`false`) para evitar la retención innecesaria de conexiones durante el renderizado de vistas Thymeleaf.
 
 #### 14.8.2. Correcciones de Severidad Alta
@@ -533,7 +553,9 @@ Se realizó una auditoría exhaustiva de seguridad y eficiencia sobre la totalid
 #### 14.8.4. Decisiones de Diseño sobre Hallazgos No Corregidos
 
 * **RF-10 (Auditor Socrático):** Se decidió explícitamente no implementar el servicio `SocraticAuditorService` como componente independiente. La auditoría socrática se gestiona de forma unificada dentro de las reglas de la Capa 1 del prompt del sistema, las cuales prohíben al modelo entregar código o soluciones directas. Se actualizaron los comentarios del código para reflejar esta decisión arquitectónica.
-* **Spring Security con roles formales:** Se mantiene la autenticación basada en sesión HTTP con validación manual por controlador como decisión de prototipo, dado que la implementación de roles Spring Security formales requeriría una reestructuración mayor del flujo de autenticación actual (correo institucional + 2FA manual).
+* **Spring Security con roles formales:** Se mantiene la autenticación basada en sesión HTTP con validación manual por controlador como decisión de prototipo, dado que la implementación de roles Spring Security formales requeriría una reestructuración mayor del flujo de autenticación actual (correo institucional + 2FA manual). Concretamente, `SecurityConfig` deja pasar todas las rutas (`permitAll`) y el control de acceso real lo realizan:
+  * los interceptores de `WebMvcConfig`: `/docente/**` exige sesión con rol `DOCENTE` (las rutas `/docente/api/**` responden `401` en JSON) y `/estudiante/**` exige rol `ESTUDIANTE`;
+  * las validaciones de cada método de `ChatController` (`/chat/**`), que exigen un `estudianteActivo` en la sesión HTTP y verifican que la participación le pertenezca.
 
 ---
 
@@ -544,16 +566,120 @@ Para resolver la incertidumbre de determinar cuándo un estudiante finaliza su p
 #### 14.9.1. Detección Pedagógica Automática por Hitos Guiados (`<!-- RUTA_COMPLETADA -->`)
 * **Enfoque Pedagógico:** En lugar de basarse en temporizadores rígidos o depender exclusivamente del botón manual `[Finalizar Sesión]` (el cual los estudiantes suelen omitir al cerrar la ventana o retirarse tras resolver su duda), el sistema utiliza la comprensión del diálogo por parte de la IA para certificar el cierre.
 * **Prompt del Sistema (`capa1_socratico.md`):** Se incorporó la regla pedagógica *5. Culminación de la Ruta de Aprendizaje (Hito Final Superado)*. Cuando el estudiante demuestra asimilación conceptual del último hito o pregunta orientadora de la sesión, el tutor emite una felicitación reflexiva, sintetiza el logro alcanzado y añade de forma silenciosa la meta-etiqueta `<!-- RUTA_COMPLETADA -->`.
-* **Procesamiento en Backend (`ChatService.java`):** Al recibir la respuesta del LLM, el servicio detecta la presencia de la meta-etiqueta, la suprime del texto visible presentado al estudiante para preservar la naturalidad del diálogo (`contenidoLimpio`), invoca de manera automática la generación de la síntesis diagnóstica (`cerrarSesionYGenerarProgreso(participacionId)`) y marca la bandera `sesionCompletada = true` en el `MensajeDto`.
+* **Procesamiento en Backend (`ChatService.java`):** Al recibir la respuesta del LLM, el servicio detecta la presencia de la meta-etiqueta, la suprime del texto visible presentado al estudiante para preservar la naturalidad del diálogo (`contenidoLimpio`), valida el cierre en servidor (§14.12), marca `participacion.ruta_completada = true` y la bandera `sesionCompletada = true` en el `MensajeDto`. *(Actualización §14.13: ya no se genera el diagnóstico automáticamente; solo el docente lo genera manualmente.)*
 * **Interfaz de Chat (`chat.html`):** Al activarse la bandera `sesionCompletada`, la vista despliega un banner institucional de felicitación (`#bannerRutaCompletada`), deshabilita el área de texto para prevenir mensajes redundantes y ofrece acceso directo e inequívoco a la evaluación de usabilidad y aceptación tecnológica (SUS+TAM).
 
 #### 14.9.2. Los Cuatro (4) Mecanismos de Respaldo Operativo
-1. **Generación Bajo Demanda en el Dashboard Docente (Lazy Synthesis):**
-   * Si un estudiante interactuó con el tutor pero interrumpió la sesión antes de que se detonara el cierre formal, el docente puede visualizar su participación en el dashboard y generar el diagnóstico en tiempo real mediante el botón `[Generar Diagnóstico Pedagógico Ahora]`.
+1. **Generación Manual en el Dashboard Docente (única vía del diagnóstico):**
+   * El docente genera el diagnóstico de cualquier participación con interacción mediante el botón `[Generar Diagnóstico Pedagógico Ahora]`, haya o no completado el estudiante la ruta. Generarlo no cierra la tutoría del estudiante.
    * Implementado mediante el endpoint seguro `POST /docente/api/participaciones/{participacionId}/generar-diagnostico`, el cual valida que la sesión pertenezca al docente en sesión antes de invocar la IA.
-2. **Cierre Masivo al Pausar o Cerrar la Clase:**
-   * En [`DocenteController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/DocenteController.java), al alternar el estado de la sesión (`POST /docente/sesiones/{id}/estado`) hacia inactivo (`activa = false`), el sistema busca automáticamente todas las participaciones abiertas con interacción real (dos o más mensajes) y genera de forma asíncrona/secuencial su respectivo `progreso_md`, asegurando reportes completos al terminar la jornada de clase.
+2. **Pausar la Clase NO genera diagnósticos (mecanismo retirado):**
+   * Una versión anterior generaba de forma masiva el `progreso_md` de todas las participaciones al pausar la sesión. Se eliminó (§14.11): `POST /docente/sesiones/{id}/estado` en [`DocenteController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/DocenteController.java) solo cambia el estado de la sesión; los diagnósticos se generan únicamente de forma manual por el docente.
 3. **Detección Conversacional Socrática de Cierre:**
    * En el cliente [`chat.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/estudiante/chat.html), un detector léxico analiza si el estudiante introduce expresiones coloquiales de cierre ("gracias tutor, ya entendí", "todo claro", "listo ya terminé", etc.) antes de la culminación formal, desplegando una tarjeta contextual invitándolo a presionar `[Finalizar Sesión]` y completar la encuesta.
 4. **Alerta de Salida Accidental en el Navegador (`beforeunload`):**
    * Se integró un manejador de evento `window.addEventListener('beforeunload')` que intercepta intentos involuntarios de cerrar la pestaña o recargar mientras la sesión tenga interacciones activas y aún no haya sido completada o evaluada, previniendo el abandono accidental de la actividad académica.
+
+---
+
+### 14.10. Refinamiento Integral de UI, Detección de Atajos (RF-10) y Analítica Pedagógica
+
+Para optimizar la experiencia de usuario y la precisión diagnóstica de la plataforma, se incorporaron seis (6) mejoras de alto impacto:
+
+1. **Rediseño Modular de la Síntesis Pedagógica Consolidada:**
+   * En [`dashboard.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/dashboard.html), se sustituyó el bloque de texto plano por tres (3) tarjetas semánticas estructuradas con la identidad visual institucional Javeriana Cali: *Diagnóstico Grupal*, *Focos de Confusión y Atajos*, y *Recomendación Docente*. Un analizador dinámico en JavaScript formatea automáticamente el Markdown generado por Gemini.
+2. **Acceso Unificado para Estudiantes por Pestañas (Tabs):**
+   * En [`registro.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/estudiante/registro.html), se implementó un selector de pestañas que diferencia con claridad *"Ya tengo cuenta (Iniciar Sesión)"* (solo solicita correo institucional y contraseña) de *"Soy nuevo estudiante (Registrarme)"* (solicita nombre, correo y contraseña).
+   * En [`ChatController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/ChatController.java), se parametrizó el modo de ingreso, flexibilizando el campo nombre para inicios de sesión recurrentes.
+3. **Robustecimiento del Diagnóstico Bajo Demanda:**
+   * En [`DocenteController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/DocenteController.java), se calibraron las respuestas HTTP y mensajes diagnósticos cuando un alumno aún no registra consultas.
+   * En [`GeminiService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/GeminiService.java), se normalizó la resolución de alias para modelos auxiliares como `gemini-3.1-flash-lite-preview`.
+   * En la interfaz, se integró un componente visual de carga (spinner interactivo) mientras el LLM sintetiza el diálogo.
+4. **Detección Activa de Alertas de Atajo Cognitivo (RF-10):**
+   * En [`ChatService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/ChatService.java), se integró una expresión regular para capturar intenciones de solicitud de código directo o solución inmediata ("dame el código", "hazme la tarea", etc.), registrando de inmediato la métrica `RF-10` con código `10L` en la tabla `metrica` de Supabase. Esto permite que el contador del dashboard refleje en tiempo real las solicitudes reconducidas con éxito.
+5. **Reclasificación Semántica de Turnos por Sesión:**
+   * En [`AnalyticsService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/AnalyticsService.java), se eliminó la penalización peyorativa en rojo para estudiantes con 8 o más turnos. Ahora se clasifican como *"Diálogo Perseverante"* si evidencian comprensión o interacción continua, reservando las alertas críticas en rojo únicamente para casos de confusión persistente o múltiples solicitudes de atajo.
+6. **Visualización de la Hoja de Ruta de Preguntas Guía:**
+   * En [`dashboard.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/dashboard.html), se desplegó la tarjeta *"🧭 Hoja de Ruta Pedagógica: Preguntas Guía de la Sesión"*, listando de forma numerada los hitos secuenciales configurados por el docente para contrastarlos directamente con la analítica de la clase.
+
+---
+
+### 14.11. Optimización del Ciclo de Vida de Métricas e Informes con IA (Lazy Synthesis & Persistencia)
+
+Se atendió una optimización arquitectural crítica en el consumo del motor de IA y el ciclo de vida de las métricas:
+
+1. **Desacoplamiento de Gemini en la Carga del Dashboard Docente (`Lazy Synthesis`):**
+   * **Causa del problema previo:** Al acceder a `/docente/sesiones/{id}/metricas`, `AnalyticsService.obtenerMetricasPorSesion(...)` ejecutaba una llamada síncrona obligatoria a Gemini (`generarSintesisIa`), lo que demoraba la carga del panel entre 4 y 8 segundos y consumía tokens en cada recarga de página.
+   * **Solución aplicada:** Se implementó una caché en memoria concurrente (`sintesisPorSesionCache`) en [`AnalyticsService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/AnalyticsService.java). La carga del dashboard es ahora instantánea (~50ms) y la síntesis pedagógica consolidada se genera exclusivamente bajo demanda mediante el nuevo endpoint `POST /docente/api/sesiones/{id}/generar-sintesis` invocado desde el botón *"Generar Síntesis Consolidada con IA"* en [`dashboard.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/dashboard.html). Una vez generada, permanece en caché para futuras visitas sin re-invocar a Gemini.
+
+2. **Separación Estricta entre Métricas en Tiempo Real e Informes Cualitativos con IA:**
+   * **Métricas discretas acumuladas de inmediato:** Con cada mensaje enviado por el estudiante en [`ChatService.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/service/ChatService.java), se persiste en la BD (`metrica`) el conteo de turnos (`codigo=2L`), las dudas conceptuales y los intentos de atajo directo (`codigo=10L` / `RF-10`). Si el estudiante cierra o abandona la sesión sin terminar, sus métricas numéricas ya quedan consolidadas en tiempo real.
+   * **Generación no prematura:** En [`ChatController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/ChatController.java) y [`DocenteController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/DocenteController.java), se eliminó la generación forzada de diagnósticos con IA al cerrar la pestaña o pausar la clase si la ruta no había culminado.
+   * **Persistencia permanente del diagnóstico individual:** El diagnóstico pedagógico individual solo se genera cuando el docente pulsa *"Generar Diagnóstico Pedagógico Ahora"* (desde §14.13, completar la ruta ya no lo genera automáticamente). Una vez generado, se guarda de forma definitiva en `participacion.progreso_md` en la base de datos de Supabase. Al reingresar al panel, el sistema lee directamente el Markdown guardado sin volver a consumir la API de Gemini.
+
+3. **Validación y Reparación Integral del Botón "Configurar Guía":**
+   * En [`dashboard.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/dashboard.html), se corrigió el selector del modal y se añadió el manejador JavaScript `abrirModalEditarCraft()` que invoca de forma segura la API de Bootstrap (`bootstrap.Modal.getOrCreateInstance`), garantizando apertura fluida e instantánea.
+   * Se reestructuró el modal [`#modalEditarCraft`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/docente/dashboard.html) destacando en la parte superior el área de *"Preguntas Guía del Docente (Hoja de Ruta Socrática)"* con indicaciones pedagógicas claras sobre cómo ingresarlas, seguido de las directrices del marco CRAFT. Los cambios se persisten exitosamente en la BD mediante `POST /docente/sesiones/{id}/craft`.
+
+---
+
+### 14.12. Robustez del Cierre de Tutoría y de la Detección de Atajos (RF-10)
+
+Se corrigieron dos fallas observadas en pruebas: (a) el contador de solicitudes de respuesta directa casi nunca registraba alertas y (b) algunas sesiones se cerraban de forma repentina tras una pregunta del estudiante.
+
+1. **Detección RF-10 normalizada (`ChatService.esSolicitudAtajo`):** el mensaje se normaliza (minúsculas, sin tildes ni puntuación) y se admite hasta 4 palabras de relleno entre el verbo y el objeto (*"dame directamente la respuesta"*, *"escribe un programa que…"*), además de frases completas (*"no quiero preguntas"*, *"dime cómo se hace"*, *"dámelo hecho"*). Los infinitivos solo cuentan tras un modal (*"me puedes dar…"*) para no marcar *"no sé cómo hacer el ejercicio"*.
+2. **Doble señal de atajo:** la Capa 1 instruye al tutor a añadir la meta-etiqueta oculta `<!-- ATAJO_DETECTADO -->` ante solicitudes explícitas de código. La métrica `codigo=10` se registra si la detecta el patrón **o** el tutor; la etiqueta se elimina antes de mostrar o guardar la respuesta.
+3. **Validación en servidor de `<!-- RUTA_COMPLETADA -->`:** el cierre ya no depende solo del criterio del modelo. Se acepta únicamente si (i) respondió el modelo principal (no el auxiliar *lite*), (ii) la sesión tiene preguntas guía y (iii) el estudiante lleva al menos `max(4, nº de preguntas guía)` turnos. La regla 5 de la Capa 1 se reforzó en el mismo sentido.
+4. **El diagnóstico ya no cierra la tutoría:** se agregó la columna `participacion.ruta_completada BOOLEAN NOT NULL DEFAULT FALSE` (creada directamente en Supabase). La tutoría queda finalizada solo si `ruta_completada = true` o el estudiante envió feedback / SUS+TAM (`Participacion#isTutoriaFinalizada`). Generar el diagnóstico desde el panel docente (`progreso_md`) **no** bloquea al estudiante.
+5. **Errores de IA fuera de la persistencia:** si ningún modelo responde, no se guarda ni el mensaje del estudiante ni el texto de error; el endpoint responde `503` reintentable. `cerrarSesionYGenerarProgreso` lanza `IllegalStateException` en lugar de guardar el texto de error como diagnóstico, y la síntesis grupal tampoco lo almacena en caché. Como efecto adicional, el mensaje nuevo ya no aparece duplicado en el prompt (antes iba en el historial y en la consulta).
+6. **Frontend del chat sin recarga ante errores:** se eliminó el respaldo `form.submit()`. Ante un fallo se retira la burbuja del estudiante, se devuelve su texto al cuadro de entrada y se muestra el error dentro del chat; la entrada solo se bloquea si el servidor indica sesión pausada o tutoría realmente finalizada. Un 403 sin JSON (token CSRF expirado) se trata como sesión de ingreso expirada, no como cierre de tutoría.
+---
+
+### 14.13. Alineación Documento–Código (Octubre 2026)
+
+Antes de la evaluación con usuarios reales se revisaron 15 inconsistencias entre este documento y el código. Decisiones aplicadas:
+
+1. **Contraseñas por rol:** BCrypt estricto para estudiantes; el docente de prueba (creado en Supabase) puede usar texto plano, sin migración automática (§14.8.1 #2).
+2. **Control de acceso:** se mantiene `permitAll` en Spring Security; la protección la hacen los interceptores de `WebMvcConfig` y las validaciones de `ChatController` (§14.8.4).
+3. **Memoria del tutor limitada a la sesión actual:** la Capa 3 recibe el historial **completo** de la participación (antes, solo los últimos 14 mensajes) y ya no incluye `progreso_md`. La evolución entre sesiones pasa a trabajo futuro (§13).
+4. **Pausar la clase no genera diagnósticos** (§14.9.2 #2).
+5. **Diagnóstico pedagógico solo manual:** completar la ruta marca `ruta_completada` y cierra la tutoría, pero no genera el diagnóstico; los textos del chat dejaron de prometer una síntesis automática.
+6. **Asistente CRAFT:** propone **una sola** pregunta orientadora, coherente con la Capa 1.
+7. **Sin auditor reformulador:** el §9.1 describe el mecanismo real (reglas de la Capa 1 + detección RF-10); se eliminó el campo sin uso `MensajeDto.reformuladoPorAuditor`.
+8. **Modelos de IA alineados con `.env`:** principal `gemini-3-flash-preview`, auxiliar `gemini-3.1-flash-lite-preview` (§8).
+9. Diagrama de base de datos (§11.4): pendiente de actualizar.
+10. **Códigos de `metrica` documentados** (§7.4.1).
+11. **M-01 basada en diagnósticos manuales:** el dashboard indica *"Basado en N de M diagnósticos generados"* (§7.4.1).
+12. **Pool HikariCP:** 13 conexiones (§14.8.1 #5).
+13. **Sin modificaciones automáticas de datos al arrancar:** se eliminó `DatabaseSchemaInitializer` (creaba/vinculaba `profesor_estudiante`, borraba estudiantes `test.%` e insertaba alertas RF-10). También se eliminó la regla que contaba un atajo cuando el diagnóstico contenía palabras como "atajo" o "respuesta directa": M-04 se basa solo en las métricas `codigo=10` y, como respaldo para datos históricos, en el patrón aplicado a los mensajes del estudiante.
+14. **Docker:** el repositorio incluye `Dockerfile` y `docker-compose.yml`; la base de datos vive en Supabase (§11.2).
+15. **Código sin uso eliminado:** dependencias `spring-boot-starter-security-oauth2-resource-server` (y su variante de test) y `thymeleaf-extras-springsecurity6`, `AnalyticsService.obtenerMetricasDocente()` y la sobrecarga `PromptAssistantService.generarDirectricesCraft(tema, objetivos)`.
+
+---
+
+### 14.14. Correcciones de Seguridad y Disponibilidad (Octubre 2026)
+
+1. **XSS almacenado en el dashboard docente (severidad alta):** el nombre del estudiante (dato que él mismo controla) se interpolaba dentro de atributos `onclick` del modal de diagnóstico; como un `onclick` decodifica las entidades HTML antes de ejecutar el JavaScript, un nombre con comillas podía ejecutar código con la sesión del docente. Los botones *"Generar / Reintentar"* ahora usan `data-accion` y un listener delegado, sin interpolar datos en código, y `escapeHtml` también escapa comillas.
+2. **Límite de intentos en el ingreso por enlace de clase:** `POST /chat/{enlace}/registro` (pestaña *"Ya tengo cuenta"*) aplica el mismo `LoginRateLimiterService` que el login principal (5 fallos → bloqueo de 10 min por correo + IP).
+3. **Autorización al eliminar estudiantes:** un docente solo puede eliminar a estudiantes de su cartera o con participaciones en sus sesiones; la cuenta solo se borra de la plataforma si el estudiante no pertenece a otro docente (cartera ni participaciones).
+4. **Tiempo máximo de respuesta acotado:** un timeout de lectura del modelo principal pasa directamente al auxiliar (sin reintentar el mismo modelo) y el auxiliar tiene un solo intento, por lo que el peor caso baja de unos 145 s a unos 70 s. El chat aborta la petición a los 90 s y le indica al estudiante que recargue antes de reenviar.
+5. **Decisión registrada:** se mantiene el envío del historial completo de la sesión en cada turno (§14.13 #3), aceptando el crecimiento del costo en tokens en sesiones largas.
+
+---
+
+### 14.15. Informe Actualizable y M-02 con Margen por Pregunta Guía (Octubre 2026)
+
+1. **Generar un informe nuevo:** al abrir el diagnóstico de un estudiante, el modal muestra el informe vigente y el botón *"Generar nuevo informe"*. Este vuelve a analizar **toda la conversación actual** del estudiante y **reemplaza** el informe anterior (`POST /docente/api/participaciones/{id}/generar-diagnostico?regenerar=true` → `ChatService.generarDiagnostico(id, true)`). Las marcas `codigo=3/5` de la tabla `metrica` solo se registran en el primer informe.
+2. **Actualización de M-01 y M-03:** como ambas métricas se derivan del informe, al cerrar el modal tras generar un informe el panel se recarga para reflejar los nuevos focos de dificultad y el nuevo estado de evolución.
+3. **Fuente del informe:** únicamente el historial de mensajes de la participación (estudiante y tutor), enviado a Gemini con la plantilla de 4 secciones. No incluye las preguntas guía, CRAFT, métricas ni feedback.
+4. **M-02 con margen por pregunta guía:** se espera un máximo de **3 preguntas del estudiante por cada pregunta guía** (sin preguntas guía se asume un margen de 9). Clasificación:
+
+| Turnos del estudiante | Etiqueta | Color |
+| :--- | :--- | :--- |
+| 0 | Sin consultas | gris |
+| ≤ mitad del margen | Fluido | verde |
+| ≤ margen | Ritmo normal | celeste |
+| > margen, con señales (≥2 solicitudes de atajo o confusión persistente en el informe) | Requiere apoyo | rojo |
+| > margen, sin señales | Diálogo perseverante | azul |
+
+   La etiqueta muestra el margen (por ejemplo *"15 de 15 turnos · Ritmo normal"*). Dentro del margen nunca se marca *"Requiere apoyo"*.

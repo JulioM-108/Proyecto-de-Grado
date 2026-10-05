@@ -48,4 +48,12 @@ public interface ParticipacionRepository extends JpaRepository<Participacion, UU
 
     /** Comprueba si un estudiante ya está vinculado a una sesión específica. */
     boolean existsByEstudianteAndSesion(Estudiante estudiante, Sesion sesion);
+
+    /** Busca una participación cargando eager su Sesion y el Profesor para evitar LazyInitializationException */
+    @Query("SELECT p FROM Participacion p JOIN FETCH p.sesion s JOIN FETCH s.profesor WHERE p.id = :id")
+    Optional<Participacion> findByIdWithSesionAndProfesor(@Param("id") UUID id);
+
+    /** Busca una participación cargando eager su Estudiante, Sesion y Profesor para evitar LazyInitializationException */
+    @Query("SELECT p FROM Participacion p JOIN FETCH p.estudiante JOIN FETCH p.sesion s JOIN FETCH s.profesor WHERE p.id = :id")
+    Optional<Participacion> findByIdWithEstudianteAndSesionAndProfesor(@Param("id") UUID id);
 }

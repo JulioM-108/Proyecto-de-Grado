@@ -261,6 +261,15 @@
             </div>
         </div>
 
+        <!-- Notificación de Error al Eliminar Estudiante -->
+        <div th:if="${param.errorEliminacion}" class="alert alert-danger alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+                <div>No es posible eliminar al estudiante de la plataforma institucional porque tiene participaciones activas en clases de otros docentes. Puedes desvincularlo de tus clases directamente desde el panel de la sesión.</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+
         <!-- Banner Informativo: Sin Clases Creadas -->
         <div th:if="${#lists.isEmpty(sesiones)}" class="alert border-0 shadow-sm rounded-4 p-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3" style="background-color: #E8EFF8; color: var(--puj-blue-dark); border-left: 4px solid var(--puj-blue) !important;">
             <div class="d-flex align-items-center gap-3">
@@ -455,6 +464,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="formAsignarClase" method="post" action="">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                     <div class="modal-body p-4">
                         <p class="text-muted small mb-3">
                             Vincula al alumno <strong id="modalNombreEstudiante" class="text-dark">Estudiante</strong> a una de tus sesiones socráticas. Una vez asignado, la clase aparecerá inmediatamente en su portal.
@@ -507,6 +517,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="formEliminarEstudiante" method="post" action="">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                     <div class="modal-body p-4">
                         <p class="text-dark mb-2">
                             ¿Estás seguro de que deseas eliminar a <strong id="modalNombreEliminarEstudiante" class="text-danger">Estudiante</strong>?

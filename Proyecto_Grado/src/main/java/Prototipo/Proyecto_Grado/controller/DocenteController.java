@@ -12,11 +12,14 @@ import Prototipo.Proyecto_Grado.repository.EstudianteRepository;
 import Prototipo.Proyecto_Grado.repository.MensajeRepository;
 import Prototipo.Proyecto_Grado.repository.MetricaRepository;
 import Prototipo.Proyecto_Grado.repository.ParticipacionRepository;
+import Prototipo.Proyecto_Grado.model.entity.ProfesorEstudiante;
+import Prototipo.Proyecto_Grado.repository.ProfesorEstudianteRepository;
 import Prototipo.Proyecto_Grado.repository.ProfesorRepository;
 import Prototipo.Proyecto_Grado.repository.SesionRepository;
 import Prototipo.Proyecto_Grado.service.AnalyticsService;
 import Prototipo.Proyecto_Grado.service.AuthService;
 import Prototipo.Proyecto_Grado.service.ChatService;
+import Prototipo.Proyecto_Grado.service.GeminiService;
 import Prototipo.Proyecto_Grado.service.PromptAssistantService;
 import Prototipo.Proyecto_Grado.service.TotpService;
 import jakarta.servlet.http.HttpSession;
@@ -49,6 +52,7 @@ public class DocenteController {
     private final MensajeRepository mensajeRepository;
     private final MetricaRepository metricaRepository;
     private final EstudianteRepository estudianteRepository;
+    private final ProfesorEstudianteRepository profesorEstudianteRepository;
     private final ChatService chatService;
     private final PromptAssistantService promptAssistantService;
     private final AnalyticsService analyticsService;
@@ -232,25 +236,7 @@ public class DocenteController {
             boolean nuevoEstado = !Boolean.TRUE.equals(sesion.getEstado());
             sesion.setEstado(nuevoEstado);
             sesionRepository.save(sesion);
-
-            // Respaldo 2: Al pausar la sesión (cierre de la clase presencial), consolidar
-            // automáticamente a todos los estudiantes con mensajes cuyo diagnóstico no se haya generado
-            if (!nuevoEstado) {
-                List<Participacion> participaciones = participacionRepository.findBySesion(sesion);
-                for (Participacion part : participaciones) {
-                    if (part.getProgresoMd() == null || part.getProgresoMd().isBlank()) {
-                        long totalMsgs = mensajeRepository.countByParticipacion(part);
-                        if (totalMsgs >= 2) {
-                            try {
-                                chatService.cerrarSesionYGenerarProgreso(part.getId());
-                                log.info("Consolidación masiva: progreso_md generado para participación {} al pausar clase", part.getId());
-                            } catch (Exception e) {
-                                log.warn("Error al consolidar participación {} al pausar sesión: {}", part.getId(), e.getMessage());
-                            }
-                        }
-                    }
-                }
-            }
+            log.info("Sesión {} cambió su estado a: {}", id, nuevoEstado ? "ACTIVA" : "PAUSADA");
         }
 
         return "redirect:/docente/sesiones";
@@ -264,6 +250,7 @@ public class DocenteController {
     @ResponseBody
     public ResponseEntity<GenerarDiagnosticoResponse> generarDiagnosticoBajoDemanda(
             @PathVariable UUID participacionId,
+            @RequestParam(value = "regenerar", defaultValue = "false") boolean regenerar,
             HttpSession session) {
 
         Profesor profesor = obtenerProfesorActual(session);
@@ -272,25 +259,64 @@ public class DocenteController {
                     .body(new GenerarDiagnosticoResponse(false, null, "No autorizado."));
         }
 
-        Participacion part = participacionRepository.findById(participacionId).orElse(null);
+        Participacion part = participacionRepository.findByIdWithSesionAndProfesor(participacionId).orElse(null);
         if (part == null || part.getSesion() == null || !part.getSesion().getProfesor().getId().equals(profesor.getId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new GenerarDiagnosticoResponse(false, null, "Participación no encontrada o no pertenece a sus clases."));
         }
 
+        // Si ya cuenta con diagnóstico válido y no se pidió uno nuevo, retornarlo sin llamar a Gemini
+        if (!regenerar && !GeminiService.esRespuestaDeError(part.getProgresoMd())) {
+            return ResponseEntity.ok(new GenerarDiagnosticoResponse(true, part.getProgresoMd(), null));
+        }
+
         long count = mensajeRepository.countByParticipacion(part);
         if (count == 0) {
-            return ResponseEntity.badRequest()
-                    .body(new GenerarDiagnosticoResponse(false, null, "El estudiante no registra mensajes en esta sesión."));
+            return ResponseEntity.ok(new GenerarDiagnosticoResponse(false, null, "El estudiante aún no registra consultas en esta sesión. Se requiere al menos un intercambio socrático para generar el diagnóstico."));
+        }
+
+        // El diagnóstico se genera sin cerrar la tutoría: el estudiante puede seguir conversando.
+        try {
+            // regenerar = true reemplaza el diagnóstico anterior con uno basado en la conversación actual
+            String md = chatService.generarDiagnostico(participacionId, regenerar);
+            return ResponseEntity.ok(new GenerarDiagnosticoResponse(true, md, null));
+        } catch (IllegalStateException e) {
+            log.warn("Diagnóstico no generado para participación {}: {}", participacionId, e.getMessage());
+            return ResponseEntity.ok(new GenerarDiagnosticoResponse(false, null, "El motor de IA reportó saturación temporal. Por favor presiona Reintentar en unos segundos."));
+        } catch (Exception e) {
+            log.error("Error al generar diagnóstico bajo demanda con IA: {}", e.getMessage(), e);
+            return ResponseEntity.ok(new GenerarDiagnosticoResponse(false, null, "Error al procesar la síntesis con el motor de IA. Por favor reintenta nuevamente."));
+        }
+    }
+
+    // ─── 5.2 Síntesis Pedagógica Consolidada Grupal Bajo Demanda ──────────────
+
+    public record GenerarSintesisGrupalResponse(boolean success, String sintesis, String error) {}
+
+    @PostMapping("/api/sesiones/{sesionId}/generar-sintesis")
+    @ResponseBody
+    public ResponseEntity<GenerarSintesisGrupalResponse> generarSintesisGrupal(
+            @PathVariable UUID sesionId,
+            HttpSession session) {
+
+        Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new GenerarSintesisGrupalResponse(false, null, "No autorizado."));
+        }
+
+        Sesion sesion = sesionRepository.findById(sesionId).orElse(null);
+        if (sesion == null || !sesion.getProfesor().getId().equals(profesor.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new GenerarSintesisGrupalResponse(false, null, "Sesión no encontrada o no pertenece a sus clases."));
         }
 
         try {
-            chatService.cerrarSesionYGenerarProgreso(participacionId);
-            Participacion actualizada = participacionRepository.findById(participacionId).orElse(part);
-            return ResponseEntity.ok(new GenerarDiagnosticoResponse(true, actualizada.getProgresoMd(), null));
+            String sintesis = analyticsService.generarYGuardarSintesisIa(sesion);
+            return ResponseEntity.ok(new GenerarSintesisGrupalResponse(true, sintesis, null));
         } catch (Exception e) {
-            log.error("Error al generar diagnóstico bajo demanda con IA: {}", e.getMessage(), e);
-            return ResponseEntity.ok(new GenerarDiagnosticoResponse(false, null, "Error al procesar la síntesis con el motor de IA."));
+            log.error("Error al generar síntesis grupal con IA para sesión {}: {}", sesionId, e.getMessage(), e);
+            return ResponseEntity.ok(new GenerarSintesisGrupalResponse(false, null, "No se pudo generar la síntesis grupal con IA."));
         }
     }
 
@@ -306,14 +332,10 @@ public class DocenteController {
 
         if (sesion != null && sesion.getProfesor().getId().equals(profesor.getId())) {
             List<Participacion> participaciones = participacionRepository.findBySesion(sesion);
-            for (Participacion part : participaciones) {
-                List<Mensaje> mensajes = mensajeRepository.findByParticipacionOrderByCreatedAtAsc(part);
-                mensajeRepository.deleteAll(mensajes);
-
-                List<Metrica> metricas = metricaRepository.findByParticipacion(part);
-                metricaRepository.deleteAll(metricas);
-
-                participacionRepository.delete(part);
+            if (!participaciones.isEmpty()) {
+                mensajeRepository.deleteByParticipacionIn(participaciones);
+                metricaRepository.deleteByParticipacionIn(participaciones);
+                participacionRepository.deleteAll(participaciones);
             }
             sesionRepository.delete(sesion);
             log.info("Sesión {} eliminada exitosamente por el profesor {}", id, profesor.getCorreo());
@@ -330,6 +352,7 @@ public class DocenteController {
             @PathVariable UUID id,
             @RequestParam(value = "craftGuardado", required = false) Boolean craftGuardado,
             @RequestParam(value = "estudianteVinculado", required = false) Boolean estudianteVinculado,
+            @RequestParam(value = "estudianteDesvinculado", required = false) Boolean estudianteDesvinculado,
             HttpSession session,
             Model model) {
 
@@ -347,15 +370,18 @@ public class DocenteController {
 
         AnalyticsService.MetricasDashboard metricas = analyticsService.obtenerMetricasPorSesion(sesion);
 
-        // Estudiantes del profesor que aún no forman parte de esta clase
-        List<Estudiante> todosEstudiantesDocente = participacionRepository.findDistinctEstudiantesByProfesor(profesor);
+        // Estudiantes de la cartera del docente que aún no forman parte de esta clase
+        List<ProfesorEstudiante> vinculosDocente = profesorEstudianteRepository.findByProfesorWithEstudiante(profesor);
         List<Participacion> participacionesSesion = participacionRepository.findBySesion(sesion);
         Set<UUID> idsEstudiantesEnSesion = participacionesSesion.stream()
+                .filter(p -> p.getEstudiante() != null)
                 .map(p -> p.getEstudiante().getId())
                 .collect(Collectors.toSet());
 
-        List<Estudiante> estudiantesDisponibles = todosEstudiantesDocente.stream()
-                .filter(est -> !idsEstudiantesEnSesion.contains(est.getId()))
+        List<Estudiante> estudiantesDisponibles = vinculosDocente.stream()
+                .map(ProfesorEstudiante::getEstudiante)
+                .filter(est -> est != null && !idsEstudiantesEnSesion.contains(est.getId()))
+                .sorted(Comparator.comparing(e -> e.getNombre() != null ? e.getNombre() : ""))
                 .collect(Collectors.toList());
 
         // Feedbacks y valoraciones de los estudiantes en esta sesión
@@ -381,8 +407,17 @@ public class DocenteController {
                 .average()
                 .orElse(0.0);
 
+        List<String> preguntasGuiaList = new ArrayList<>();
+        if (sesion.getPreguntasGuia() != null && !sesion.getPreguntasGuia().isBlank()) {
+            preguntasGuiaList = Arrays.stream(sesion.getPreguntasGuia().split("\n"))
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .collect(Collectors.toList());
+        }
+
         model.addAttribute("profesor", profesor);
         model.addAttribute("sesion", sesion);
+        model.addAttribute("preguntasGuiaList", preguntasGuiaList);
         model.addAttribute("metricas", metricas);
         model.addAttribute("estudiantesDisponibles", estudiantesDisponibles);
         model.addAttribute("feedbacksSesion", feedbacksSesion);
@@ -394,6 +429,7 @@ public class DocenteController {
         model.addAttribute("clasificacionSusSesion", EvaluacionSusTamDTO.interpretarSus(promedioSusSesion));
         model.addAttribute("craftGuardado", Boolean.TRUE.equals(craftGuardado));
         model.addAttribute("estudianteVinculado", Boolean.TRUE.equals(estudianteVinculado));
+        model.addAttribute("estudianteDesvinculado", Boolean.TRUE.equals(estudianteDesvinculado));
 
         return "docente/dashboard";
     }
@@ -422,6 +458,41 @@ public class DocenteController {
         }
 
         return "redirect:/docente/sesiones/" + id + "/metricas?estudianteVinculado=true";
+    }
+
+    @Transactional
+    @PostMapping("/sesiones/{id}/participaciones/{participacionId}/desvincular")
+    public String desvincularEstudianteDeSesion(
+            @PathVariable UUID id,
+            @PathVariable UUID participacionId,
+            HttpSession session) {
+
+        Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) return "redirect:/login";
+
+        Sesion sesion = sesionRepository.findById(id).orElse(null);
+        if (sesion == null || !sesion.getProfesor().getId().equals(profesor.getId())) {
+            return "redirect:/docente/sesiones";
+        }
+
+        Participacion part = participacionRepository.findByIdWithEstudianteAndSesionAndProfesor(participacionId).orElse(null);
+        if (part != null && part.getSesion() != null && part.getSesion().getId().equals(sesion.getId())) {
+            String correoEst = (part.getEstudiante() != null && part.getEstudiante().getCorreo() != null)
+                    ? part.getEstudiante().getCorreo() : "desconocido";
+            String temaSesion = sesion.getTema();
+
+            List<Participacion> listaPart = List.of(part);
+            mensajeRepository.deleteByParticipacionIn(listaPart);
+            metricaRepository.deleteByParticipacionIn(listaPart);
+            participacionRepository.deleteAll(listaPart);
+            participacionRepository.flush();
+
+            log.info("Docente {} desvinculó al estudiante {} de la sesión {}",
+                    profesor.getCorreo(), correoEst, temaSesion);
+            return "redirect:/docente/sesiones/" + id + "/metricas?estudianteDesvinculado=true";
+        }
+
+        return "redirect:/docente/sesiones/" + id + "/metricas";
     }
 
     @PostMapping("/sesiones/{id}/craft")
@@ -519,7 +590,7 @@ public class DocenteController {
         Profesor profesor = obtenerProfesorActual(session);
         if (profesor == null) return "redirect:/login";
 
-        if (!authService.verificarPassword(contrasena, profesor.getContrasena())) {
+        if (!authService.verificarPasswordDocente(contrasena, profesor.getContrasena())) {
             return "redirect:/docente?error2fa=contrasenaIncorrecta";
         }
 
@@ -551,7 +622,8 @@ public class DocenteController {
         Profesor profesor = obtenerProfesorActual(session);
         if (profesor == null) return "redirect:/login";
 
-        // Consultar solo estudiantes vinculados a sesiones del docente autenticado (principio de mínimo privilegio)
+        // Consultar estudiantes de la cartera permanente del docente autenticado
+        List<ProfesorEstudiante> vinculosDocente = profesorEstudianteRepository.findByProfesorWithEstudiante(profesor);
         List<Participacion> participaciones = participacionRepository.findByProfesorWithEstudianteAndSesion(profesor);
         List<Sesion> sesiones = sesionRepository.findByProfesorOrderByCreatedAtDesc(profesor);
 
@@ -559,29 +631,24 @@ public class DocenteController {
                 .filter(p -> p.getEstudiante() != null)
                 .collect(Collectors.groupingBy(p -> p.getEstudiante().getId(), LinkedHashMap::new, Collectors.toList()));
 
-        // Extraer estudiantes únicos desde las participaciones del docente
-        Map<UUID, Estudiante> estudiantesUnicos = new LinkedHashMap<>();
-        for (Participacion p : participaciones) {
-            if (p.getEstudiante() != null) {
-                estudiantesUnicos.putIfAbsent(p.getEstudiante().getId(), p.getEstudiante());
-            }
-        }
-        List<Estudiante> estudiantesDelDocente = new ArrayList<>(estudiantesUnicos.values());
-        estudiantesDelDocente.sort(Comparator.comparing(e -> e.getNombre() != null ? e.getNombre() : ""));
-
         List<EstudianteDirectorioDto> directorio = new ArrayList<>();
         java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-        for (Estudiante est : estudiantesDelDocente) {
+        for (ProfesorEstudiante pe : vinculosDocente) {
+            Estudiante est = pe.getEstudiante();
+            if (est == null) continue;
+
             List<Participacion> parts = porEstudiante.get(est.getId());
             long totalClases = (parts != null) ? parts.size() : 0;
             long clasesActivas = (parts != null) ? parts.stream()
                     .filter(p -> p.getSesion() != null && Boolean.TRUE.equals(p.getSesion().getEstado()))
                     .count() : 0;
-            String ultimaActividad = "Sin clases asignadas";
 
+            String ultimaActividad = "Sin clases asignadas";
             if (parts != null && !parts.isEmpty() && parts.get(0).getCreatedAt() != null) {
                 ultimaActividad = parts.get(0).getCreatedAt().format(dtf);
+            } else if (pe.getFechaVinculacion() != null) {
+                ultimaActividad = "Vinculado el " + pe.getFechaVinculacion().format(dtf);
             }
 
             directorio.add(new EstudianteDirectorioDto(
@@ -643,33 +710,62 @@ public class DocenteController {
 
         Estudiante estudiante = estudianteRepository.findById(estudianteId).orElse(null);
         if (estudiante != null) {
-            // Verificar que el estudiante SOLO tenga participaciones en sesiones de este docente (anti-IDOR)
+            String nombreEst = estudiante.getNombre();
+            String correoEst = estudiante.getCorreo();
+
+            List<ProfesorEstudiante> todosVinculos = profesorEstudianteRepository.findByEstudiante(estudiante);
             List<Participacion> todasParticipaciones = participacionRepository.findByEstudianteOrderByCreatedAtDesc(estudiante);
-            boolean perteneceAOtroDocente = todasParticipaciones.stream()
-                    .anyMatch(p -> p.getSesion() != null
-                            && p.getSesion().getProfesor() != null
-                            && !p.getSesion().getProfesor().getId().equals(profesor.getId()));
+
+            // Participaciones del estudiante en sesiones de ESTE docente
+            List<Participacion> participacionesConDocente = todasParticipaciones.stream()
+                    .filter(p -> p.getSesion() != null && p.getSesion().getProfesor() != null && p.getSesion().getProfesor().getId().equals(profesor.getId()))
+                    .collect(Collectors.toList());
+
+            // Autorización: solo puede eliminar a estudiantes de su cartera o con participaciones en sus sesiones
+            boolean perteneceAEsteDocente = !participacionesConDocente.isEmpty()
+                    || todosVinculos.stream().anyMatch(pe -> pe.getProfesor() != null && pe.getProfesor().getId().equals(profesor.getId()));
+            if (!perteneceAEsteDocente) {
+                log.warn("Acceso denegado: el docente {} intentó eliminar al estudiante {} que no pertenece a su cartera",
+                        profesor.getCorreo(), estudianteId);
+                return "redirect:/docente/estudiantes";
+            }
+
+            // La cuenta solo se borra de la plataforma si no pertenece a otro docente (cartera o participaciones)
+            boolean perteneceAOtroDocente = todasParticipaciones.size() > participacionesConDocente.size()
+                    || todosVinculos.stream()
+                    .anyMatch(pe -> pe.getProfesor() != null && !pe.getProfesor().getId().equals(profesor.getId()));
+
+            if (!participacionesConDocente.isEmpty()) {
+                mensajeRepository.deleteByParticipacionIn(participacionesConDocente);
+                metricaRepository.deleteByParticipacionIn(participacionesConDocente);
+                participacionRepository.deleteAll(participacionesConDocente);
+                participacionRepository.flush();
+            }
+
+            // Eliminar de la cartera de este docente los vínculos gestionados en sesión
+            List<ProfesorEstudiante> vinculosAEliminar = todosVinculos.stream()
+                    .filter(pe -> pe.getProfesor() != null && pe.getProfesor().getId().equals(profesor.getId()))
+                    .collect(Collectors.toList());
+
+            if (!vinculosAEliminar.isEmpty()) {
+                profesorEstudianteRepository.deleteAll(vinculosAEliminar);
+                profesorEstudianteRepository.flush();
+            } else {
+                profesorEstudianteRepository.deleteByProfesorAndEstudiante(profesor, estudiante);
+                profesorEstudianteRepository.flush();
+            }
 
             if (perteneceAOtroDocente) {
-                log.warn("El docente {} intentó eliminar al estudiante {} que tiene participaciones en sesiones de otros docentes",
-                        profesor.getCorreo(), estudiante.getCorreo());
-                return "redirect:/docente/estudiantes?errorEliminacion=true";
+                log.info("Docente {} desvinculó de su cartera al estudiante {} ({}) que también pertenece a otros docentes",
+                        profesor.getCorreo(), nombreEst, correoEst);
+                return "redirect:/docente/estudiantes?estudianteEliminado=true";
             }
 
-            // Eliminar en cascada solo las participaciones en sesiones de este docente
-            for (Participacion part : todasParticipaciones) {
-                List<Mensaje> mensajes = mensajeRepository.findByParticipacionOrderByCreatedAtAsc(part);
-                mensajeRepository.deleteAll(mensajes);
-
-                List<Metrica> metricas = metricaRepository.findByParticipacion(part);
-                metricaRepository.deleteAll(metricas);
-
-                participacionRepository.delete(part);
-            }
-
+            // Si solo pertenecía a este docente, eliminar cuenta de la plataforma
             estudianteRepository.delete(estudiante);
+            estudianteRepository.flush();
             log.info("Docente {} eliminó al estudiante {} ({}) de la plataforma",
-                    profesor.getCorreo(), estudiante.getNombre(), estudiante.getCorreo());
+                    profesor.getCorreo(), nombreEst, correoEst);
             return "redirect:/docente/estudiantes?estudianteEliminado=true";
         }
 

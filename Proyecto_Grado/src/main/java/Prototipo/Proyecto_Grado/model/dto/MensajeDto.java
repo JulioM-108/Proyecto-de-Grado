@@ -18,6 +18,6 @@ public class MensajeDto {
     private String emisor; // "ESTUDIANTE" o "TUTOR"
     private String contenido;
     private LocalDateTime timestamp;
-    private boolean reformuladoPorAuditor; // RF-10
     private boolean sesionCompletada; // Indica si el tutor socrático dio por concluida la ruta de preguntas guía
+    private boolean errorIa; // Ningún modelo respondió: no se persistió nada y el estudiante puede reintentar
 }

@@ -48,6 +48,15 @@ public class Participacion {
     @Column(name = "evaluacion_sus_tam", columnDefinition = "TEXT")
     private String evaluacionSusTam;
 
+    /**
+     * true cuando el tutor certificó (y el servidor validó) que el estudiante completó
+     * la ruta de preguntas guía. Es independiente de progreso_md: que el docente genere
+     * un diagnóstico NO cierra la tutoría del estudiante.
+     */
+    @Column(name = "ruta_completada", nullable = false)
+    @Builder.Default
+    private Boolean rutaCompletada = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estudiante_id", nullable = false)
     private Estudiante estudiante;
@@ -64,6 +73,19 @@ public class Participacion {
         if (this.progresoMd == null) {
             this.progresoMd = "";
         }
+        if (this.rutaCompletada == null) {
+            this.rutaCompletada = false;
+        }
+    }
+
+    /**
+     * Indica si la tutoría quedó cerrada para el estudiante: completó la ruta de preguntas guía
+     * o ya calificó la sesión (feedback / SUS+TAM). La existencia de progreso_md no cuenta.
+     */
+    public boolean isTutoriaFinalizada() {
+        return Boolean.TRUE.equals(rutaCompletada)
+                || evaluacionSusTam != null
+                || valoracionEstudiante != null;
     }
 
     /** Alias de compatibilidad para plantillas Thymeleaf */

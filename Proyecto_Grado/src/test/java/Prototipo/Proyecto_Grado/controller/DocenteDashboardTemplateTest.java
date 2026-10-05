@@ -82,6 +82,8 @@ class DocenteDashboardTemplateTest {
         context.setVariable("sesion", sesion);
         context.setVariable("metricas", metricas);
         context.setVariable("craftGuardado", false);
+        context.setVariable("estudianteVinculado", false);
+        context.setVariable("estudianteDesvinculado", false);
 
         String htmlProcesado = templateEngine.process("docente/dashboard", context);
 
@@ -94,6 +96,7 @@ class DocenteDashboardTemplateTest {
         assertTrue(htmlProcesado.contains("Alertas de Atajo"));
         assertTrue(htmlProcesado.contains("Seguimiento Individual de Estudiantes"));
         assertTrue(htmlProcesado.contains("modalDiagnosticoCognitivo"));
+        assertTrue(htmlProcesado.contains("modalDesvincularEstudiante"));
         // Comprobar que la jerga técnica RF-10 ya no aparece en el HTML docente
         org.junit.jupiter.api.Assertions.assertFalse(htmlProcesado.contains("Auditor RF-10"));
     }

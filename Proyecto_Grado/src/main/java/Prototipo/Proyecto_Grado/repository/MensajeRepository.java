@@ -3,6 +3,9 @@ package Prototipo.Proyecto_Grado.repository;
 import Prototipo.Proyecto_Grado.model.entity.Mensaje;
 import Prototipo.Proyecto_Grado.model.entity.Participacion;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -20,6 +23,19 @@ public interface MensajeRepository extends JpaRepository<Mensaje, UUID> {
      */
     List<Mensaje> findByParticipacionOrderByCreatedAtAsc(Participacion participacion);
 
+    /**
+     * Mensajes de múltiples participaciones en lote, ordenados cronológicamente.
+     */
+    List<Mensaje> findByParticipacionInOrderByCreatedAtAsc(List<Participacion> participaciones);
+
     /** Cuenta total de mensajes en una participación. */
     long countByParticipacion(Participacion participacion);
+
+    /** Cuenta los mensajes de un emisor (true = estudiante) en una participación. */
+    long countByParticipacionAndEmisor(Participacion participacion, Boolean emisor);
+
+    /** Eliminación en lote de mensajes por lista de participaciones. */
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM Mensaje m WHERE m.participacion IN :participaciones")
+    void deleteByParticipacionIn(@Param("participaciones") List<Participacion> participaciones);
 }

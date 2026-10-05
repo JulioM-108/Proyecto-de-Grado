@@ -34,6 +34,8 @@ public class AuthService {
      * @param password contraseña ingresada en texto plano
      * @param rol      "DOCENTE" o "ESTUDIANTE"
      */
+    private static final String DUMMY_BCRYPT_HASH = "$2a$10$w8.5R32y9m3U3rM7.Y1uQeIeS9P9G.bJ4o3a4t9E8p0g2Z7o5r1K.";
+
     public UsuarioAutenticado autenticar(String correo, String password, String rol) {
         validarDominioJaveriano(correo);
         String emailLimpio = correo.trim().toLowerCase();
@@ -41,10 +43,12 @@ public class AuthService {
         if ("DOCENTE".equalsIgnoreCase(rol)) {
             Optional<Profesor> profesorOpt = profesorRepository.findByCorreoIgnoreCase(emailLimpio);
             if (profesorOpt.isEmpty()) {
+                // Mitigación de timing attack: igualar tiempo de cómputo de BCrypt
+                passwordEncoder.matches(password != null ? password : "", DUMMY_BCRYPT_HASH);
                 throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             Profesor prof = profesorOpt.get();
-            if (!verificarYMigrarPasswordProfesor(prof, password)) {
+            if (!verificarPasswordDocente(password, prof.getContrasena())) {
                 throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             return new UsuarioAutenticado(prof.getId(), prof.getNombre(), prof.getCorreo(), "DOCENTE");
@@ -53,52 +57,16 @@ public class AuthService {
             // Por defecto: ESTUDIANTE
             Optional<Estudiante> estudianteOpt = estudianteRepository.findByCorreoIgnoreCase(emailLimpio);
             if (estudianteOpt.isEmpty()) {
+                // Mitigación de timing attack: igualar tiempo de cómputo de BCrypt
+                passwordEncoder.matches(password != null ? password : "", DUMMY_BCRYPT_HASH);
                 throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             Estudiante est = estudianteOpt.get();
-            if (!verificarYMigrarPasswordEstudiante(est, password)) {
+            if (!verificarPasswordEstudiante(password, est.getContrasena())) {
                 throw new IllegalArgumentException("Credenciales inválidas. Verifica tu correo y contraseña.");
             }
             return new UsuarioAutenticado(est.getId(), est.getNombre(), est.getCorreo(), "ESTUDIANTE");
         }
-    }
-
-    /**
-     * Verifica y actualiza transparentemente a BCrypt si la contraseña almacenada estaba en texto plano.
-     */
-    private boolean verificarYMigrarPasswordProfesor(Profesor prof, String passwordIngresada) {
-        if (!verificarPassword(passwordIngresada, prof.getContrasena())) {
-            return false;
-        }
-        if (!esHashBcrypt(prof.getContrasena()) && profesorRepository != null) {
-            try {
-                prof.setContrasena(passwordEncoder.encode(passwordIngresada));
-                profesorRepository.save(prof);
-                log.info("Contraseña de docente {} migrada exitosamente a hash BCrypt.", prof.getCorreo());
-            } catch (Exception e) {
-                log.warn("No se pudo persistir la migración a BCrypt para docente {}: {}", prof.getCorreo(), e.getMessage());
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Verifica y actualiza transparentemente a BCrypt si la contraseña almacenada estaba en texto plano.
-     */
-    private boolean verificarYMigrarPasswordEstudiante(Estudiante est, String passwordIngresada) {
-        if (!verificarPassword(passwordIngresada, est.getContrasena())) {
-            return false;
-        }
-        if (!esHashBcrypt(est.getContrasena()) && estudianteRepository != null) {
-            try {
-                est.setContrasena(passwordEncoder.encode(passwordIngresada));
-                estudianteRepository.save(est);
-                log.info("Contraseña de estudiante {} migrada exitosamente a hash BCrypt.", est.getCorreo());
-            } catch (Exception e) {
-                log.warn("No se pudo persistir la migración a BCrypt para estudiante {}: {}", est.getCorreo(), e.getMessage());
-            }
-        }
-        return true;
     }
 
     /**
@@ -134,25 +102,38 @@ public class AuthService {
     }
 
     /**
-     * Verifica la contraseña contra el valor almacenado.
-     * Soporta hashes BCrypt y realiza fallback transparente para contraseñas heredadas en texto plano,
-     * evitando advertencias innecesarias en el log de Spring Security.
+     * Verificación estricta para estudiantes: su contraseña se hashea con BCrypt al registrarse,
+     * por lo que solo se acepta un hash BCrypt válido (nunca texto plano).
      */
-    public boolean verificarPassword(String passwordIngresada, String passwordAlmacenada) {
-        if (passwordAlmacenada == null || passwordIngresada == null) {
+    public boolean verificarPasswordEstudiante(String passwordIngresada, String passwordAlmacenada) {
+        if (passwordIngresada == null || !esHashBcrypt(passwordAlmacenada)) {
             return false;
         }
+        return coincideBcrypt(passwordIngresada, passwordAlmacenada);
+    }
 
-        if (esHashBcrypt(passwordAlmacenada)) {
-            try {
-                return passwordEncoder.matches(passwordIngresada, passwordAlmacenada);
-            } catch (Exception e) {
-                log.warn("Error al verificar contraseña con BCrypt: {}", e.getMessage());
-                return false;
-            }
+    /**
+     * Verificación para docentes: el docente de prueba se crea manualmente en Supabase, por lo que
+     * se admite contraseña en texto plano (sin migrarla). Si ya es un hash BCrypt, se verifica como tal.
+     */
+    public boolean verificarPasswordDocente(String passwordIngresada, String passwordAlmacenada) {
+        if (passwordIngresada == null || passwordAlmacenada == null) {
+            return false;
         }
+        if (esHashBcrypt(passwordAlmacenada)) {
+            return coincideBcrypt(passwordIngresada, passwordAlmacenada);
+        }
+        return java.security.MessageDigest.isEqual(
+                passwordIngresada.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                passwordAlmacenada.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
 
-        // Fallback para usuarios heredados cuya contraseña fue creada originalmente en texto plano
-        return passwordIngresada.equals(passwordAlmacenada);
+    private boolean coincideBcrypt(String passwordIngresada, String hash) {
+        try {
+            return passwordEncoder.matches(passwordIngresada, hash);
+        } catch (Exception e) {
+            log.warn("Error al verificar contraseña con BCrypt: {}", e.getMessage());
+            return false;
+        }
     }
 }

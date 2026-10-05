@@ -16,11 +16,11 @@ class TotpServiceTest {
     }
 
     @Test
-    @DisplayName("Generar secreto Base32 válido de 16 caracteres")
+    @DisplayName("Generar secreto Base32 válido de 32 caracteres (160 bits)")
     void testGenerarSecretoBase32() {
         String secreto = totpService.generarSecretoBase32();
         assertNotNull(secreto);
-        assertEquals(16, secreto.length());
+        assertEquals(32, secreto.length());
         assertTrue(secreto.matches("^[A-Z2-7]+$"), "El secreto debe cumplir la especificación Base32 RFC 4648");
     }
 
@@ -28,7 +28,7 @@ class TotpServiceTest {
     @DisplayName("Generar URI otpauth correcta para Google Authenticator")
     void testGenerarOtpAuthUri() {
         String correo = "docente@javerianacali.edu.co";
-        String secreto = "JBSWY3DPEHPK3PXP";
+        String secreto = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
         String uri = totpService.generarOtpAuthUri(correo, secreto);
 
         assertNotNull(uri);
@@ -48,6 +48,17 @@ class TotpServiceTest {
         assertNotNull(codigoCorrecto);
         assertEquals(6, codigoCorrecto.length());
         assertTrue(totpService.validarCodigo(secreto, codigoCorrecto), "El código actual debe ser validado como true");
+    }
+
+    @Test
+    @DisplayName("Rechazar reutilización del mismo código en la misma ventana (Replay Attack)")
+    void testRechazarReplayAttack() throws Exception {
+        String secreto = totpService.generarSecretoBase32();
+        long currentInterval = System.currentTimeMillis() / 1000L / 30L;
+        String codigoCorrecto = totpService.generarCodigoParaVentana(secreto, currentInterval);
+
+        assertTrue(totpService.validarCodigo(secreto, codigoCorrecto), "La primera validación debe ser exitosa");
+        assertFalse(totpService.validarCodigo(secreto, codigoCorrecto), "La segunda validación con el mismo código debe ser rechazada por replay attack");
     }
 
     @Test

@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analítica Socrática de la Clase — Javeriana Cali</title>
+    <meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}"/>
+    <meta th:if="${_csrf != null}" name="_csrf_header" th:content="${_csrf.headerName}"/>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
@@ -143,6 +145,15 @@
             </div>
         </div>
 
+        <!-- Notificación de estudiante desvinculado -->
+        <div th:if="${estudianteDesvinculado}" class="alert alert-warning alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-person-x-fill text-warning fs-5"></i>
+                <div>El estudiante fue desvinculado exitosamente de esta clase. Podrá ser revinculado en cualquier momento.</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+
         <!-- Barra de Cabecera de la Clase -->
         <div class="card-header-bar d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
@@ -224,18 +235,54 @@
             </div>
         </div>
 
-        <!-- 2. Síntesis Pedagógica Consolidada -->
+        <!-- 2. Hoja de Ruta Pedagógica: Preguntas Guía de la Sesión -->
         <div class="card-panel mb-4">
             <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-compass text-primary fs-5"></i>
+                    <h6 class="fw-bold mb-0 text-dark">Hoja de Ruta Pedagógica: Preguntas Guía de la Sesión</h6>
+                </div>
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 small fw-semibold"
+                        data-bs-toggle="modal" data-bs-target="#modalEditarCraft"
+                        onclick="abrirModalEditarCraft()">
+                    <i class="bi bi-pencil-square me-1"></i>Configurar Guía
+                </button>
+            </div>
+
+            <div th:if="${preguntasGuiaList != null and !preguntasGuiaList.isEmpty()}">
+                <div class="row g-2">
+                    <div th:each="pregunta, iterStat : ${preguntasGuiaList}" class="col-12">
+                        <div class="p-3 bg-light rounded-3 border d-flex align-items-start gap-3">
+                            <span class="badge bg-primary text-white rounded-pill px-2 py-1 mt-1 small" th:text="'Hito ' + ${iterStat.count}">Hito 1</span>
+                            <div class="text-dark small fw-medium" style="line-height: 1.5;" th:text="${pregunta}">Pregunta orientadora</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div th:unless="${preguntasGuiaList != null and !preguntasGuiaList.isEmpty()}" class="p-3 bg-light rounded-3 text-center text-muted small">
+                <i class="bi bi-info-circle me-1"></i>No has configurado preguntas guía para esta sesión. Puedes agregarlas desde el botón <strong>Configurar Guía</strong> para orientar la mayéutica del tutor inteligente.
+            </div>
+        </div>
+
+        <!-- 3. Síntesis Pedagógica Consolidada -->
+        <div class="card-panel mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-stars text-primary fs-5"></i>
                     <h6 class="fw-bold mb-0 text-dark">Síntesis Pedagógica Consolidada</h6>
                 </div>
-                <span class="badge bg-light text-muted border small">Diagnóstico Ejecutivo</span>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" id="btnActualizarSintesis" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 small fw-semibold" style="display: none;" onclick="generarSintesisConsolidada()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Actualizar Síntesis
+                    </button>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle small fw-semibold">Diagnóstico Ejecutivo con IA</span>
+                </div>
             </div>
-            <div class="p-3 bg-light rounded-3">
-                <div style="white-space: pre-line; line-height: 1.6; font-size: 0.92rem;" class="text-secondary" id="resumenIaTexto" th:text="${metricas.resumenIa}">
-                    Cargando diagnóstico grupal...
+            
+            <div id="contenedorSintesisEstructurada" th:data-consultas="${metricas.totalConsultasEstudiante}">
+                <textarea id="resumenIaTextoRaw" style="display: none;" th:text="${metricas.resumenIa}"></textarea>
+                <div id="resumenIaCards" class="row g-3">
+                    <!-- Renderizado dinámicamente con JavaScript en tarjetas semánticas -->
                 </div>
             </div>
         </div>
@@ -246,20 +293,20 @@
                 <div class="card-panel h-100">
                     <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
                         <h6 class="fw-bold mb-0 text-dark">
-                            <i class="bi bi-bar-chart me-1 text-primary"></i>Falencias Identificadas
+                            <i class="bi bi-bar-chart me-1 text-primary"></i>Focos de Dificultad y Falencias (M-01)
                         </h6>
-                        <small class="text-muted">Por concepto</small>
+                        <small class="text-muted">Por concepto / foco pedagógico</small>
                     </div>
 
                     <div th:if="${metricas.dificultadesPorConcepto != null and !metricas.dificultadesPorConcepto.isEmpty()}">
                         <div th:each="entry : ${metricas.dificultadesPorConcepto}" class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="fw-semibold text-dark small" th:text="${entry.key}">Concepto</span>
-                                <span class="badge bg-light text-dark border small" th:text="${entry.value} + ' consultas'">0</span>
+                                <span class="badge bg-light text-dark border small" th:text="${#strings.contains(entry.key, 'Consultas en tema') ? entry.value + ' consultas' : (entry.value == 1 ? '1 incidencia' : entry.value + ' incidencias')}">0</span>
                             </div>
                             <div class="progress" style="height: 6px; border-radius: 9999px;">
                                 <div class="progress-bar bg-primary" role="progressbar"
-                                     th:style="'width: ' + (${entry.value} * 15 > 100 ? 100 : ${entry.value} * 15) + '%;'"></div>
+                                     th:style="'width: ' + (${entry.value} * 20 > 100 ? 100 : ${entry.value} * 20) + '%;'"></div>
                             </div>
                         </div>
                     </div>
@@ -267,6 +314,16 @@
                     <div th:unless="${metricas.dificultadesPorConcepto != null and !metricas.dificultadesPorConcepto.isEmpty()}" class="text-center py-4 text-muted">
                         <i class="bi bi-check2-circle text-success fs-2 d-block mb-1"></i>
                         <small>Aún no se registran falencias acumuladas en esta sesión.</small>
+                    </div>
+
+                    <!-- M-01 se extrae de los diagnósticos que el docente genera manualmente -->
+                    <div th:if="${metricas.totalParticipaciones > 0}" class="mt-3 pt-2 border-top small text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Basado en <strong th:text="${metricas.diagnosticosGenerados}">0</strong> de
+                        <strong th:text="${metricas.totalParticipaciones}">0</strong> diagnósticos generados.
+                        <span th:if="${metricas.diagnosticosGenerados < metricas.totalParticipaciones}">
+                            Genera más diagnósticos ("Ver / Generar") para enriquecer esta gráfica.
+                        </span>
                     </div>
                 </div>
             </div>
@@ -278,7 +335,9 @@
                         <h6 class="fw-bold mb-0 text-dark">
                             <i class="bi bi-sliders me-1 text-success"></i>Directrices CRAFT de la Sesión
                         </h6>
-                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 py-1 px-2" data-bs-toggle="modal" data-bs-target="#modalEditarCraft">
+                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 py-1 px-2"
+                                data-bs-toggle="modal" data-bs-target="#modalEditarCraft"
+                                onclick="abrirModalEditarCraft()">
                             <i class="bi bi-pencil me-1"></i>Editar
                         </button>
                     </div>
@@ -337,7 +396,7 @@
                             <th>Turnos y Nivel (M-02)</th>
                             <th>Evolución (M-03)</th>
                             <th>Actividad (M-05)</th>
-                            <th class="text-end pe-3">Diagnóstico Cognitivo</th>
+                            <th class="text-end pe-3">Acciones / Diagnóstico</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -364,13 +423,22 @@
                                 </div>
                             </td>
                             <td class="text-end pe-3">
-                                <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 d-inline-flex align-items-center gap-1"
-                                        th:data-part-id="${part.id}"
-                                        th:data-estudiante-nombre="${part.estudianteNombre}"
-                                        onclick="abrirDiagnosticoModal(this)">
-                                    <i class="bi bi-file-earmark-medical"></i>
-                                    <span>Ver Diagnóstico</span>
-                                </button>
+                                <div class="d-inline-flex align-items-center gap-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 d-inline-flex align-items-center gap-1"
+                                            th:data-part-id="${part.id}"
+                                            th:data-estudiante-nombre="${part.estudianteNombre}"
+                                            onclick="abrirDiagnosticoModal(this)">
+                                        <i th:class="${part.progresoMd != null and !part.progresoMd.isBlank() ? 'bi bi-file-earmark-check-fill text-success' : 'bi bi-file-earmark-medical text-primary'}"></i>
+                                        <span th:text="${part.progresoMd != null and !part.progresoMd.isBlank() ? 'Ver Diagnóstico' : 'Ver / Generar'}">Ver Diagnóstico</span>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-3 py-1 px-2"
+                                            title="Desvincular estudiante de esta clase"
+                                            th:data-part-id="${part.id}"
+                                            th:data-estudiante-nombre="${part.estudianteNombre}"
+                                            onclick="abrirModalDesvincular(this.getAttribute('data-part-id'), this.getAttribute('data-estudiante-nombre'))">
+                                        <i class="bi bi-person-x"></i>
+                                    </button>
+                                </div>
                                 <div th:id="'progreso-data-' + ${part.id}" style="display: none;" th:text="${part.progresoMd}"></div>
                             </td>
                         </tr>
@@ -446,25 +514,40 @@
 
     </div>
 
-    <!-- MODAL: Ajustar CRAFT -->
+    <!-- MODAL: Ajustar CRAFT y Preguntas Guía -->
     <div class="modal fade" id="modalEditarCraft" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
                 <div class="modal-header border-bottom p-3">
                     <h6 class="modal-title fw-bold" style="color: var(--puj-blue-dark);">
-                        <i class="bi bi-sliders me-1"></i>Ajustar Directrices Pedagógicas CRAFT
+                        <i class="bi bi-compass text-primary me-2"></i>Configurar Preguntas Guía y Directrices Pedagógicas (CRAFT)
                     </h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form th:action="@{/docente/sesiones/{id}/craft(id=${sesion.id})}" method="post">
                     <div class="modal-body p-4">
+                        <!-- 1. Preguntas Guía del Docente (Hitos Socráticos) -->
+                        <div class="mb-4 p-3 bg-light rounded-3 border">
+                            <label class="form-label small fw-bold text-dark d-flex align-items-center gap-2 mb-1">
+                                <i class="bi bi-compass-fill text-primary"></i>Preguntas Guía del Docente (Hoja de Ruta Socrática):
+                            </label>
+                            <p class="text-muted small mb-2" style="font-size: 0.78rem;">
+                                Escribe cada pregunta orientadora en una línea separada. El tutor socrático las utilizará secuencialmente como hitos para guiar la mayéutica del estudiante hacia la comprensión autónoma.
+                            </p>
+                            <textarea name="preguntasGuia" rows="4" class="form-control rounded-3" th:text="${sesion.preguntasGuia}" placeholder="Ejemplo:&#10;¿Cómo definirías una clase frente a un objeto?&#10;¿Por qué es importante proteger los atributos privados?&#10;¿Cómo interactúan los métodos constructores?"></textarea>
+                        </div>
+
+                        <!-- 2. Directrices Pedagógicas CRAFT -->
+                        <h6 class="fw-bold small text-muted text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                            <i class="bi bi-sliders me-1"></i>Directrices del Marco CRAFT
+                        </h6>
                         <div class="mb-3">
-                            <label class="form-label small fw-bold">Context (Contexto y Propósito):</label>
+                            <label class="form-label small fw-bold">Context (Contexto y Enfoque del Tema):</label>
                             <textarea name="craftContexto" rows="2" class="form-control rounded-3" th:text="${sesion.craftContexto}"></textarea>
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label class="form-label small fw-bold">Role (Rol Socrático):</label>
+                                <label class="form-label small fw-bold">Role (Rol Socrático del Tutor):</label>
                                 <input type="text" name="craftRol" class="form-control rounded-3" th:value="${sesion.craftRol}" />
                             </div>
                             <div class="col-md-6">
@@ -472,24 +555,20 @@
                                 <input type="text" name="craftAudiencia" class="form-control rounded-3" th:value="${sesion.craftAudiencia}" />
                             </div>
                         </div>
-                        <div class="row g-3 mb-3">
+                        <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label small fw-bold">Format (Formato):</label>
+                                <label class="form-label small fw-bold">Format (Formato de Respuesta):</label>
                                 <input type="text" name="craftFormato" class="form-control rounded-3" th:value="${sesion.craftFormato}" />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small fw-bold">Tone (Tono):</label>
+                                <label class="form-label small fw-bold">Tone (Tono del Tutor):</label>
                                 <input type="text" name="craftTono" class="form-control rounded-3" th:value="${sesion.craftTono}" />
                             </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold">Preguntas Guía del Docente:</label>
-                            <textarea name="preguntasGuia" rows="3" class="form-control rounded-3" th:text="${sesion.preguntasGuia}" placeholder="Una pregunta orientadora por línea..."></textarea>
                         </div>
                     </div>
                     <div class="modal-footer bg-light p-3 border-top">
                         <button type="button" class="btn btn-outline-secondary btn-sm rounded-3" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary btn-sm rounded-3">Guardar Cambios</button>
+                        <button type="submit" class="btn btn-primary btn-sm rounded-3 px-3 fw-semibold">Guardar Cambios</button>
                     </div>
                 </form>
             </div>
@@ -542,6 +621,39 @@
         </div>
     </div>
 
+    <!-- MODAL: Desvincular Estudiante de la Clase -->
+    <div class="modal fade" id="modalDesvincularEstudiante" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+                <div class="modal-header border-bottom p-3" style="background-color: #FEF2F2;">
+                    <h6 class="modal-title fw-bold text-danger mb-0">
+                        <i class="bi bi-person-x-fill me-2"></i>Desvincular Estudiante de esta Clase
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formDesvincularEstudiante" method="post" action="">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <div class="modal-body p-4">
+                        <p class="text-dark mb-2">
+                            ¿Estás seguro de que deseas desvincular a <strong id="modalNombreDesvincular" class="text-danger">Estudiante</strong> de esta clase?
+                        </p>
+                        <div class="alert border-0 small rounded-3 p-3 mb-0" style="background-color: #FEF2F2; color: #991B1B; border-left: 4px solid #DC2626 !important;">
+                            <div class="fw-bold mb-1"><i class="bi bi-info-circle-fill me-1"></i>Información sobre la desvinculación:</div>
+                            Se eliminará la participación del estudiante en esta sesión, incluyendo su diálogo socrático y las métricas acumuladas en esta clase. 
+                            <strong>El estudiante conservará su cuenta en la plataforma</strong> y podrás revincularlo a esta o a cualquier otra clase cuando lo desees.
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light p-3 border-top">
+                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger btn-sm rounded-3 px-3 fw-bold">
+                            <i class="bi bi-person-x-fill me-1"></i>Desvincular Alumno
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: Diagnóstico Cognitivo Individual -->
     <div class="modal fade" id="modalDiagnosticoCognitivo" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -580,11 +692,16 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
     <script>
+        // Escapa también comillas para que el resultado sea seguro dentro de atributos HTML.
+        // Nunca usarlo para interpolar datos dentro de código JavaScript (onclick="..."): usar data-* + listeners.
         function escapeHtml(text) {
             if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function copiarEnlaceClase() {
@@ -603,10 +720,185 @@
             abrirDiagnostico(partId, nombreEstudiante);
         }
 
+        function formatMarkdownContent(text) {
+            if (!text) return '';
+            let lines = text.split('\n');
+            let inList = false;
+            let listType = ''; // 'ul' o 'ol'
+            let resultHtml = '';
+
+            for (let line of lines) {
+                let trimmed = line.trim();
+                if (!trimmed) {
+                    if (inList) {
+                        resultHtml += listType === 'ol' ? '</ol>' : '</ul>';
+                        inList = false;
+                        listType = '';
+                    }
+                    continue;
+                }
+
+                // Lista numerada (1. item, 2. item, 1) item)
+                const matchNum = trimmed.match(/^(\d+)[\.\)]\s+(.*)$/);
+                if (matchNum) {
+                    if (!inList || listType !== 'ol') {
+                        if (inList) resultHtml += listType === 'ol' ? '</ol>' : '</ul>';
+                        resultHtml += '<ol class="ps-3 mb-2 small text-secondary" style="line-height: 1.6;">';
+                        inList = true;
+                        listType = 'ol';
+                    }
+                    let itemText = escapeHtml(matchNum[2]).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                    resultHtml += '<li class="mb-2">' + itemText + '</li>';
+                    continue;
+                }
+
+                // Viñetas (- item o * item)
+                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                    if (!inList || listType !== 'ul') {
+                        if (inList) resultHtml += listType === 'ol' ? '</ol>' : '</ul>';
+                        resultHtml += '<ul class="ps-3 mb-2 small text-secondary" style="line-height: 1.6;">';
+                        inList = true;
+                        listType = 'ul';
+                    }
+                    let itemText = escapeHtml(trimmed.substring(2).trim()).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                    resultHtml += '<li class="mb-1">' + itemText + '</li>';
+                    continue;
+                }
+
+                // Párrafo normal
+                if (inList) {
+                    resultHtml += listType === 'ol' ? '</ol>' : '</ul>';
+                    inList = false;
+                    listType = '';
+                }
+                let pText = escapeHtml(trimmed).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                resultHtml += '<p class="small text-secondary mb-2" style="line-height: 1.6;">' + pText + '</p>';
+            }
+
+            if (inList) {
+                resultHtml += listType === 'ol' ? '</ol>' : '</ul>';
+            }
+            return resultHtml;
+        }
+
+        function abrirModalDesvincular(partId, nombreEstudiante) {
+            document.getElementById('modalNombreDesvincular').textContent = nombreEstudiante;
+            const sesionId = '[[${sesion.id}]]';
+            document.getElementById('formDesvincularEstudiante').action = '/docente/sesiones/' + sesionId + '/participaciones/' + partId + '/desvincular';
+            const modalEl = document.getElementById('modalDesvincularEstudiante');
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+
+        function parsearSeccionesMarkdown(rawText) {
+            if (!rawText) return [];
+            // Normalizar saltos de línea \r\n a \n
+            const texto = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+            // Capturar encabezados de nivel 2 a 4 (##, ###, ####) y su cuerpo correspondiente
+            const regex = /(?:^|\n)#{2,4}\s+([^\n]+)\n([\s\S]*?)(?=(?:\n#{2,4}\s+|$))/g;
+            const secciones = [];
+            let match;
+            while ((match = regex.exec(texto)) !== null) {
+                const titulo = match[1].replace(/\*\*/g, '').replace(/[:]/g, '').trim();
+                const cuerpo = match[2].trim();
+                if (titulo && cuerpo) {
+                    secciones.push({ titulo, cuerpo });
+                }
+            }
+            return secciones;
+        }
+
+        function construirHtmlDiagnostico(rawText) {
+            const secciones = parsearSeccionesMarkdown(rawText);
+            if (secciones.length > 0) {
+                let html = '<div class="d-flex flex-column gap-3">';
+                for (let sec of secciones) {
+                    let headerClass = 'bg-light text-dark';
+                    let icon = 'bi-bookmark-check';
+                    const tLow = sec.titulo.toLowerCase();
+
+                    if (tLow.includes('dominado')) {
+                        headerClass = 'bg-success-subtle text-success border border-success-subtle';
+                        icon = 'bi-check-circle-fill text-success';
+                    } else if (tLow.includes('progreso')) {
+                        headerClass = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                        icon = 'bi-hourglass-split text-warning';
+                    } else if (tLow.includes('error') || tLow.includes('recurrente') || tLow.includes('dificultad') || tLow.includes('confusi')) {
+                        headerClass = 'bg-danger-subtle text-danger border border-danger-subtle';
+                        icon = 'bi-exclamation-triangle-fill text-danger';
+                    } else if (tLow.includes('recomenda') || tLow.includes('siguiente') || tLow.includes('sugerencia')) {
+                        headerClass = 'bg-info-subtle text-info-emphasis border border-info-subtle';
+                        icon = 'bi-lightbulb-fill text-info';
+                    }
+
+                    html += `
+                        <div class="card border rounded-3 overflow-hidden shadow-sm">
+                            <div class="card-header py-2 px-3 d-flex align-items-center gap-2 ${headerClass}">
+                                <i class="bi ${icon}"></i>
+                                <span class="fw-bold small">${escapeHtml(sec.titulo)}</span>
+                            </div>
+                            <div class="card-body p-3 bg-white">
+                                ${formatMarkdownContent(sec.cuerpo)}
+                            </div>
+                        </div>
+                    `;
+                }
+                html += '</div>';
+                return html;
+            } else {
+                return `
+                    <div class="p-3 bg-light rounded-3 border">
+                        ${formatMarkdownContent(rawText)}
+                    </div>
+                `;
+            }
+        }
+
+        // Participación mostrada en el modal. Los botones "Generar / Reintentar" se enlazan por delegación
+        // (data-accion) en lugar de onclick en línea: así el nombre del estudiante (dato controlado por él)
+        // nunca se interpola dentro de código JavaScript (prevención de XSS).
+        let diagnosticoActual = null;
+        // Si se genera o reemplaza un informe, M-01 / M-03 cambian: se recarga el panel al cerrar el modal
+        let metricasDesactualizadas = false;
+
+        // Botón (sin datos interpolados) para reemplazar el informe actual por uno basado en la conversación al día
+        const BOTON_NUEVO_INFORME_HTML = `
+            <div class="text-center mt-3 pt-3 border-top">
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-3 px-3 py-2 fw-semibold"
+                        data-accion="regenerar-diagnostico">
+                    <i class="bi bi-arrow-repeat me-1"></i>Generar nuevo informe
+                </button>
+                <div class="small text-muted mt-1">Reemplaza este informe usando toda la conversación actual del estudiante.</div>
+            </div>`;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const cuerpo = document.getElementById('diagnosticoCuerpo');
+            if (cuerpo) {
+                cuerpo.addEventListener('click', function (e) {
+                    if (!diagnosticoActual) return;
+                    if (e.target.closest('[data-accion="regenerar-diagnostico"]')) {
+                        if (confirm('¿Generar un nuevo informe? El informe actual será reemplazado.')) {
+                            generarDiagnosticoBajoDemanda(diagnosticoActual.partId, diagnosticoActual.nombre, true);
+                        }
+                    } else if (e.target.closest('[data-accion="generar-diagnostico"]')) {
+                        // Reintento: conserva el modo (primer informe o reemplazo)
+                        generarDiagnosticoBajoDemanda(diagnosticoActual.partId, diagnosticoActual.nombre, diagnosticoActual.regenerar);
+                    }
+                });
+            }
+            const modalDiag = document.getElementById('modalDiagnosticoCognitivo');
+            if (modalDiag) {
+                modalDiag.addEventListener('hidden.bs.modal', function () {
+                    if (metricasDesactualizadas) window.location.reload();
+                });
+            }
+        });
+
         function abrirDiagnostico(partId, nombreEstudiante) {
+            diagnosticoActual = { partId: partId, nombre: nombreEstudiante, regenerar: false };
             document.getElementById('diagnosticoSubtitulo').innerText = 'Estudiante: ' + nombreEstudiante;
             const dataDiv = document.getElementById('progreso-data-' + partId);
-            const rawText = dataDiv ? dataDiv.innerText.trim() : '';
+            const rawText = dataDiv ? dataDiv.textContent.trim() : '';
             const container = document.getElementById('diagnosticoCuerpo');
 
             if (!rawText || rawText === 'En diálogo...') {
@@ -619,105 +911,347 @@
                         </p>
                         <button type="button" class="btn btn-primary btn-sm rounded-3 px-3 py-2 fw-semibold shadow-sm"
                                 id="btnGenerarDiagnostico"
-                                onclick="generarDiagnosticoBajoDemanda('${partId}', '${escapeHtml(nombreEstudiante)}')">
+                                data-accion="generar-diagnostico">
                             <i class="bi bi-magic me-1"></i>Generar Diagnóstico Pedagógico Ahora
                         </button>
                     </div>
                 `;
             } else {
-                let html = '<div class="d-flex flex-column gap-3">';
-                const secciones = rawText.split(/^##\s+/m);
-                let encontroSecciones = false;
-
-                for (let sec of secciones) {
-                    sec = sec.trim();
-                    if (!sec) continue;
-                    const lines = sec.split('\n');
-                    const titulo = lines[0].trim();
-                    const cuerpo = lines.slice(1).join('\n').trim();
-
-                    let headerClass = 'bg-light text-dark';
-                    let icon = 'bi-bookmark-check';
-
-                    if (titulo.toLowerCase().includes('dominado')) {
-                        headerClass = 'bg-success-subtle text-success border border-success-subtle';
-                        icon = 'bi-check-circle-fill text-success';
-                    } else if (titulo.toLowerCase().includes('progreso')) {
-                        headerClass = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
-                        icon = 'bi-hourglass-split text-warning';
-                    } else if (titulo.toLowerCase().includes('error') || titulo.toLowerCase().includes('recurrente')) {
-                        headerClass = 'bg-danger-subtle text-danger border border-danger-subtle';
-                        icon = 'bi-exclamation-triangle-fill text-danger';
-                    } else if (titulo.toLowerCase().includes('recomendaci')) {
-                        headerClass = 'bg-info-subtle text-info-emphasis border border-info-subtle';
-                        icon = 'bi-lightbulb-fill text-info';
-                    }
-
-                    if (titulo && cuerpo) {
-                        encontroSecciones = true;
-                        html += `
-                            <div class="card border rounded-3 overflow-hidden shadow-sm">
-                                <div class="card-header py-2 px-3 d-flex align-items-center gap-2 ${headerClass}">
-                                    <i class="bi ${icon}"></i>
-                                    <span class="fw-bold small">${escapeHtml(titulo)}</span>
-                                </div>
-                                <div class="card-body p-3 bg-white">
-                                    <div class="small text-secondary" style="white-space: pre-line; line-height: 1.6;">${escapeHtml(cuerpo)}</div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
-
-                if (!encontroSecciones) {
-                    html += `
-                        <div class="p-3 bg-light rounded-3 border">
-                            <div class="small text-secondary" style="white-space: pre-line; line-height: 1.6;">${escapeHtml(rawText)}</div>
-                        </div>
-                    `;
-                }
-
-                html += '</div>';
-                container.innerHTML = DOMPurify.sanitize(html);
+                const html = construirHtmlDiagnostico(rawText);
+                container.innerHTML = DOMPurify.sanitize(html) + BOTON_NUEVO_INFORME_HTML;
             }
 
-            const modal = new bootstrap.Modal(document.getElementById('modalDiagnosticoCognitivo'));
-            modal.show();
+            const modalEl = document.getElementById('modalDiagnosticoCognitivo');
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            if (!modalEl.classList.contains('show')) {
+                modal.show();
+            }
         }
 
-        function generarDiagnosticoBajoDemanda(partId, nombreEstudiante) {
-            const btn = document.getElementById('btnGenerarDiagnostico');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sintetizando con IA...';
+        function generarDiagnosticoBajoDemanda(partId, nombreEstudiante, regenerar) {
+            regenerar = regenerar === true;
+            diagnosticoActual = { partId: partId, nombre: nombreEstudiante, regenerar: regenerar };
+            const container = document.getElementById('diagnosticoCuerpo');
+            if (container) {
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary mb-3" style="width: 2.8rem; height: 2.8rem;" role="status"></div>
+                        <h6 class="fw-bold text-dark mb-1">Analizando Historial Socrático con IA</h6>
+                        <p class="text-muted small mx-auto mb-0" style="max-width: 380px; line-height: 1.6;">
+                            El motor de IA está procesando las consultas y respuestas de <strong>${escapeHtml(nombreEstudiante)}</strong> para estructurar los conceptos dominados, errores recurrentes y recomendaciones pedagógicas...
+                        </p>
+                    </div>
+                `;
             }
 
-            fetch('/docente/api/participaciones/' + partId + '/generar-diagnostico', {
-                method: 'POST'
+            const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+            const headers = { 'Accept': 'application/json' };
+            if (csrfToken && csrfHeader) headers[csrfHeader] = csrfToken;
+
+            fetch('/docente/api/participaciones/' + encodeURIComponent(partId) + '/generar-diagnostico'
+                    + (regenerar ? '?regenerar=true' : ''), {
+                method: 'POST',
+                headers: headers
             })
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.progresoMd) {
+                    const rawMd = data.progresoMd.trim();
+                    // 1. Guardar en memoria del DOM con textContent para preservar saltos de línea
                     const dataDiv = document.getElementById('progreso-data-' + partId);
-                    if (dataDiv) dataDiv.innerText = data.progresoMd;
-                    abrirDiagnostico(partId, nombreEstudiante);
+                    if (dataDiv) dataDiv.textContent = rawMd;
+
+                    // 2. Renderizar inmediatamente el Markdown en tarjetas estructuradas
+                    const html = construirHtmlDiagnostico(rawMd);
+                    if (container) {
+                        container.innerHTML = DOMPurify.sanitize(html) + BOTON_NUEVO_INFORME_HTML;
+                    }
+                    diagnosticoActual.regenerar = false;
+                    metricasDesactualizadas = true;
+
+                    // 3. Garantizar que el modal esté visible sin duplicar backdrops
+                    const modalEl = document.getElementById('modalDiagnosticoCognitivo');
+                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    if (!modalEl.classList.contains('show')) {
+                        modal.show();
+                    }
+
+                    // 4. Actualizar dinámicamente el botón en la fila de la tabla a 'Ver Diagnóstico' en verde
+                    const btnFila = document.querySelector(`button[data-part-id="${partId}"]`);
+                    if (btnFila) {
+                        const icon = btnFila.querySelector('i');
+                        if (icon) {
+                            icon.className = 'bi bi-file-earmark-check-fill text-success';
+                        }
+                        const span = btnFila.querySelector('span');
+                        if (span) {
+                            span.textContent = 'Ver Diagnóstico';
+                        }
+                    }
                 } else {
-                    alert(data.error || 'No se pudo generar el diagnóstico.');
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="bi bi-magic me-1"></i>Reintentar Generar';
+                    const msgError = data.error || 'No se pudo generar el diagnóstico con IA.';
+                    if (container) {
+                        container.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="bi bi-exclamation-circle text-danger fs-1 d-block mb-3"></i>
+                                <h6 class="fw-bold text-dark">No se pudo generar el diagnóstico</h6>
+                                <p class="text-muted small mx-auto mb-3" style="max-width: 420px; line-height: 1.6;">
+                                    ${escapeHtml(msgError)}
+                                </p>
+                                <button type="button" class="btn btn-primary btn-sm rounded-3 px-3 py-2 fw-semibold"
+                                        data-accion="generar-diagnostico">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Reintentar Generar
+                                </button>
+                            </div>
+                        `;
                     }
                 }
             })
             .catch(err => {
                 console.error(err);
-                alert('Error de conexión al generar el diagnóstico con IA.');
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-magic me-1"></i>Reintentar Generar';
+                if (container) {
+                    container.innerHTML = `
+                        <div class="text-center py-4">
+                            <i class="bi bi-wifi-off text-danger fs-1 d-block mb-3"></i>
+                            <h6 class="fw-bold text-dark">Error de conexión</h6>
+                            <p class="text-muted small mx-auto mb-3" style="max-width: 420px; line-height: 1.6;">
+                                Hubo un problema al conectar con el servidor o el motor de IA tardó demasiado en responder.
+                            </p>
+                            <button type="button" class="btn btn-primary btn-sm rounded-3 px-3 py-2 fw-semibold"
+                                    data-accion="generar-diagnostico">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Reintentar
+                            </button>
+                        </div>
+                    `;
                 }
             });
         }
+
+        function abrirModalEditarCraft() {
+            const modalEl = document.getElementById('modalEditarCraft');
+            if (modalEl) {
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+            }
+        }
+
+        function generarSintesisConsolidada() {
+            const sesionId = "[[${sesion.id}]]";
+            const targetContainer = document.getElementById('resumenIaCards');
+            if (targetContainer) {
+                targetContainer.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border text-primary mb-3" style="width: 2.8rem; height: 2.8rem;" role="status"></div>
+                        <h6 class="fw-bold text-dark mb-1">Consolidando Diagnóstico Pedagógico Grupal con IA</h6>
+                        <p class="text-muted small mx-auto mb-0" style="max-width: 420px; line-height: 1.6;">
+                            El motor de IA está procesando las consultas de los estudiantes, patrones de razonamiento y focos de dificultad de la clase...
+                        </p>
+                    </div>
+                `;
+            }
+
+            const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+            const headers = { 'Accept': 'application/json' };
+            if (csrfToken && csrfHeader) headers[csrfHeader] = csrfToken;
+
+            fetch('/docente/api/sesiones/' + sesionId + '/generar-sintesis', {
+                method: 'POST',
+                headers: headers
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.sintesis) {
+                    const rawEl = document.getElementById('resumenIaTextoRaw');
+                    if (rawEl) {
+                        rawEl.value = data.sintesis;
+                        rawEl.textContent = data.sintesis;
+                    }
+                    renderizarSintesisPedagogica();
+                } else {
+                    const msgError = data.error || 'No se pudo consolidar la síntesis.';
+                    if (targetContainer) {
+                        targetContainer.innerHTML = `
+                            <div class="col-12 text-center py-4">
+                                <i class="bi bi-exclamation-triangle text-danger fs-1 d-block mb-3"></i>
+                                <h6 class="fw-bold text-dark">No se pudo generar la síntesis grupal</h6>
+                                <p class="text-muted small mx-auto mb-3" style="max-width: 420px; line-height: 1.6;">
+                                    ${escapeHtml(msgError)}
+                                </p>
+                                <button type="button" class="btn btn-primary btn-sm rounded-3 px-3 py-2 fw-semibold"
+                                        onclick="generarSintesisConsolidada()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Reintentar
+                                </button>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                if (targetContainer) {
+                    targetContainer.innerHTML = `
+                        <div class="col-12 text-center py-4">
+                            <i class="bi bi-wifi-off text-danger fs-1 d-block mb-3"></i>
+                            <h6 class="fw-bold text-dark">Error de conexión</h6>
+                            <p class="text-muted small mx-auto mb-3" style="max-width: 420px; line-height: 1.6;">
+                                Hubo un problema al conectar con el servidor o el motor de IA tardó demasiado en responder.
+                            </p>
+                            <button type="button" class="btn btn-primary btn-sm rounded-3 px-3 py-2 fw-semibold"
+                                    onclick="generarSintesisConsolidada()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Reintentar
+                            </button>
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        // Extractor inteligente de secciones pedagógicas desde Markdown
+        function extraerSeccionesSintesis(rawText) {
+            if (!rawText) return null;
+
+            // Limpiar títulos generales iniciales (ej: "### Informe de Retroalimentación...")
+            let clean = rawText.replace(/^#+\s*Informe[^\n]*\n+/i, '').trim();
+
+            const regexDiagHeader = /(?:^|\n)(?:#+\s*|\*\*\s*|\d+\.\s*)?Diagn[oó]stico\s+Grupal(?:\*\*)?:?\s*/i;
+            const regexFocosHeader = /(?:^|\n)(?:#+\s*|\*\*\s*|\d+\.\s*)?Focos?\s+de\s+(?:Confusi[oó]n|Dificultad|Atajos?)(?:[^\n]*)?(?:\*\*)?:?\s*/i;
+            const regexRecomHeader = /(?:^|\n)(?:#+\s*|\*\*\s*|\d+\.\s*)?Recomendaci[oó]n(?:es)?(?:\s+para\s+el\s+Aula|\s+para\s+la\s+Clase|\s+Docente)?(?:[^\n]*)?(?:\*\*)?:?\s*/i;
+
+            const mDiag = clean.match(regexDiagHeader);
+            const mFocos = clean.match(regexFocosHeader);
+            const mRecom = clean.match(regexRecomHeader);
+
+            if (mDiag && mFocos) {
+                const idxDiag = clean.indexOf(mDiag[0]);
+                const idxFocos = clean.indexOf(mFocos[0]);
+                const idxRecom = mRecom ? clean.indexOf(mRecom[0]) : -1;
+
+                const startDiag = idxDiag + mDiag[0].length;
+                const endDiag = idxFocos;
+                const seccionDiag = clean.substring(startDiag, endDiag).trim();
+
+                let seccionFocos = '';
+                let seccionRecom = '';
+
+                if (idxRecom !== -1 && idxRecom > idxFocos) {
+                    const startFocos = idxFocos + mFocos[0].length;
+                    const endFocos = idxRecom;
+                    seccionFocos = clean.substring(startFocos, endFocos).trim();
+
+                    const startRecom = idxRecom + mRecom[0].length;
+                    seccionRecom = clean.substring(startRecom).trim();
+                } else {
+                    const startFocos = idxFocos + mFocos[0].length;
+                    seccionFocos = clean.substring(startFocos).trim();
+                }
+
+                return { diag: seccionDiag, focos: seccionFocos, recom: seccionRecom };
+            }
+
+            return null;
+        }
+
+        // Renderizado semántico de la Síntesis Pedagógica Consolidada
+        function renderizarSintesisPedagogica() {
+            const rawEl = document.getElementById('resumenIaTextoRaw');
+            const targetContainer = document.getElementById('resumenIaCards');
+            const btnActualizar = document.getElementById('btnActualizarSintesis');
+            const contenedor = document.getElementById('contenedorSintesisEstructurada');
+            if (!rawEl || !targetContainer) return;
+
+            const totalConsultas = contenedor ? parseInt(contenedor.getAttribute('data-consultas') || '0', 10) : 0;
+            const rawText = (rawEl.value !== undefined && rawEl.value !== '' ? rawEl.value : rawEl.textContent || '').trim();
+
+            if (!rawText || rawText === 'Cargando diagnóstico grupal...') {
+                if (btnActualizar) btnActualizar.style.display = 'none';
+                if (totalConsultas > 0) {
+                    targetContainer.innerHTML = `
+                        <div class="col-12">
+                            <div class="p-4 bg-light rounded-3 text-center border">
+                                <i class="bi bi-stars text-primary fs-2 d-block mb-2"></i>
+                                <h6 class="fw-bold text-dark">Diagnóstico Ejecutivo Consolidado</h6>
+                                <p class="text-muted small mx-auto mb-3" style="max-width: 480px; line-height: 1.6;">
+                                    Se registran consultas en esta clase. Puedes generar el análisis pedagógico estructurado con IA para consolidar los patrones de aprendizaje, dudas frecuentes y recomendaciones para el aula.
+                                </p>
+                                <button type="button" class="btn btn-primary btn-sm rounded-3 px-3 py-2 fw-semibold shadow-sm"
+                                        onclick="generarSintesisConsolidada()">
+                                    <i class="bi bi-magic me-1"></i>Generar Síntesis Consolidada con IA
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    targetContainer.innerHTML = `
+                        <div class="col-12">
+                            <div class="p-3 bg-light rounded-3 text-center text-muted small border">
+                                <i class="bi bi-info-circle me-1"></i>Aún no hay interacciones de estudiantes para consolidar el diagnóstico grupal de esta sesión.
+                            </div>
+                        </div>
+                    `;
+                }
+                return;
+            }
+
+            if (btnActualizar) btnActualizar.style.display = 'inline-flex';
+
+            const secciones = extraerSeccionesSintesis(rawText);
+
+            if (secciones && (secciones.diag || secciones.focos || secciones.recom)) {
+                targetContainer.innerHTML = `
+                    <div class="col-lg-4">
+                        <div class="card h-100 border rounded-3 shadow-sm overflow-hidden" style="border-top: 3px solid #1B345C !important;">
+                            <div class="card-header bg-white py-2 px-3 d-flex align-items-center gap-2 border-bottom">
+                                <i class="bi bi-people-fill text-primary"></i>
+                                <span class="fw-bold small text-dark">Diagnóstico Grupal</span>
+                            </div>
+                            <div class="card-body p-3 bg-white">
+                                <div class="small text-secondary" style="line-height: 1.6;">${formatMarkdownContent(secciones.diag || 'Análisis en proceso.')}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card h-100 border rounded-3 shadow-sm overflow-hidden" style="border-top: 3px solid #F59E0B !important;">
+                            <div class="card-header bg-white py-2 px-3 d-flex align-items-center gap-2 border-bottom">
+                                <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                <span class="fw-bold small text-dark">Focos de Confusión y Atajos</span>
+                            </div>
+                            <div class="card-body p-3 bg-white">
+                                <div class="small text-secondary" style="line-height: 1.6;">${formatMarkdownContent(secciones.focos || 'Sin alertas críticas.')}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card h-100 border rounded-3 shadow-sm overflow-hidden" style="border-top: 3px solid #2C5697 !important;">
+                            <div class="card-header bg-white py-2 px-3 d-flex align-items-center gap-2 border-bottom">
+                                <i class="bi bi-lightbulb-fill text-info"></i>
+                                <span class="fw-bold small text-dark">Recomendación Docente</span>
+                            </div>
+                            <div class="card-body p-3 bg-white">
+                                <div class="small text-secondary" style="line-height: 1.6;">${formatMarkdownContent(secciones.recom || 'Continuar seguimiento socrático.')}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                targetContainer.innerHTML = `
+                    <div class="col-12">
+                        <div class="card border rounded-3 p-3 bg-white shadow-sm">
+                            <div class="small text-secondary" style="line-height: 1.6;">
+                                ${formatMarkdownContent(rawText)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderizarSintesisPedagogica();
+        });
     </script>
 </body>
 </html>

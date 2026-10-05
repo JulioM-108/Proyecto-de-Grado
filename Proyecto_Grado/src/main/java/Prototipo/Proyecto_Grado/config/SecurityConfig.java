@@ -28,9 +28,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .formLogin(login -> login.disable())
-            .httpBasic(basic -> basic.disable())
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/login/**", "/chat/**", "/docente/**", "/docente", "/estudiante/**", "/estudiante", "/api/**")); // Facilita pruebas iniciales de envío de mensajes y API de IA
-
+            .httpBasic(basic -> basic.disable());
 
         return http.build();
     }

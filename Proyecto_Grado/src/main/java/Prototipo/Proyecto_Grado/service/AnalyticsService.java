@@ -7,7 +7,6 @@ import Prototipo.Proyecto_Grado.model.entity.Sesion;
 import Prototipo.Proyecto_Grado.repository.MensajeRepository;
 import Prototipo.Proyecto_Grado.repository.MetricaRepository;
 import Prototipo.Proyecto_Grado.repository.ParticipacionRepository;
-import Prototipo.Proyecto_Grado.repository.SesionRepository;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -28,11 +27,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AnalyticsService {
 
-    private final SesionRepository sesionRepository;
     private final ParticipacionRepository participacionRepository;
     private final MensajeRepository mensajeRepository;
     private final MetricaRepository metricaRepository;
     private final GeminiService geminiService;
+
+    /** Caché en memoria para evitar invocar a Gemini en cada recarga de página del dashboard */
+    private final Map<UUID, String> sintesisPorSesionCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private static final DateTimeFormatter FECHA_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -50,8 +51,10 @@ public class AnalyticsService {
         private long totalSolicitudesDirectas;
         /** Compatibilidad hacia atrás */
         private long totalIntervencionesAuditorRf10;
-        /** Mapa concepto POO → cantidad de errores/dudas acumuladas */
+        /** Mapa concepto POO → cantidad de errores/dudas acumuladas (M-01, extraído de los diagnósticos generados) */
         private Map<String, Long> dificultadesPorConcepto;
+        /** Participaciones con diagnóstico (progreso_md) generado por el docente: base de M-01 */
+        private long diagnosticosGenerados;
         /** Resumen ejecutivo y recomendaciones pedagógicas generadas con Gemini */
         private String resumenIa;
         /** Listado detallado de estudiantes y avances */
@@ -82,38 +85,55 @@ public class AnalyticsService {
         private String estadoActividadColor;
     }
 
+    /** Preguntas que el estudiante puede hacer por cada pregunta guía antes de considerar que necesita apoyo. */
+    static final int MARGEN_PREGUNTAS_POR_GUIA = 3;
+    /** Sin preguntas guía configuradas se asume una ruta equivalente a 3 hitos. */
+    static final int HITOS_POR_DEFECTO = 3;
+
+    record NivelTurnos(String etiqueta, String clase) {}
+
     /**
-     * Resumen global de métricas del docente en toda la plataforma.
+     * M-02: clasifica los turnos del estudiante frente a un margen esperado de
+     * {@value #MARGEN_PREGUNTAS_POR_GUIA} preguntas por cada pregunta guía.
+     * Dentro del margen nunca se marca "Requiere apoyo"; fuera de él, solo si además hay señales
+     * (≥2 solicitudes de atajo o confusión persistente en el diagnóstico). Si no, es "Diálogo perseverante".
      */
-    @Transactional(readOnly = true)
-    public MetricasDashboard obtenerMetricasDocente() {
-        long totalSesiones        = sesionRepository.count();
-        long totalParticipaciones = participacionRepository.count();
-        long totalMensajes        = mensajeRepository.count();
-        long totalReformulaciones = metricaRepository.findByCodigo(10L).size();
+    static NivelTurnos clasificarTurnos(long turnos, int preguntasGuia, boolean senalesDeApoyo) {
+        int hitos = preguntasGuia > 0 ? preguntasGuia : HITOS_POR_DEFECTO;
+        long margen = (long) hitos * MARGEN_PREGUNTAS_POR_GUIA;
+        String base = turnos + " de " + margen + " turnos";
 
-        List<Metrica> todasLasMetricas = metricaRepository.findAll();
-        Map<String, Long> dificultades = todasLasMetricas.stream()
-                .filter(m -> m.getConcepto() != null && !"RF-10".equalsIgnoreCase(m.getConcepto()) && m.getValorNumerico() != null)
-                .collect(Collectors.groupingBy(
-                        Metrica::getConcepto,
-                        LinkedHashMap::new,
-                        Collectors.summingLong(Metrica::getValorNumerico)
-                ));
+        if (turnos == 0) {
+            return new NivelTurnos("Sin consultas", "bg-light text-muted border");
+        }
+        if (turnos <= margen / 2) {
+            return new NivelTurnos(base + " · Fluido", "bg-success-subtle text-success border border-success-subtle");
+        }
+        if (turnos <= margen) {
+            return new NivelTurnos(base + " · Ritmo normal", "bg-info-subtle text-info-emphasis border border-info-subtle");
+        }
+        if (senalesDeApoyo) {
+            return new NivelTurnos(base + " · Requiere apoyo", "bg-danger-subtle text-danger border border-danger-subtle");
+        }
+        return new NivelTurnos(base + " · Diálogo perseverante", "bg-primary-subtle text-primary border border-primary-subtle");
+    }
 
-        return MetricasDashboard.builder()
-                .totalSesiones(totalSesiones)
-                .totalParticipaciones(totalParticipaciones)
-                .totalMensajes(totalMensajes)
-                .totalConsultasEstudiante(0)
-                .totalRespuestasTutor(0)
-                .promedioTurnosPorEstudiante(0.0)
-                .totalSolicitudesDirectas(totalReformulaciones)
-                .totalIntervencionesAuditorRf10(totalReformulaciones)
-                .dificultadesPorConcepto(dificultades)
-                .resumenIa(null)
-                .participacionesDetalle(List.of())
-                .build();
+    /**
+     * M-04: alertas de atajo (solicitudes de código/solución directa) de una participación.
+     * Fuente principal: métricas codigo=10 registradas en cada turno (patrón de texto o señal del tutor).
+     * Respaldo para datos históricos sin métrica: el patrón sobre los mensajes del estudiante.
+     */
+    static long contarAlertasAtajo(List<Metrica> metricas, List<Mensaje> mensajes) {
+        long registradas = metricas.stream()
+                .filter(m -> "RF-10".equalsIgnoreCase(m.getConcepto()) || Long.valueOf(10L).equals(m.getCodigo()))
+                .count();
+        if (registradas > 0) {
+            return registradas;
+        }
+        boolean atajoEnMensajes = mensajes.stream()
+                .filter(m -> Boolean.TRUE.equals(m.getEmisor()))
+                .anyMatch(m -> ChatService.esSolicitudAtajo(m.getContenido()));
+        return atajoEnMensajes ? 1L : 0L;
     }
 
     /**
@@ -126,12 +146,22 @@ public class AnalyticsService {
         long totalConsultasEstudiantes = 0;
         long totalRespuestasTutor = 0;
         long totalRf10 = 0;
+        long diagnosticosGenerados = 0;
+        int totalPreguntasGuia = ChatService.contarPreguntasGuia(sesion.getPreguntasGuia());
         Map<String, Long> dificultades = new LinkedHashMap<>();
         List<ParticipacionDetalleDto> detalleList = new ArrayList<>();
         List<String> fragmentosConsultas = new ArrayList<>();
 
+        Map<UUID, List<Mensaje>> mensajesPorPart = participaciones.isEmpty() ? Map.of() :
+                mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(participaciones).stream()
+                        .collect(Collectors.groupingBy(m -> m.getParticipacion().getId()));
+
+        Map<UUID, List<Metrica>> metricasPorPart = participaciones.isEmpty() ? Map.of() :
+                metricaRepository.findByParticipacionIn(participaciones).stream()
+                        .collect(Collectors.groupingBy(m -> m.getParticipacion().getId()));
+
         for (Participacion p : participaciones) {
-            List<Mensaje> msgs = mensajeRepository.findByParticipacionOrderByCreatedAtAsc(p);
+            List<Mensaje> msgs = mensajesPorPart.getOrDefault(p.getId(), List.of());
             long cEstudiante = msgs.stream().filter(m -> Boolean.TRUE.equals(m.getEmisor())).count();
             long rTutor = msgs.stream().filter(m -> Boolean.FALSE.equals(m.getEmisor())).count();
 
@@ -139,18 +169,32 @@ public class AnalyticsService {
             totalRespuestasTutor += rTutor;
 
             // Consultar métricas de esta participación
-            List<Metrica> metricasPart = metricaRepository.findByParticipacion(p);
-            long rf10Part = metricasPart.stream()
-                    .filter(m -> "RF-10".equalsIgnoreCase(m.getConcepto()) || Long.valueOf(10L).equals(m.getCodigo()))
-                    .count();
+            List<Metrica> metricasPart = metricasPorPart.getOrDefault(p.getId(), List.of());
+            long rf10Part = contarAlertasAtajo(metricasPart, msgs);
             totalRf10 += rf10Part;
 
+            String pMd = (p.getProgresoMd() != null) ? p.getProgresoMd() : "";
+            if (!GeminiService.esRespuestaDeError(pMd)) {
+                diagnosticosGenerados++;
+            }
+
             for (Metrica m : metricasPart) {
-                if (m.getConcepto() != null && !"RF-10".equalsIgnoreCase(m.getConcepto())) {
+                String c = m.getConcepto();
+                if (c != null
+                        && !"RF-10".equalsIgnoreCase(c)
+                        && !"sesion_cerrada".equalsIgnoreCase(c)
+                        && !"turnos_totales".equalsIgnoreCase(c)
+                        && !Long.valueOf(2L).equals(m.getCodigo())
+                        && !Long.valueOf(3L).equals(m.getCodigo())
+                        && !Long.valueOf(5L).equals(m.getCodigo())
+                        && !Long.valueOf(10L).equals(m.getCodigo())) {
                     long val = m.getValorNumerico() != null ? m.getValorNumerico() : 1L;
-                    dificultades.merge(m.getConcepto(), val, Long::sum);
+                    dificultades.merge(c, val, Long::sum);
                 }
             }
+
+            // M-01: Extraer falencias conceptuales y patrones de error reales diagnosticados por la IA
+            extraerErroresRecurrentes(p.getProgresoMd(), dificultades);
 
             // Guardar fragmentos de preguntas para la IA
             msgs.stream()
@@ -165,32 +209,22 @@ public class AnalyticsService {
             String correoEst = (p.getEstudiante() != null && p.getEstudiante().getCorreo() != null)
                     ? p.getEstudiante().getCorreo() : "estudiante@javeriana.edu.co";
 
-            // M-02: Turnos y Nivel de Dificultad
-            String nivelDificultad;
-            String nivelDificultadClase;
-            if (cEstudiante == 0) {
-                nivelDificultad = "Sin consultas";
-                nivelDificultadClase = "bg-light text-muted border";
-            } else if (cEstudiante <= 3) {
-                nivelDificultad = cEstudiante + " turnos · Fluido";
-                nivelDificultadClase = "bg-success-subtle text-success border border-success-subtle";
-            } else if (cEstudiante <= 7) {
-                nivelDificultad = cEstudiante + " turnos · Guiado";
-                nivelDificultadClase = "bg-warning-subtle text-warning-emphasis border border-warning-subtle";
-            } else {
-                nivelDificultad = cEstudiante + " turnos · Requiere Apoyo";
-                nivelDificultadClase = "bg-danger-subtle text-danger border border-danger-subtle";
-            }
+            // M-02: Turnos y Nivel (margen de 3 preguntas del estudiante por cada pregunta guía del docente)
+            boolean senalesDeApoyo = rf10Part >= 2
+                    || (pMd.contains("## Errores recurrentes")
+                        && (pMd.toLowerCase().contains("persiste") || pMd.toLowerCase().contains("bloqueo")));
+            NivelTurnos nivel = clasificarTurnos(cEstudiante, totalPreguntasGuia, senalesDeApoyo);
+            String nivelDificultad = nivel.etiqueta();
+            String nivelDificultadClase = nivel.clase();
 
             // M-03: Evolución Pedagógica
             String estadoEvolucion;
             String estadoEvolucionClase;
-            String pMd = (p.getProgresoMd() != null) ? p.getProgresoMd() : "";
             if (cEstudiante == 0) {
                 estadoEvolucion = "Sin interacción";
                 estadoEvolucionClase = "bg-light text-muted border";
             } else if (!pMd.isBlank() && pMd.contains("## Conceptos dominados")) {
-                if (pMd.contains("## Errores recurrentes") && (pMd.toLowerCase().contains("persiste") || pMd.toLowerCase().contains("confunde") || cEstudiante >= 8)) {
+                if (pMd.contains("## Errores recurrentes") && (pMd.toLowerCase().contains("persiste") || pMd.toLowerCase().contains("confunde") || pMd.toLowerCase().contains("bloqueo"))) {
                     estadoEvolucion = "Dudas en progreso";
                     estadoEvolucionClase = "bg-warning-subtle text-warning-emphasis border border-warning-subtle";
                 } else {
@@ -252,14 +286,22 @@ public class AnalyticsService {
         double promTurnos = participaciones.isEmpty() ? 0.0 :
                 Math.round(((double) totalConsultasEstudiantes / participaciones.size()) * 10.0) / 10.0;
 
-        // Si no hay métricas explícitas pero hay tema, añadimos el tema principal
+        // Si aún no hay diagnósticos de error procesados pero hay consultas activas, mostramos el tema de clase
         if (dificultades.isEmpty() && totalConsultasEstudiantes > 0) {
-            dificultades.put(sesion.getTema(), totalConsultasEstudiantes);
+            String temaNombre = (sesion.getTema() != null && !sesion.getTema().isBlank()) ? sesion.getTema().trim() : "POO General";
+            dificultades.put("Consultas en tema: " + temaNombre, totalConsultasEstudiantes);
         }
 
-        // Generar resumen ejecutivo con IA (Gemini)
-        String resumenIa = generarSintesisIa(sesion, participaciones.size(), totalConsultasEstudiantes,
-                totalRespuestasTutor, totalRf10, fragmentosConsultas);
+        // Recuperar síntesis consolidada de la caché (Lazy Synthesis)
+        // para evitar llamadas síncronas a Gemini en cada GET / recarga del dashboard
+        String resumenIa;
+        if (totalConsultasEstudiantes == 0) {
+            resumenIa = "Aún no se registran interacciones en esta sesión de clase. "
+                    + "Comparte el código privado con tus estudiantes para que dialoguen con el tutor socrático. "
+                    + "Tan pronto como envíen sus consultas, la Inteligencia Artificial generará aquí un análisis pedagógico consolidado.";
+        } else {
+            resumenIa = sintesisPorSesionCache.getOrDefault(sesion.getId(), "");
+        }
 
         return MetricasDashboard.builder()
                 .totalSesiones(1)
@@ -271,9 +313,56 @@ public class AnalyticsService {
                 .totalSolicitudesDirectas(totalRf10)
                 .totalIntervencionesAuditorRf10(totalRf10)
                 .dificultadesPorConcepto(dificultades)
+                .diagnosticosGenerados(diagnosticosGenerados)
                 .resumenIa(resumenIa)
                 .participacionesDetalle(detalleList)
                 .build();
+    }
+
+    /**
+     * Genera la síntesis pedagógica consolidada bajo demanda con Gemini y la guarda en la caché en memoria.
+     */
+    public String generarYGuardarSintesisIa(Sesion sesion) {
+        List<Participacion> participaciones = participacionRepository.findBySesion(sesion);
+        long totalConsultasEstudiantes = 0;
+        long totalRespuestasTutor = 0;
+        long totalRf10 = 0;
+        List<String> fragmentosConsultas = new ArrayList<>();
+
+        if (participaciones.isEmpty()) {
+            return "Aún no se registran interacciones en esta sesión de clase. "
+                    + "Comparte el código privado con tus estudiantes para que dialoguen con el tutor socrático. "
+                    + "Tan pronto como envíen sus consultas, la Inteligencia Artificial generará aquí un análisis pedagógico consolidado.";
+        }
+
+        Map<UUID, List<Mensaje>> mensajesPorPart = mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(participaciones).stream()
+                .collect(Collectors.groupingBy(m -> m.getParticipacion().getId()));
+
+        Map<UUID, List<Metrica>> metricasPorPart = metricaRepository.findByParticipacionIn(participaciones).stream()
+                .collect(Collectors.groupingBy(m -> m.getParticipacion().getId()));
+
+        for (Participacion p : participaciones) {
+            List<Mensaje> msgs = mensajesPorPart.getOrDefault(p.getId(), List.of());
+            totalConsultasEstudiantes += msgs.stream().filter(m -> Boolean.TRUE.equals(m.getEmisor())).count();
+            totalRespuestasTutor += msgs.stream().filter(m -> Boolean.FALSE.equals(m.getEmisor())).count();
+
+            List<Metrica> metricasPart = metricasPorPart.getOrDefault(p.getId(), List.of());
+            totalRf10 += contarAlertasAtajo(metricasPart, msgs);
+
+            msgs.stream()
+                    .filter(m -> Boolean.TRUE.equals(m.getEmisor()) && m.getContenido() != null)
+                    .map(m -> m.getContenido().trim())
+                    .limit(3)
+                    .forEach(fragmentosConsultas::add);
+        }
+
+        String sintesis = generarSintesisIa(sesion, participaciones.size(), totalConsultasEstudiantes,
+                totalRespuestasTutor, totalRf10, fragmentosConsultas);
+
+        if (sintesis != null && !sintesis.isBlank()) {
+            sintesisPorSesionCache.put(sesion.getId(), sintesis);
+        }
+        return sintesis;
     }
 
     /**
@@ -297,10 +386,17 @@ public class AnalyticsService {
             - Solicitudes de código directo o atajo prevenidas (M-04): %d
             - Muestra de consultas realizadas por los alumnos: %s
 
-            Genera un informe pedagógico ejecutivo conciso (máximo 3 párrafos en Markdown, con tono profesional y constructivo para el profesor):
-            1. **Diagnóstico Grupal**: Nivel de interacción y madurez conceptual observada frente al tema.
-            2. **Focos de Confusión o Dificultad**: Conceptos donde los estudiantes requirieron mayor guía o mostraron dudas.
-            3. **Recomendaciones para el Aula Presencial**: 2 o 3 sugerencias didácticas puntuales para reforzar en la próxima clase.
+            Genera un informe pedagógico ejecutivo conciso (máximo 3 párrafos en Markdown, con tono profesional y constructivo para el profesor).
+            IMPORTANTE: Estructura tu respuesta EXACTAMENTE con estos tres (3) encabezados de nivel 3:
+
+            ### Diagnóstico Grupal
+            (Análisis del nivel de interacción y madurez conceptual observada frente al tema)
+
+            ### Focos de Confusión y Atajos
+            (Conceptos donde los estudiantes requirieron mayor guía, mostraron dudas o solicitaron atajos)
+
+            ### Recomendaciones para el Aula Presencial
+            (2 o 3 sugerencias didácticas puntuales para reforzar en la próxima clase, en lista numerada: 1. ..., 2. ...)
             """.formatted(
                 sesion.getTema(),
                 sesion.getCraftRol() != null ? sesion.getCraftRol() : "Tutor Socrático",
@@ -314,7 +410,7 @@ public class AnalyticsService {
 
         try {
             String respuesta = geminiService.generarRespuesta(prompt);
-            if (respuesta != null && !respuesta.isBlank() && !respuesta.startsWith("[Modo Mock")) {
+            if (!GeminiService.esRespuestaDeError(respuesta) && !respuesta.startsWith("[Modo Mock")) {
                 return respuesta.trim();
             }
         } catch (Exception e) {
@@ -323,11 +419,49 @@ public class AnalyticsService {
 
         // Fallback pedagógico estructurado
         return """
-            **Diagnóstico Grupal**: La sesión sobre **%s** cuenta con **%d** estudiantes activos y un total de **%d** consultas registradas. La dinámica socrática ha permitido guiar el razonamiento autónomo de los alumnos sin suministrar código de manera pasiva.
+            ### Diagnóstico Grupal
+            La sesión sobre **%s** cuenta con **%d** estudiantes activos y un total de **%d** consultas registradas. La dinámica socrática ha permitido guiar el razonamiento autónomo de los alumnos sin suministrar código de manera pasiva.
             
-            **Seguimiento Socrático (M-04)**: Se registraron **%d** solicitudes de solución directa reconducidas con éxito hacia el razonamiento conceptual, garantizando que el tutor respondiera con preguntas orientadoras y analogías en lugar de código directo.
+            ### Focos de Confusión y Atajos
+            Se registraron **%d** solicitudes de solución directa reconducidas con éxito hacia el razonamiento conceptual, garantizando que el tutor respondiera con preguntas orientadoras y analogías en lugar de código directo.
             
-            **Recomendación Docente**: Se sugiere iniciar la siguiente clase presencial repasando la definición formal y el diseño de clases relacionado con *%s*, planteando un ejercicio colaborativo en el tablero.
+            ### Recomendaciones para el Aula Presencial
+            1. **Modelado en Pizarra**: Iniciar la siguiente clase presencial repasando la definición formal y el diseño conceptual relacionado con *%s*, planteando un ejercicio colaborativo en el tablero.
+            2. **Prueba de Escritorio Grupal**: Trazar el cambio de valores y flujos de control paso a paso en lenguaje natural antes de escribir código.
             """.formatted(sesion.getTema(), cantEstudiantes, consultas, rf10, sesion.getTema());
+    }
+
+    /**
+     * M-01: Extrae los títulos de las falencias y errores recurrentes identificados por Gemini en el progreso pedagógico.
+     */
+    private void extraerErroresRecurrentes(String pMd, Map<String, Long> dificultades) {
+        if (pMd == null || !pMd.contains("## Errores recurrentes")) return;
+        int start = pMd.indexOf("## Errores recurrentes");
+        int nextSection = pMd.indexOf("## ", start + 22);
+        String seccionErrores = (nextSection != -1)
+                ? pMd.substring(start + 22, nextSection).trim()
+                : pMd.substring(start + 22).trim();
+
+        for (String linea : seccionErrores.split("\n")) {
+            String l = linea.trim();
+            if (l.startsWith("-") || l.startsWith("*")) {
+                l = l.substring(1).trim();
+            }
+            if (l.isBlank() || l.startsWith("(") || l.startsWith("#")) continue;
+
+            String concepto;
+            if (l.contains(":")) {
+                concepto = l.substring(0, l.indexOf(":")).replace("**", "").replace("*", "").trim();
+            } else if (l.length() > 50) {
+                concepto = l.substring(0, 50).trim() + "...";
+            } else {
+                concepto = l.replace("**", "").replace("*", "").trim();
+            }
+
+            if (!concepto.isBlank() && concepto.length() >= 3 && concepto.length() <= 65) {
+                concepto = Character.toUpperCase(concepto.charAt(0)) + concepto.substring(1);
+                dificultades.merge(concepto, 1L, Long::sum);
+            }
+        }
     }
 }

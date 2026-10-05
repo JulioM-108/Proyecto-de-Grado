@@ -41,10 +41,7 @@ class PromptAssistantServiceTest {
 
         when(geminiService.generarRespuesta(anyString())).thenReturn(jsonSimulado);
 
-        CraftConfigDto resultado = promptAssistantService.generarDirectricesCraft(
-                "Polimorfismo e Interfaces",
-                "Diferenciar sobreescritura de sobrecarga"
-        );
+        CraftConfigDto resultado = promptAssistantService.generarDirectricesCraft("Polimorfismo e Interfaces");
 
         assertNotNull(resultado);
         assertEquals("Polimorfismo e Interfaces", resultado.getTemaActualPoo());
@@ -59,10 +56,7 @@ class PromptAssistantServiceTest {
     void testGenerarDirectricesCraftFallbackPorError() {
         when(geminiService.generarRespuesta(anyString())).thenThrow(new RuntimeException("API Timeout"));
 
-        CraftConfigDto resultado = promptAssistantService.generarDirectricesCraft(
-                "Herencia",
-                null
-        );
+        CraftConfigDto resultado = promptAssistantService.generarDirectricesCraft("Herencia");
 
         assertNotNull(resultado);
         assertEquals("Herencia", resultado.getTemaActualPoo());

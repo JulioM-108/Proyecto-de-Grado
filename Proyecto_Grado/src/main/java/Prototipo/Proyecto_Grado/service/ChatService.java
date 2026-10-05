@@ -7,11 +7,14 @@ import Prototipo.Proyecto_Grado.model.entity.Estudiante;
 import Prototipo.Proyecto_Grado.model.entity.Mensaje;
 import Prototipo.Proyecto_Grado.model.entity.Metrica;
 import Prototipo.Proyecto_Grado.model.entity.Participacion;
+import Prototipo.Proyecto_Grado.model.entity.Profesor;
+import Prototipo.Proyecto_Grado.model.entity.ProfesorEstudiante;
 import Prototipo.Proyecto_Grado.model.entity.Sesion;
 import Prototipo.Proyecto_Grado.repository.EstudianteRepository;
 import Prototipo.Proyecto_Grado.repository.MensajeRepository;
 import Prototipo.Proyecto_Grado.repository.MetricaRepository;
 import Prototipo.Proyecto_Grado.repository.ParticipacionRepository;
+import Prototipo.Proyecto_Grado.repository.ProfesorEstudianteRepository;
 import Prototipo.Proyecto_Grado.repository.SesionRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -24,11 +27,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.text.Normalizer;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -41,12 +46,78 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ChatService {
 
+    /** Meta-etiqueta con la que el tutor certifica que el estudiante superó la última Pregunta Guía. */
+    public static final String ETIQUETA_RUTA_COMPLETADA = "<!-- RUTA_COMPLETADA -->";
+
+    /** Meta-etiqueta con la que el tutor señala una solicitud de código/solución directa (RF-10). */
+    public static final String ETIQUETA_ATAJO_DETECTADO = "<!-- ATAJO_DETECTADO -->";
+
+    /** Turnos mínimos del estudiante antes de aceptar el cierre de la ruta, aunque haya pocas preguntas guía. */
+    static final int MIN_TURNOS_CIERRE_RUTA = 4;
+
+    // ─── Detección de atajos cognitivos (RF-10) ──────────────────────────────
+    // Se aplica sobre texto normalizado (minúsculas, sin tildes ni puntuación), por lo que
+    // "pásame", "pasame" y "PÁSAME" son equivalentes.
+
+    /** Verbos imperativos / subjuntivos con los que se pide algo directamente ("dame", "que me des"). */
+    private static final String VERBOS_PETICION =
+            "da|dame|danos|des|di|dime|decime|decinos|pasa|pasame|pases|haz|hazme|hagas|"
+            + "escribe|escribeme|escribime|escribas|genera|generame|generes|muestra|muestrame|mostrame|muestres|"
+            + "ensename|resuelve|resuelveme|resuelvas|completa|completame|termina|terminame|quiero|necesito|exijo|"
+            + "darme|pasarme|hacerme|escribirme|generarme|mostrarme|decirme|resolverme|ensenarme";
+
+    /** Infinitivos que solo cuentan tras un modal ("me puedes dar…", "podrías escribir…"). */
+    private static final String INFINITIVOS_CON_MODAL =
+            "(?:puedes|podrias|podes|puede|podria|vas a|va a)\\s+(?:me\\s+)?"
+            + "(?:dar|pasar|hacer|escribir|generar|mostrar|decir|resolver|ensenar)(?:me|nos)?";
+
+    /** Palabras de relleno admitidas entre el verbo y el objeto (máx. 4): "dame directamente la …". */
+    private static final String RELLENO =
+            "(?:me|te|nos|lo|la|el|los|las|un|una|unos|unas|todo|toda|directamente|directo|ya|solo|solamente|"
+            + "simplemente|de una vez|de una|una vez|completo|completa|entero|entera|final|correcto|correcta|"
+            + "resuelto|resuelta|hecho|hecha|porfa|por favor|tu|mejor|ahora)";
+
+    private static final String OBJETOS_SOLUCION =
+            "(?:codigo|codigos|solucion|soluciones|respuesta|respuestas|programa|algoritmo|ejercicio|tarea|"
+            + "implementacion|taller|resolucion)";
+
+    /** Expresiones completas que por sí solas evidencian la búsqueda de un atajo. */
+    private static final String FRASES_ATAJO =
+            "no quiero (?:mas |tantas )?preguntas|sin (?:mas |tantas )?preguntas|"
+            + "deja(?:te)? de (?:preguntar|hacer preguntas|preguntas)|"
+            + "dime como (?:se hace|hacerlo|lo hago|se resuelve|resolverlo)|"
+            + "damelo|hazmelo|hacemelo|pasamelo|escribemelo|resuelvemelo|hazlo tu|hacelo vos|resuelvelo|"
+            + "cual es (?:el |la )?(?:codigo|solucion|respuesta)|como (?:es|seria) (?:el |la )?(?:codigo|solucion)";
+
+    static final Pattern PATRON_ATAJO_DIRECTO = Pattern.compile(
+            "\\b(?:(?:" + VERBOS_PETICION + ")|" + INFINITIVOS_CON_MODAL + ")"
+            + "(?:\\s+" + RELLENO + "){0,4}\\s+" + OBJETOS_SOLUCION + "\\b"
+            + "|\\b(?:" + FRASES_ATAJO + ")\\b"
+    );
+
+    /**
+     * Indica si el mensaje del estudiante solicita explícitamente el código, la solución
+     * o la respuesta directa (alerta de atajo cognitivo RF-10 / métrica M-04).
+     */
+    public static boolean esSolicitudAtajo(String mensaje) {
+        if (mensaje == null || mensaje.isBlank()) return false;
+        return PATRON_ATAJO_DIRECTO.matcher(normalizarTexto(mensaje)).find();
+    }
+
+    /** Minúsculas, sin tildes/diéresis/ñ y con la puntuación reemplazada por espacios. */
+    static String normalizarTexto(String texto) {
+        String sinTildes = Normalizer.normalize(texto.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        return sinTildes.replaceAll("[^a-z0-9]+", " ").trim();
+    }
+
     private final GeminiService geminiService;
     private final EstudianteRepository estudianteRepository;
     private final SesionRepository sesionRepository;
     private final ParticipacionRepository participacionRepository;
     private final MensajeRepository mensajeRepository;
     private final MetricaRepository metricaRepository;
+    private final ProfesorEstudianteRepository profesorEstudianteRepository;
     private final TransactionTemplate transactionTemplate;
 
     // ─── Capa 1: cargada dinámicamente desde resources ───────────────────────
@@ -67,14 +138,16 @@ public class ChatService {
 
     // ─── Procesar mensaje del estudiante ─────────────────────────────────────
 
-    private record PromptContext(String promptFinal, UUID participacionId) {}
+    private record PromptContext(String promptFinal, UUID participacionId,
+                                 int totalPreguntasGuia, long turnosPreviosEstudiante) {}
 
     /**
      * Procesa una consulta del estudiante y genera la respuesta socrática.
      * Flujo desacoplado:
-     * 1. Transacción corta: guarda mensaje del estudiante y compila prompt.
+     * 1. Transacción corta de lectura: compila el prompt de 3 capas.
      * 2. Sin transacción: llamada HTTP externa a Gemini (evita agotar el pool HikariCP).
-     * 3. Transacción corta: guarda respuesta del tutor.
+     *    Si ningún modelo responde, no se persiste nada y el estudiante puede reintentar.
+     * 3. Transacción corta: guarda el mensaje del estudiante, la respuesta del tutor y las métricas.
      *
      * @param correoEstudiante correo institucional del estudiante
      * @param enlaceSesion     enlace único de la sesión (identifica la Sesion activa)
@@ -86,7 +159,13 @@ public class ChatService {
                                                 String mensajeTexto,
                                                 CraftConfigDto craftDocente) {
 
-        // Fase 1 (Transacción corta ~50ms): persistir mensaje de estudiante y ensamblar prompt
+        final String mensajeLimpio = (mensajeTexto != null && mensajeTexto.length() > 2500)
+                ? mensajeTexto.substring(0, 2500)
+                : mensajeTexto;
+
+        final OffsetDateTime recibidoEn = OffsetDateTime.now();
+
+        // Fase 1 (Transacción corta ~50ms): ensamblar el prompt (solo lectura)
         PromptContext contexto = transactionTemplate.execute(status -> {
             Estudiante estudiante = estudianteRepository.findByCorreoIgnoreCase(correoEstudiante)
                     .orElseThrow(() -> new IllegalArgumentException(
@@ -97,16 +176,8 @@ public class ChatService {
 
             Participacion participacion = participacionRepository
                     .findFirstByEstudianteAndSesionOrderByCreatedAtDesc(estudiante, sesion)
-                    .orElseGet(() -> crearParticipacion(estudiante, sesion));
-
-            mensajeRepository.save(Mensaje.builder()
-                    .emisor(true)
-                    .contenido(mensajeTexto)
-                    .participacion(participacion)
-                    .build());
-
-            long turnosEstudiante = mensajeRepository.countByParticipacion(participacion);
-            registrarMetrica(participacion, 2L, sesion.getTema(), turnosEstudiante);
+                    .orElseThrow(() -> new IllegalStateException(
+                            "El estudiante " + correoEstudiante + " no cuenta con una participación activa en la sesión " + enlaceSesion));
 
             PromptCapasDto promptCapas = PromptCapasDto.builder()
                     .capa1Sistema(capa1ReglasSistema)
@@ -114,8 +185,11 @@ public class ChatService {
                     .capa3EstudianteDinamica(construirCapa3(participacion))
                     .build();
 
-            String promptFinal = promptCapas.compilarPromptFinal(mensajeTexto);
-            return new PromptContext(promptFinal, participacion.getId());
+            String preguntasGuia = craftDocente != null ? craftDocente.getPreguntasGuia() : sesion.getPreguntasGuia();
+            String promptFinal = promptCapas.compilarPromptFinal(mensajeLimpio);
+            return new PromptContext(promptFinal, participacion.getId(),
+                    contarPreguntasGuia(preguntasGuia),
+                    mensajeRepository.countByParticipacionAndEmisor(participacion, true));
         });
 
         if (contexto == null) {
@@ -123,19 +197,54 @@ public class ChatService {
         }
 
         // Fase 2 (FUERA de transacción JDBC, 5-35s): llamada HTTP a Gemini
-        String respuestaTutor = geminiService.generarRespuesta(contexto.promptFinal());
+        GeminiService.RespuestaGemini respuesta = geminiService.generarRespuestaDetallada(contexto.promptFinal());
 
-        // Detección automática del fin de la ruta pedagógica (Preguntas Guía completadas)
-        boolean rutaCompletada = respuestaTutor != null && respuestaTutor.contains("<!-- RUTA_COMPLETADA -->");
-        String contenidoLimpio = respuestaTutor != null
-                ? respuestaTutor.replace("<!-- RUTA_COMPLETADA -->", "").trim()
-                : "";
+        if (respuesta.error()) {
+            // Nada se persiste: el texto de error no debe quedar en el historial ni contaminar el diagnóstico.
+            log.warn("Gemini no respondió para la participación {}. El estudiante podrá reintentar su mensaje.",
+                    contexto.participacionId());
+            return MensajeDto.builder()
+                    .emisor("TUTOR")
+                    .contenido(GeminiService.MENSAJE_ERROR_TEMPORAL)
+                    .errorIa(true)
+                    .build();
+        }
 
-        // Fase 3 (Transacción corta ~50ms): persistir respuesta del tutor
-        MensajeDto dto = transactionTemplate.execute(status -> {
+        String respuestaTutor = respuesta.texto();
+        boolean etiquetaRuta = respuestaTutor.contains(ETIQUETA_RUTA_COMPLETADA);
+        boolean etiquetaAtajo = respuestaTutor.contains(ETIQUETA_ATAJO_DETECTADO);
+        String contenidoLimpio = respuestaTutor
+                .replace(ETIQUETA_RUTA_COMPLETADA, "")
+                .replace(ETIQUETA_ATAJO_DETECTADO, "")
+                .trim();
+
+        long turnosEstudiante = contexto.turnosPreviosEstudiante() + 1;
+        boolean rutaCompletada = etiquetaRuta && validarCierreDeRuta(
+                contexto.participacionId(), respuesta.auxiliar(), contexto.totalPreguntasGuia(), turnosEstudiante);
+        boolean atajoDetectado = esSolicitudAtajo(mensajeLimpio) || etiquetaAtajo;
+
+        // Fase 3 (Transacción corta ~50ms): persistir el turno completo y sus métricas
+        return transactionTemplate.execute(status -> {
             Participacion participacion = participacionRepository.findById(contexto.participacionId())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Participación no encontrada: " + contexto.participacionId()));
+
+            mensajeRepository.save(Mensaje.builder()
+                    .emisor(true)
+                    .contenido(mensajeLimpio)
+                    .participacion(participacion)
+                    .createdAt(recibidoEn)
+                    .build());
+
+            long totalMensajes = mensajeRepository.countByParticipacion(participacion);
+            registrarMetrica(participacion, 2L, participacion.getSesion().getTema(), totalMensajes);
+
+            // Atajo cognitivo / solicitud de código directo (RF-10): regex sobre el mensaje o señal del tutor
+            if (atajoDetectado) {
+                registrarMetrica(participacion, 10L, "RF-10", 1L);
+                log.info("Alerta de Atajo Cognitivo (RF-10) registrada para participación {} (fuente: {})",
+                        participacion.getId(), etiquetaAtajo ? "señal del tutor" : "patrón de texto");
+            }
 
             mensajeRepository.save(Mensaje.builder()
                     .emisor(false)
@@ -143,36 +252,83 @@ public class ChatService {
                     .participacion(participacion)
                     .build());
 
+            // Completar la ruta cierra la tutoría del estudiante; el diagnóstico (progreso_md)
+            // solo lo genera el docente manualmente desde el dashboard.
+            if (rutaCompletada) {
+                participacion.setRutaCompletada(true);
+                participacionRepository.save(participacion);
+                log.info("Ruta de aprendizaje socrática completada para participación {}.", participacion.getId());
+            }
+
             return MensajeDto.builder()
                     .emisor("TUTOR")
                     .contenido(contenidoLimpio)
-                    .reformuladoPorAuditor(false)
                     .sesionCompletada(rutaCompletada)
                     .build();
         });
+    }
 
-        // Si el tutor determinó que se completaron todas las preguntas guía, generar la síntesis inmediatamente
-        if (rutaCompletada) {
-            try {
-                log.info("Ruta de aprendizaje socrática completada para participación {}. Generando progreso_md automáticamente.",
-                        contexto.participacionId());
-                cerrarSesionYGenerarProgreso(contexto.participacionId());
-            } catch (Exception e) {
-                log.warn("Error al generar automáticamente progreso_md tras completar ruta socrática: {}", e.getMessage());
-            }
+    /**
+     * Validación en servidor de la meta-etiqueta RUTA_COMPLETADA: el cierre definitivo de la
+     * tutoría no puede depender solo del criterio del modelo. Se rechaza si respondió el modelo
+     * auxiliar (menos fiable con reglas condicionales), si la sesión no tiene preguntas guía
+     * o si el estudiante no ha tenido turnos suficientes para recorrerlas.
+     */
+    private boolean validarCierreDeRuta(UUID participacionId, boolean modeloAuxiliar,
+                                        int totalPreguntasGuia, long turnosEstudiante) {
+        if (modeloAuxiliar) {
+            log.warn("RUTA_COMPLETADA ignorada en participación {}: la respuesta provino del modelo auxiliar.", participacionId);
+            return false;
         }
+        if (totalPreguntasGuia == 0) {
+            log.warn("RUTA_COMPLETADA ignorada en participación {}: la sesión no tiene preguntas guía.", participacionId);
+            return false;
+        }
+        long minimo = Math.max(MIN_TURNOS_CIERRE_RUTA, totalPreguntasGuia);
+        if (turnosEstudiante < minimo) {
+            log.warn("RUTA_COMPLETADA ignorada en participación {}: {} turnos del estudiante (mínimo {}).",
+                    participacionId, turnosEstudiante, minimo);
+            return false;
+        }
+        return true;
+    }
 
-        return dto;
+    /** Cuenta las preguntas guía (una por línea no vacía, igual que el dashboard docente). */
+    static int contarPreguntasGuia(String preguntasGuia) {
+        if (preguntasGuia == null || preguntasGuia.isBlank()) return 0;
+        return (int) preguntasGuia.lines().filter(l -> !l.isBlank()).count();
     }
 
     // ─── Flujo 3: Cierre de Sesión y Síntesis Pedagógica ─────────────────────
 
     /**
-     * Genera la síntesis pedagógica al cerrar la sesión.
-     * Llama a Gemini con el historial completo y persiste el Markdown de 4 secciones
+     * Genera el diagnóstico pedagógico de una participación. Solo se invoca manualmente desde el
+     * dashboard docente. Llama a Gemini con el historial completo y persiste el Markdown de 4 secciones
      * en participacion.progreso_md. La llamada a Gemini se ejecuta fuera de transacción.
+     * Generar el diagnóstico NO cierra la tutoría del estudiante (ver Participacion#isTutoriaFinalizada).
+     *
+     * @return el diagnóstico Markdown guardado (o el que ya existía)
+     * @throws IllegalStateException si el motor de IA no pudo responder; en ese caso no se guarda nada
      */
-    public void cerrarSesionYGenerarProgreso(UUID participacionId) {
+    public String cerrarSesionYGenerarProgreso(UUID participacionId) {
+        return generarDiagnostico(participacionId, false);
+    }
+
+    /**
+     * @param regenerar true para volver a generar el diagnóstico con el historial actual aunque ya exista uno
+     *                  (lo reemplaza); false para reutilizar el existente sin llamar a Gemini.
+     */
+    public String generarDiagnostico(UUID participacionId, boolean regenerar) {
+        String progresoExistente = transactionTemplate.execute(status -> {
+            Participacion p = participacionRepository.findById(participacionId).orElse(null);
+            return (p != null && !GeminiService.esRespuestaDeError(p.getProgresoMd())) ? p.getProgresoMd() : null;
+        });
+        if (progresoExistente != null && !regenerar) {
+            log.info("Participación {} ya cuenta con progreso_md en BD. Omitiendo invocación redundante a Gemini.", participacionId);
+            return progresoExistente;
+        }
+        final boolean primerDiagnostico = progresoExistente == null;
+
         // Fase 1: Recuperar datos del historial
         String instruccion = transactionTemplate.execute(status -> {
             Participacion p = participacionRepository.findById(participacionId)
@@ -210,6 +366,9 @@ public class ChatService {
 
         // Fase 2: Llamada a Gemini fuera de transacción JDBC
         String progreso = geminiService.generarRespuesta(instruccion);
+        if (GeminiService.esRespuestaDeError(progreso)) {
+            throw new IllegalStateException("El motor de IA no pudo generar el diagnóstico pedagógico en este momento.");
+        }
 
         // Fase 3: Persistir resumen y métricas en transacción corta
         transactionTemplate.executeWithoutResult(status -> {
@@ -221,12 +380,16 @@ public class ChatService {
             p.setProgresoMd(progreso);
             participacionRepository.save(p);
 
-            registrarMetrica(p, 3L, "sesion_cerrada", (long) historial.size());
-            registrarMetrica(p, 5L, "turnos_totales", (long) historial.size());
+            // Marcas del primer diagnóstico; al regenerar no se duplican
+            if (primerDiagnostico) {
+                registrarMetrica(p, 3L, "sesion_cerrada", (long) historial.size());
+                registrarMetrica(p, 5L, "turnos_totales", (long) historial.size());
+            }
 
             log.info("Flujo 3: síntesis pedagógica generada para participación {} ({} turnos)",
                     participacionId, historial.size());
         });
+        return progreso;
     }
 
     // ─── Historial ────────────────────────────────────────────────────────────
@@ -254,7 +417,6 @@ public class ChatService {
             historial.add(MensajeDto.builder()
                     .emisor(Boolean.TRUE.equals(m.getEmisor()) ? "ESTUDIANTE" : "TUTOR")
                     .contenido(m.getContenido())
-                    .reformuladoPorAuditor(false)
                     .build());
         }
         return historial;
@@ -263,32 +425,21 @@ public class ChatService {
     // ─── Helpers privados ─────────────────────────────────────────────────────
 
     /**
-     * Construye la Capa 3 del prompt con dos fuentes ortogonales:
-     * A) Síntesis de sesiones anteriores (progreso_md) si existe.
-     * B) Historial real de mensajes de la sesión activa desde BD.
+     * Construye la Capa 3 del prompt con el historial COMPLETO de la sesión actual (misma participación),
+     * para que el tutor retome todo lo trabajado si el estudiante sale y vuelve a entrar.
+     * No incluye progreso_md: es el diagnóstico del docente y no debe inyectarse a mitad de la tutoría.
      */
     private String construirCapa3(Participacion participacion) {
-        StringBuilder sb = new StringBuilder();
-
-        // A) Síntesis de sesiones anteriores (solo si ya se cerró una sesión previa)
-        if (participacion.getProgresoMd() != null
-                && !participacion.getProgresoMd().isBlank()) {
-            sb.append("## Progreso acumulado de sesiones anteriores\n");
-            sb.append(participacion.getProgresoMd()).append("\n\n");
+        List<Mensaje> historial = mensajeRepository.findByParticipacionOrderByCreatedAtAsc(participacion);
+        if (historial.isEmpty()) {
+            return "";
         }
 
-        // B) Historial completo de la sesión activa (recuperado de BD)
-        List<Mensaje> historial = mensajeRepository
-                .findByParticipacionOrderByCreatedAtAsc(participacion);
-        if (!historial.isEmpty()) {
-            sb.append("## Historial de la sesión actual\n");
-            for (Mensaje m : historial) {
-                String rol = Boolean.TRUE.equals(m.getEmisor()) ? "ESTUDIANTE" : "TUTOR";
-                sb.append("[").append(rol).append("]: ")
-                        .append(m.getContenido()).append("\n");
-            }
+        StringBuilder sb = new StringBuilder("## Historial de la sesión actual\n");
+        for (Mensaje m : historial) {
+            String rol = Boolean.TRUE.equals(m.getEmisor()) ? "ESTUDIANTE" : "TUTOR";
+            sb.append("[").append(rol).append("]: ").append(m.getContenido()).append("\n");
         }
-
         return sb.toString();
     }
 
@@ -346,7 +497,19 @@ public class ChatService {
                 .sesion(sesion)
                 .progresoMd("")
                 .build();
-        return participacionRepository.save(nueva);
+        Participacion guardada = participacionRepository.save(nueva);
+
+        if (sesion != null && sesion.getProfesor() != null && estudiante != null) {
+            Profesor prof = sesion.getProfesor();
+            if (!profesorEstudianteRepository.existsByProfesorAndEstudiante(prof, estudiante)) {
+                profesorEstudianteRepository.save(ProfesorEstudiante.builder()
+                        .profesor(prof)
+                        .estudiante(estudiante)
+                        .build());
+            }
+        }
+
+        return guardada;
     }
 
     /**

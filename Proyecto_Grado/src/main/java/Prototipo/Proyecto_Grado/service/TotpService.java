@@ -22,12 +22,14 @@ public class TotpService {
     private static final int DIGITS = 6;
     private final SecureRandom random = new SecureRandom();
 
+    private final java.util.Map<String, Long> ultimoWindowUsado = new java.util.concurrent.ConcurrentHashMap<>();
+
     /**
-     * Genera un secreto aleatorio en Base32 (16 caracteres = 80 bits).
+     * Genera un secreto aleatorio en Base32 (32 caracteres = 160 bits, especificación RFC 4226/6238).
      */
     public String generarSecretoBase32() {
-        StringBuilder sb = new StringBuilder(16);
-        for (int i = 0; i < 16; i++) {
+        StringBuilder sb = new StringBuilder(32);
+        for (int i = 0; i < 32; i++) {
             sb.append(BASE32_CHARS.charAt(random.nextInt(BASE32_CHARS.length())));
         }
         return sb.toString();
@@ -68,6 +70,7 @@ public class TotpService {
      * Valida si el código de 6 dígitos ingresado es válido para el secreto dado.
      * Evalúa la ventana actual T, así como T-1 y T+1 (tolerancia a desfase de reloj).
      * Utiliza MessageDigest.isEqual para mitigar ataques de temporización (timing attacks).
+     * Registra la ventana consumida para mitigar ataques de repetición (replay attack).
      */
     public boolean validarCodigo(String secreto, String codigoIngresado) {
         if (secreto == null || codigoIngresado == null) return false;
@@ -75,14 +78,25 @@ public class TotpService {
         if (codigoLimpio.length() != DIGITS) return false;
 
         long currentWindow = System.currentTimeMillis() / 1000L / TIME_STEP_SECONDS;
+        Long lastUsedWindow = ultimoWindowUsado.get(secreto);
+
+        // Limpieza periódica de ventanas antiguas para proteger el heap
+        if (ultimoWindowUsado.size() > 5000) {
+            ultimoWindowUsado.entrySet().removeIf(e -> (currentWindow - e.getValue()) > 10);
+        }
 
         // Comprueba ventana actual y adyacentes para tolerar desfases leves de reloj
         for (long window = currentWindow - 1; window <= currentWindow + 1; window++) {
+            if (lastUsedWindow != null && window <= lastUsedWindow) {
+                // Ventana ya consumida previamente (prevención de replay attack)
+                continue;
+            }
             try {
                 String expected = generarCodigoParaVentana(secreto, window);
                 if (java.security.MessageDigest.isEqual(
                         expected.getBytes(StandardCharsets.UTF_8),
                         codigoLimpio.getBytes(StandardCharsets.UTF_8))) {
+                    ultimoWindowUsado.put(secreto, window);
                     return true;
                 }
             } catch (Exception e) {

@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tutor Socrático — Diálogo de Aprendizaje</title>
+    <meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}"/>
+    <meta th:if="${_csrf != null}" name="_csrf_header" th:content="${_csrf.headerName}"/>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
@@ -274,8 +276,8 @@
         </div>
 
         <div class="d-flex align-items-center gap-3">
-            <div th:if="${param.cerrada}" class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
-                <i class="bi bi-check-circle-fill me-1"></i>Progreso guardado
+            <div th:if="${param.cerrada != null or sesionCompletada}" class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+                <i class="bi bi-check-circle-fill me-1"></i>Sesión finalizada
             </div>
 
             <!-- Botón Feedback para el profesor (Existente) -->
@@ -300,7 +302,7 @@
                   id="formFinalizarSesion"
                   th:action="@{/chat/{enlace}/cerrar(enlace=${sesion.enlaceUnico})}" 
                   method="post"
-                  onsubmit="return confirm('¿Deseas finalizar la sesión? Se generará la síntesis de tu progreso para el docente y tu próxima sesión.');">
+                  onsubmit="return confirm('¿Deseas finalizar la sesión de tutoría? Luego podrás responder la breve encuesta de evaluación de la plataforma.');">
                 <button type="submit" class="btn btn-outline-secondary btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2">
                     <i class="bi bi-flag text-warning"></i>
                     <span>Finalizar Sesión</span>
@@ -323,7 +325,7 @@
         <div class="chat-content-limit">
 
             <!-- Alerta / Banner de Ruta de Preguntas Guía Completada -->
-            <div th:if="${sesionCompletada or param.completada != null}" id="bannerRutaCompletada" 
+            <div th:if="${rutaCompletada or param.completada != null}" id="bannerRutaCompletada"
                  class="card border-0 rounded-4 shadow-sm p-3 mb-3 mx-auto text-start" 
                  style="max-width: 680px; background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border-left: 4px solid #059669 !important;">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -334,7 +336,7 @@
                         <h6 class="fw-bold mb-1 text-success-emphasis">
                             <i class="bi bi-check-circle-fill me-1"></i>¡Excelente trabajo! Has completado la ruta de preguntas de esta clase
                         </h6>
-                        <p class="small text-muted mb-0">Tu tutor socrático ha generado la síntesis pedagógica para tu docente. Recuerda responder la breve encuesta de evaluación de la plataforma.</p>
+                        <p class="small text-muted mb-0">Tu docente podrá revisar tu avance en esta sesión. Recuerda responder la breve encuesta de evaluación de la plataforma.</p>
                     </div>
                     <button type="button" class="btn btn-sm text-white rounded-3 px-3 py-2 fw-semibold shadow-sm" 
                             style="background-color: #6B21A8;" 
@@ -382,6 +384,13 @@
             <div th:if="${feedbackEnviado}" class="alert alert-success alert-dismissible fade show rounded-3 p-3 mb-3 text-center small shadow-sm" role="alert">
                 <i class="bi bi-check-circle-fill text-success fs-6 me-1"></i>
                 <strong>¡Gracias por tu opinión!</strong> Tu retroalimentación fue enviada exitosamente a tu profesor.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Alerta si el motor de IA no respondió (envío sin JavaScript) -->
+            <div th:if="${param.errorIa != null}" class="alert alert-danger alert-dismissible fade show border-0 rounded-3 p-3 mb-3 text-center small shadow-sm" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                El tutor no pudo responder en este momento y tu mensaje no se guardó. Por favor escríbelo de nuevo en unos segundos.
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
 
@@ -465,7 +474,7 @@
             <form th:action="@{/chat/{enlace}/mensaje(enlace=${sesion.enlaceUnico})}" method="post" id="chatForm" class="d-flex gap-2 align-items-end">
                 <textarea name="mensaje" id="mensajeInput" class="form-control textarea-chat" 
                           rows="1" 
-                          th:placeholder="${sesion.estado == false ? 'Esta sesión ha sido pausada por el profesor...' : (sesionCompletada ? '¡Felicitaciones! Has completado todas las preguntas guía de esta sesión.' : 'Escribe tu reflexión o consulta de POO... (Enter para enviar, Shift+Enter para salto de línea)')}" 
+                          th:placeholder="${sesion.estado == false ? 'Esta sesión ha sido pausada por el profesor...' : (sesionCompletada ? 'Sesión de tutoría finalizada. ¡Gracias por tu participación!' : 'Escribe tu reflexión o consulta de POO... (Enter para enviar, Shift+Enter para salto de línea)')}" 
                           th:disabled="${sesion.estado == false or sesionCompletada}"
                           required autofocus></textarea>
                 <button type="submit" class="btn-send-message" title="Enviar Mensaje" th:disabled="${sesion.estado == false or sesionCompletada}">
@@ -492,6 +501,12 @@
                 </div>
                 <form th:action="@{/chat/{enlace}/feedback(enlace=${sesion.enlaceUnico})}" method="post">
                     <div class="modal-body p-4">
+                        <div class="alert alert-warning border-0 rounded-3 p-3 mb-3 small d-flex align-items-start gap-2">
+                            <i class="bi bi-exclamation-triangle-fill text-warning fs-5 flex-shrink-0"></i>
+                            <div>
+                                <strong>Importante:</strong> Este formulario debe completarse únicamente al <strong>final de la sesión</strong>. Una vez enviado, la sesión de tutoría se dará por finalizada y no podrás continuar realizando más preguntas al tutor socrático.
+                            </div>
+                        </div>
                         <p class="text-muted small mb-3">
                             Tu opinión le ayuda a tu profesor a saber cómo fue tu experiencia con el tutor inteligente y qué aspectos de <strong th:text="${sesion.tema}">esta clase</strong> se pueden reforzar en el aula.
                         </p>
@@ -550,6 +565,12 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4" style="overflow-y: auto; flex-grow: 1;">
+                        <div class="alert alert-warning border-0 rounded-3 p-3 mb-3 small d-flex align-items-start gap-2">
+                            <i class="bi bi-exclamation-triangle-fill text-warning fs-5 flex-shrink-0"></i>
+                            <div>
+                                <strong>Importante:</strong> Esta evaluación científica debe diligenciarse exclusivamente al <strong>final de la sesión</strong>. Una vez enviada, la sesión quedará cerrada y no podrás continuar realizando más preguntas.
+                            </div>
+                        </div>
                         <div class="alert alert-light border rounded-3 p-3 mb-4 small">
                             <div class="fw-bold mb-1" style="color: #581C87;">
                                 <i class="bi bi-info-circle-fill me-1"></i>Instrucciones de Diligenciamiento:
@@ -950,7 +971,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script>
+    <script th:inline="javascript">
         marked.setOptions({
             breaks: true,
             gfm: true
@@ -999,9 +1020,10 @@
             const ahora = new Date();
             const horaStr = ahora.getHours().toString().padStart(2, '0') + ':' + ahora.getMinutes().toString().padStart(2, '0');
 
-            // 3. Renderizar de inmediato la burbuja del estudiante
+            // 3. Renderizar de inmediato la burbuja del estudiante (se retira si el envío falla)
+            const studentBubbleId = 'studentMsg_' + Date.now();
             const estudianteHtml = `
-                <div class="msg-row student">
+                <div class="msg-row student" id="${studentBubbleId}">
                     <div class="bubble student">
                         <div class="d-flex align-items-center justify-content-between gap-3 mb-1">
                             <span class="fw-bold small opacity-75">Tú</span>
@@ -1039,15 +1061,26 @@
             if (sendBtn) sendBtn.disabled = true;
 
             try {
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json'
-                    },
-                    body: new URLSearchParams({ mensaje: mensajeTexto })
-                });
+                const formData = new FormData(form);
+                formData.set('mensaje', mensajeTexto);
+
+                // Límite de espera en el navegador (el servidor acota su propio peor caso a ~70 s)
+                const abortCtrl = new AbortController();
+                const abortTimer = setTimeout(() => abortCtrl.abort(), 90000);
+                let response;
+                try {
+                    response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        },
+                        body: new URLSearchParams(formData),
+                        signal: abortCtrl.signal
+                    });
+                } finally {
+                    clearTimeout(abortTimer);
+                }
 
                 const indicatorEl = document.getElementById(typingId);
                 if (indicatorEl) indicatorEl.remove();
@@ -1083,19 +1116,78 @@
                         mostrarSugerenciaCierre();
                     }
                 } else {
-                    // Si ocurre un error, enviar via submit tradicional como fallback
-                    form.submit();
+                    // Sin recargar la página: el mensaje no se guardó, se devuelve al cuadro de texto
+                    let data = {};
+                    try { data = await response.json(); } catch (_) { /* respuesta sin JSON */ }
+                    manejarErrorEnvio(response.status, data.error, mensajeTexto, studentBubbleId);
                 }
             } catch (err) {
                 console.error("Error en comunicación asincrónica:", err);
                 const indicatorEl = document.getElementById(typingId);
                 if (indicatorEl) indicatorEl.remove();
-                // Fallback clásico
-                form.submit();
+                manejarErrorEnvio(err && err.name === 'AbortError' ? -1 : 0, null, mensajeTexto, studentBubbleId);
             } finally {
-                const yaTerminada = document.getElementById('bannerRutaCompletada') !== null;
-                if (sendBtn && !yaTerminada) sendBtn.disabled = false;
-                if (textarea && !yaTerminada) textarea.focus();
+                const bloqueado = document.getElementById('bannerRutaCompletada') !== null
+                        || (textarea && textarea.disabled);
+                if (sendBtn && !bloqueado) sendBtn.disabled = false;
+                if (textarea && !bloqueado) textarea.focus();
+            }
+        }
+
+        /**
+         * Muestra el error dentro del chat y conserva el mensaje del estudiante.
+         * Solo bloquea la entrada cuando el servidor indica que la sesión realmente no admite más mensajes.
+         */
+        function manejarErrorEnvio(status, mensajeServidor, mensajeTexto, studentBubbleId) {
+            const burbuja = document.getElementById(studentBubbleId);
+            if (burbuja) burbuja.remove();
+
+            let texto;
+            let bloquear = false;
+            let recargar = false;
+            if (status === 401 || (status === 403 && !mensajeServidor)) {
+                // 403 sin JSON = token CSRF/sesión HTTP expirada (Spring Security), no una tutoría finalizada
+                texto = 'Tu sesión de ingreso expiró. Copia tu mensaje si lo necesitas y recarga la página para ingresar de nuevo.';
+                recargar = true;
+            } else if (status === 403) {
+                texto = mensajeServidor;
+                bloquear = true;
+            } else if (status === 400 && mensajeServidor && mensajeServidor.toLowerCase().includes('pausada')) {
+                texto = mensajeServidor;
+                bloquear = true;
+            } else if (status === 429) {
+                texto = mensajeServidor || 'Por favor espera un momento antes de enviar otra consulta.';
+            } else if (status === -1) {
+                texto = 'El tutor tardó demasiado en responder. Recarga la página para ver si tu mensaje quedó registrado antes de enviarlo de nuevo.';
+                recargar = true;
+            } else if (status === 0) {
+                texto = 'No se pudo conectar con el servidor. Revisa tu conexión e intenta enviar tu mensaje de nuevo.';
+            } else {
+                texto = mensajeServidor || 'El tutor no pudo responder en este momento. Intenta enviar tu mensaje de nuevo en unos segundos.';
+            }
+
+            if (textarea && !textarea.value.trim()) {
+                textarea.value = mensajeTexto;
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px';
+            }
+
+            const errorHtml = `
+                <div class="alert ${bloquear ? 'alert-warning' : 'alert-danger'} alert-dismissible fade show border-0 rounded-3 p-3 my-2 mx-auto small shadow-sm" role="alert" style="max-width: 680px;">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>${escapeHtml(texto)}
+                    ${recargar ? '<button type="button" class="btn btn-sm btn-outline-danger ms-2 py-0" onclick="window.location.reload()">Recargar</button>' : ''}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            contentLimit.insertAdjacentHTML('beforeend', errorHtml);
+            scrollAlFinal();
+
+            if (bloquear) {
+                if (textarea) {
+                    textarea.disabled = true;
+                    textarea.placeholder = texto;
+                }
+                if (sendBtn) sendBtn.disabled = true;
             }
         }
 
@@ -1120,7 +1212,7 @@
                                 <h6 class="fw-bold mb-1 text-success-emphasis">
                                     <i class="bi bi-check-circle-fill me-1"></i>¡Excelente trabajo! Has completado la ruta de preguntas de esta clase
                                 </h6>
-                                <p class="small text-muted mb-0">Tu tutor socrático ha generado la síntesis pedagógica para tu docente. Recuerda responder la breve encuesta de evaluación de la plataforma.</p>
+                                <p class="small text-muted mb-0">Tu docente podrá revisar tu avance en esta sesión. Recuerda responder la breve encuesta de evaluación de la plataforma.</p>
                             </div>
                             <button type="button" class="btn btn-sm text-white rounded-3 px-3 py-2 fw-semibold shadow-sm" 
                                     style="background-color: #6B21A8;" 
@@ -1138,6 +1230,22 @@
 
             const sugerencia = document.getElementById('bannerSugerenciaCierre');
             if (sugerencia) sugerencia.classList.add('d-none');
+
+            // Invitar al estudiante a completar la evaluación científica de la plataforma (SUS + TAM)
+            abrirModalSusTamSiAplica();
+        }
+
+        function abrirModalSusTamSiAplica() {
+            const yaEvaluada = /*[[${evaluacionCompletada}]]*/ false;
+            if (!yaEvaluada) {
+                const modalEl = document.getElementById('modalEvaluacionSusTam');
+                if (modalEl) {
+                    setTimeout(() => {
+                        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+                        modalInstance.show();
+                    }, 600);
+                }
+            }
         }
 
         // Respaldo 3: Detección sutil de intención conversacional de cierre
@@ -1164,14 +1272,19 @@
             }
         }
 
-        // Respaldo 4: Alerta preventiva beforeunload si el estudiante intenta cerrar con interacción activa
-        window.addEventListener('beforeunload', function (e) {
-            const completada = document.getElementById('bannerRutaCompletada') !== null;
-            const numMensajes = document.querySelectorAll('.msg-row').length;
-            if (!completada && numMensajes > 1) {
-                e.preventDefault();
-                e.returnValue = 'Tienes una sesión socrática en curso. ¿Deseas salir?';
-                return e.returnValue;
+        // Invitación automática al SUS/TAM al finalizar la sesión o preguntas guía
+        document.addEventListener('DOMContentLoaded', function () {
+            const yaEvaluada = /*[[${evaluacionCompletada}]]*/ false;
+            const esCompletada = /*[[${sesionCompletada}]]*/ false;
+            const urlParams = new URLSearchParams(window.location.search);
+            const tieneParamCierre = urlParams.has('completada') || urlParams.has('cerrada');
+
+            if (!yaEvaluada && (esCompletada || tieneParamCierre) && !urlParams.has('evaluacionExitosa')) {
+                const storageKey = 'susTamInvitado_' + window.location.pathname;
+                if (!sessionStorage.getItem(storageKey)) {
+                    sessionStorage.setItem(storageKey, 'true');
+                    abrirModalSusTamSiAplica();
+                }
             }
         });
 

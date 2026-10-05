@@ -26,6 +26,7 @@ public class LoginController {
     private final ProfesorRepository profesorRepository;
     private final EstudianteRepository estudianteRepository;
     private final TotpService totpService;
+    private final Prototipo.Proyecto_Grado.service.LoginRateLimiterService rateLimiterService;
 
     @GetMapping("/login")
     public String verLogin(
@@ -48,8 +49,19 @@ public class LoginController {
             HttpSession session,
             Model model) {
 
+        String claveRateLimit = (correo != null ? correo.trim().toLowerCase() : "") + "_" + request.getRemoteAddr();
+        if (rateLimiterService.estaBloqueado(claveRateLimit)) {
+            model.addAttribute("error", "Demasiados intentos fallidos. Por seguridad, el acceso ha sido bloqueado temporalmente durante 10 minutos.");
+            model.addAttribute("correoIngresado", correo);
+            model.addAttribute("rolSeleccionado", rol);
+            return "Login/login";
+        }
+
         try {
             AuthService.UsuarioAutenticado usuario = authService.autenticar(correo, password, rol);
+
+            // Éxito: limpiar intentos previos
+            rateLimiterService.limpiarIntentos(claveRateLimit);
 
             // Si es docente, comprobar si tiene activado el Doble Factor (2FA)
             if ("DOCENTE".equalsIgnoreCase(usuario.rol())) {
@@ -57,6 +69,7 @@ public class LoginController {
                 if (profOpt.isPresent() && Boolean.TRUE.equals(profOpt.get().getDosFactorActivo())) {
                     // Requiere paso adicional de 2FA
                     session.setAttribute("docentePendiente2fa", usuario.correo());
+                    session.setAttribute("intentosFallidos2fa", 0);
                     return "redirect:/login/2fa";
                 }
             }
@@ -74,6 +87,7 @@ public class LoginController {
             }
 
         } catch (IllegalArgumentException ex) {
+            rateLimiterService.registrarIntentoFallido(claveRateLimit);
             model.addAttribute("error", ex.getMessage());
             model.addAttribute("correoIngresado", correo);
             model.addAttribute("rolSeleccionado", rol);
@@ -114,7 +128,18 @@ public class LoginController {
         boolean valido = totpService.validarCodigo(profesor.getSecreto2fa(), codigo);
 
         if (!valido) {
-            model.addAttribute("error", "Código de autenticación incorrecto o expirado. Verifica tu app autenticadora.");
+            int intentos = (session.getAttribute("intentosFallidos2fa") != null)
+                    ? (int) session.getAttribute("intentosFallidos2fa") + 1 : 1;
+            session.setAttribute("intentosFallidos2fa", intentos);
+
+            if (intentos >= 5) {
+                session.removeAttribute("docentePendiente2fa");
+                session.removeAttribute("intentosFallidos2fa");
+                model.addAttribute("error", "Demasiados intentos incorrectos de 2FA. Por seguridad, debes iniciar sesión de nuevo.");
+                return "Login/login";
+            }
+
+            model.addAttribute("error", "Código de autenticación incorrecto o expirado (intento " + intentos + " de 5). Verifica tu app autenticadora.");
             model.addAttribute("correo", correoPendiente);
             return "Login/verificar_2fa";
         }
@@ -122,6 +147,7 @@ public class LoginController {
         // 2FA Exitoso: rotar sesión y establecer sesión docente
         request.changeSessionId();
         session.removeAttribute("docentePendiente2fa");
+        session.removeAttribute("intentosFallidos2fa");
         session.setAttribute("usuarioLogueado", profesor.getCorreo());
         session.setAttribute("nombreUsuario",   profesor.getNombre());
         session.setAttribute("usuarioId",       profesor.getId().toString());
