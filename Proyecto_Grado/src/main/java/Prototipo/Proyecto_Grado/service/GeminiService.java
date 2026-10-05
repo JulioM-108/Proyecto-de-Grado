@@ -69,7 +69,7 @@ public class GeminiService {
     public RespuestaGemini generarRespuestaDetallada(String prompt) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("Gemini API Key no configurada. Retornando respuesta socrática simulada para desarrollo.");
-            return new RespuestaGemini("[Modo Mock/Desarrollo] Hola. Has planteado una pregunta interesante sobre POO. "
+            return new RespuestaGemini(PREFIJO_SIMULADO + " Hola. Has planteado una pregunta interesante sobre POO. "
                  + "¿Qué entiendes por este concepto y cómo crees que se relacionan las clases involucradas?", false, false);
         }
 
@@ -98,6 +98,17 @@ public class GeminiService {
 
             return new RespuestaGemini(MENSAJE_ERROR_TEMPORAL, false, true);
         }
+    }
+
+    /** Prefijo de las respuestas simuladas cuando no hay API key (solo desarrollo). */
+    public static final String PREFIJO_SIMULADO = "[Modo Mock/Desarrollo]";
+
+    /**
+     * true si el texto es contenido real del modelo: ni un error/contingencia ni una respuesta simulada.
+     * Usar antes de guardar informes o síntesis.
+     */
+    public static boolean esTextoGeneradoValido(String texto) {
+        return !esRespuestaDeError(texto) && !texto.trim().startsWith(PREFIJO_SIMULADO);
     }
 
     /**

@@ -52,6 +52,13 @@ public class ChatService {
     /** Meta-etiqueta con la que el tutor señala una solicitud de código/solución directa (RF-10). */
     public static final String ETIQUETA_ATAJO_DETECTADO = "<!-- ATAJO_DETECTADO -->";
 
+    // Valores que usa el tutor cuando el docente deja vacío un campo CRAFT (el dashboard los muestra tal cual)
+    public static final String CRAFT_DEFECTO_CONTEXTO = "Curso de Programación Orientada a Objetos";
+    public static final String CRAFT_DEFECTO_ROL = "Tutor socrático";
+    public static final String CRAFT_DEFECTO_AUDIENCIA = "Estudiantes de ingeniería";
+    public static final String CRAFT_DEFECTO_FORMATO = "Preguntas orientadoras y analogías concisas";
+    public static final String CRAFT_DEFECTO_TONO = "Amable, empático y reflexivo";
+
     /** Turnos mínimos del estudiante antes de aceptar el cierre de la ruta, aunque haya pocas preguntas guía. */
     static final int MIN_TURNOS_CIERRE_RUTA = 4;
 
@@ -321,7 +328,7 @@ public class ChatService {
     public String generarDiagnostico(UUID participacionId, boolean regenerar) {
         String progresoExistente = transactionTemplate.execute(status -> {
             Participacion p = participacionRepository.findById(participacionId).orElse(null);
-            return (p != null && !GeminiService.esRespuestaDeError(p.getProgresoMd())) ? p.getProgresoMd() : null;
+            return (p != null && GeminiService.esTextoGeneradoValido(p.getProgresoMd())) ? p.getProgresoMd() : null;
         });
         if (progresoExistente != null && !regenerar) {
             log.info("Participación {} ya cuenta con progreso_md en BD. Omitiendo invocación redundante a Gemini.", participacionId);
@@ -366,7 +373,7 @@ public class ChatService {
 
         // Fase 2: Llamada a Gemini fuera de transacción JDBC
         String progreso = geminiService.generarRespuesta(instruccion);
-        if (GeminiService.esRespuestaDeError(progreso)) {
+        if (!GeminiService.esTextoGeneradoValido(progreso)) {
             throw new IllegalStateException("El motor de IA no pudo generar el diagnóstico pedagógico en este momento.");
         }
 
@@ -465,11 +472,11 @@ public class ChatService {
             Tono: %s
             Tema POO: %s
             """.formatted(
-                orDefault(contexto,  "Curso de Programación Orientada a Objetos"),
-                orDefault(rol,       "Tutor socrático"),
-                orDefault(audiencia, "Estudiantes de ingeniería"),
-                orDefault(formato,   "Preguntas orientadoras y analogías concisas"),
-                orDefault(tono,      "Amable, empático y reflexivo"),
+                orDefault(contexto,  CRAFT_DEFECTO_CONTEXTO),
+                orDefault(rol,       CRAFT_DEFECTO_ROL),
+                orDefault(audiencia, CRAFT_DEFECTO_AUDIENCIA),
+                orDefault(formato,   CRAFT_DEFECTO_FORMATO),
+                orDefault(tono,      CRAFT_DEFECTO_TONO),
                 orDefault(tema,      "Fundamentos de POO")
         );
 

@@ -80,12 +80,11 @@ public class Participacion {
 
     /**
      * Indica si la tutoría quedó cerrada para el estudiante: completó la ruta de preguntas guía
-     * o ya calificó la sesión (feedback / SUS+TAM). La existencia de progreso_md no cuenta.
+     * o envió la encuesta SUS+TAM. El "Feedback Profe" (valoración) y el informe del docente
+     * (progreso_md) NO cierran la tutoría.
      */
     public boolean isTutoriaFinalizada() {
-        return Boolean.TRUE.equals(rutaCompletada)
-                || evaluacionSusTam != null
-                || valoracionEstudiante != null;
+        return Boolean.TRUE.equals(rutaCompletada) || evaluacionSusTam != null;
     }
 
     /** Alias de compatibilidad para plantillas Thymeleaf */

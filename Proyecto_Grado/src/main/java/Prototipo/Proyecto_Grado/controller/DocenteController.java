@@ -162,7 +162,8 @@ public class DocenteController {
     // ─── 4. API Asistente IA de Prompts (AJAX) ───────────────────────────────
 
     public record PromptAssistantRequest(String tema) {}
-    public record PromptAssistantResponse(boolean success, CraftConfigDto craft, String error) {}
+    /** aviso != null cuando la IA no respondió y se devolvió la plantilla base (no es una propuesta de la IA). */
+    public record PromptAssistantResponse(boolean success, CraftConfigDto craft, String error, String aviso) {}
 
     @PostMapping("/api/prompt-assistant")
     @ResponseBody
@@ -173,15 +174,17 @@ public class DocenteController {
         Profesor profesor = obtenerProfesorActual(session);
         if (profesor == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new PromptAssistantResponse(false, null, "No autorizado. Debes iniciar sesión como docente."));
+                    .body(new PromptAssistantResponse(false, null, "No autorizado. Debes iniciar sesión como docente.", null));
         }
 
         try {
             CraftConfigDto propuesta = promptAssistantService.generarDirectricesCraft(request.tema());
-            return ResponseEntity.ok(new PromptAssistantResponse(true, propuesta, null));
+            String aviso = propuesta.isGeneradoPorIa() ? null
+                    : "La IA no respondió en este momento: se cargó una plantilla base para que la revises y edites.";
+            return ResponseEntity.ok(new PromptAssistantResponse(true, propuesta, null, aviso));
         } catch (Exception e) {
             log.error("Error en endpoint de asistente IA: {}", e.getMessage(), e);
-            return ResponseEntity.ok(new PromptAssistantResponse(false, null, "Error al generar la directriz con IA."));
+            return ResponseEntity.ok(new PromptAssistantResponse(false, null, "Error al generar la directriz con IA.", null));
         }
     }
 
@@ -266,7 +269,7 @@ public class DocenteController {
         }
 
         // Si ya cuenta con diagnóstico válido y no se pidió uno nuevo, retornarlo sin llamar a Gemini
-        if (!regenerar && !GeminiService.esRespuestaDeError(part.getProgresoMd())) {
+        if (!regenerar && GeminiService.esTextoGeneradoValido(part.getProgresoMd())) {
             return ResponseEntity.ok(new GenerarDiagnosticoResponse(true, part.getProgresoMd(), null));
         }
 
@@ -314,6 +317,9 @@ public class DocenteController {
         try {
             String sintesis = analyticsService.generarYGuardarSintesisIa(sesion);
             return ResponseEntity.ok(new GenerarSintesisGrupalResponse(true, sintesis, null));
+        } catch (IllegalStateException e) {
+            // Sin interacciones o IA no disponible: se informa sin mostrar ningún texto prefabricado
+            return ResponseEntity.ok(new GenerarSintesisGrupalResponse(false, null, e.getMessage()));
         } catch (Exception e) {
             log.error("Error al generar síntesis grupal con IA para sesión {}: {}", sesionId, e.getMessage(), e);
             return ResponseEntity.ok(new GenerarSintesisGrupalResponse(false, null, "No se pudo generar la síntesis grupal con IA."));
@@ -631,6 +637,16 @@ public class DocenteController {
                 .filter(p -> p.getEstudiante() != null)
                 .collect(Collectors.groupingBy(p -> p.getEstudiante().getId(), LinkedHashMap::new, Collectors.toList()));
 
+        // Fecha del último mensaje del estudiante en cada participación (una sola consulta agrupada)
+        Map<UUID, java.time.OffsetDateTime> ultimoMensajePorParticipacion = new HashMap<>();
+        if (!participaciones.isEmpty()) {
+            for (Object[] fila : mensajeRepository.findUltimoMensajeEstudiantePorParticipacion(participaciones)) {
+                if (fila[0] != null && fila[1] != null) {
+                    ultimoMensajePorParticipacion.put((UUID) fila[0], (java.time.OffsetDateTime) fila[1]);
+                }
+            }
+        }
+
         List<EstudianteDirectorioDto> directorio = new ArrayList<>();
         java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -644,11 +660,19 @@ public class DocenteController {
                     .filter(p -> p.getSesion() != null && Boolean.TRUE.equals(p.getSesion().getEstado()))
                     .count() : 0;
 
-            String ultimaActividad = "Sin clases asignadas";
-            if (parts != null && !parts.isEmpty() && parts.get(0).getCreatedAt() != null) {
-                ultimaActividad = parts.get(0).getCreatedAt().format(dtf);
-            } else if (pe.getFechaVinculacion() != null) {
-                ultimaActividad = "Vinculado el " + pe.getFechaVinculacion().format(dtf);
+            // Última actividad = último mensaje del estudiante en las clases de este docente
+            String ultimaActividad;
+            java.time.OffsetDateTime ultimoMensaje = (parts == null) ? null : parts.stream()
+                    .map(p -> ultimoMensajePorParticipacion.get(p.getId()))
+                    .filter(Objects::nonNull)
+                    .max(Comparator.naturalOrder())
+                    .orElse(null);
+            if (ultimoMensaje != null) {
+                ultimaActividad = ultimoMensaje.format(dtf);
+            } else if (parts != null && !parts.isEmpty()) {
+                ultimaActividad = "Sin mensajes aún";
+            } else {
+                ultimaActividad = "Sin clases asignadas";
             }
 
             directorio.add(new EstudianteDirectorioDto(

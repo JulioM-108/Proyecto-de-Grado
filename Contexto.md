@@ -176,7 +176,7 @@ Frente a otros marcos como CO-STAR (orientado a tareas genéricas de NLP) o RCFO
 | **M-05** | **Frecuencia y duración de sesiones** | Número de sesiones completadas y tiempo promedio por sesión por estudiante. | *"Este estudiante no ha usado la plataforma en varios días. Puede estar en riesgo de abandono."* | (Castellanos et al., 2026) |
 
 #### 7.4.1. Implementación real de las métricas
-* **M-01** no tiene columna propia: el dashboard la extrae de la sección *"Errores recurrentes"* de los diagnósticos (`progreso_md`) que el docente genera manualmente. Mientras no haya diagnósticos, la gráfica muestra el volumen de consultas del tema, y el dashboard indica en cuántos diagnósticos se basa (*"Basado en N de M diagnósticos generados"*).
+* **M-01** no tiene columna propia: el dashboard la extrae de la sección *"Errores recurrentes"* de los diagnósticos (`progreso_md`) que el docente genera manualmente. Cada barra muestra el **porcentaje de estudiantes con informe generado que presentan ese error** (cada estudiante cuenta una sola vez por error), ordenado de mayor a menor (ver §14.16). Mientras no haya informes, se invita al docente a generarlos.
 * **M-02** se calcula con el conteo de mensajes del estudiante; **M-03** con el estado del diagnóstico; **M-05** con la fecha del último mensaje.
 * Códigos almacenados en la tabla `metrica` (columna `codigo`):
 
@@ -286,7 +286,7 @@ Se descartó el almacenamiento intermedio en JSON por riesgo de errores sintáct
 7. Thymeleaf renderiza el fragmento HTML y lo entrega al estudiante.
 
 ### Flujo 3: Cierre de la Tutoría y Diagnóstico Pedagógico (Manual)
-1. La tutoría del estudiante se cierra cuando el tutor certifica (y el servidor valida) que completó la ruta de preguntas guía (`ruta_completada = true`), o cuando el estudiante envía su feedback o la encuesta SUS+TAM. Al cerrarse **no** se genera ningún diagnóstico.
+1. La tutoría del estudiante se cierra cuando el tutor certifica (y el servidor valida) que completó la ruta de preguntas guía (`ruta_completada = true`), o cuando el estudiante envía la encuesta SUS+TAM. El *"Feedback Profe"* no cierra la tutoría (§14.17). Al cerrarse **no** se genera ningún diagnóstico.
 2. El diagnóstico individual lo genera **solo el docente**, con el botón *"Ver / Generar"* del dashboard (`POST /docente/api/participaciones/{id}/generar-diagnostico`). Gemini responde con la plantilla de 4 secciones en Markdown, que se persiste en `participacion.progreso_md`. Generarlo no cierra la tutoría del estudiante.
 3. Las métricas numéricas ya se acumulan en la tabla `metrica` en cada turno.
 4. La síntesis grupal también es manual: el docente pulsa *"Generar Síntesis Consolidada con IA"* y Gemini redacta las recomendaciones para la siguiente clase presencial.
@@ -575,8 +575,8 @@ Para resolver la incertidumbre de determinar cuándo un estudiante finaliza su p
    * Implementado mediante el endpoint seguro `POST /docente/api/participaciones/{participacionId}/generar-diagnostico`, el cual valida que la sesión pertenezca al docente en sesión antes de invocar la IA.
 2. **Pausar la Clase NO genera diagnósticos (mecanismo retirado):**
    * Una versión anterior generaba de forma masiva el `progreso_md` de todas las participaciones al pausar la sesión. Se eliminó (§14.11): `POST /docente/sesiones/{id}/estado` en [`DocenteController.java`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/java/Prototipo/Proyecto_Grado/controller/DocenteController.java) solo cambia el estado de la sesión; los diagnósticos se generan únicamente de forma manual por el docente.
-3. **Detección Conversacional Socrática de Cierre:**
-   * En el cliente [`chat.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/estudiante/chat.html), un detector léxico analiza si el estudiante introduce expresiones coloquiales de cierre ("gracias tutor, ya entendí", "todo claro", "listo ya terminé", etc.) antes de la culminación formal, desplegando una tarjeta contextual invitándolo a presionar `[Finalizar Sesión]` y completar la encuesta.
+3. **Detección Conversacional Socrática de Cierre (retirada en §14.17):**
+   * *Se eliminó junto con el botón `[Finalizar Sesión]`, que no guardaba el cierre.* Versión anterior: en el cliente [`chat.html`](file:///C:/Users/julio/OneDrive/Universidad/Decimo_Semestre/Tesis/Desarrollo/Proyecto_Grado/src/main/resources/templates/estudiante/chat.html), un detector léxico analiza si el estudiante introduce expresiones coloquiales de cierre ("gracias tutor, ya entendí", "todo claro", "listo ya terminé", etc.) antes de la culminación formal, desplegando una tarjeta contextual invitándolo a presionar `[Finalizar Sesión]` y completar la encuesta.
 4. **Alerta de Salida Accidental en el Navegador (`beforeunload`):**
    * Se integró un manejador de evento `window.addEventListener('beforeunload')` que intercepta intentos involuntarios de cerrar la pestaña o recargar mientras la sesión tenga interacciones activas y aún no haya sido completada o evaluada, previniendo el abandono accidental de la actividad académica.
 
@@ -630,7 +630,7 @@ Se corrigieron dos fallas observadas en pruebas: (a) el contador de solicitudes 
 1. **Detección RF-10 normalizada (`ChatService.esSolicitudAtajo`):** el mensaje se normaliza (minúsculas, sin tildes ni puntuación) y se admite hasta 4 palabras de relleno entre el verbo y el objeto (*"dame directamente la respuesta"*, *"escribe un programa que…"*), además de frases completas (*"no quiero preguntas"*, *"dime cómo se hace"*, *"dámelo hecho"*). Los infinitivos solo cuentan tras un modal (*"me puedes dar…"*) para no marcar *"no sé cómo hacer el ejercicio"*.
 2. **Doble señal de atajo:** la Capa 1 instruye al tutor a añadir la meta-etiqueta oculta `<!-- ATAJO_DETECTADO -->` ante solicitudes explícitas de código. La métrica `codigo=10` se registra si la detecta el patrón **o** el tutor; la etiqueta se elimina antes de mostrar o guardar la respuesta.
 3. **Validación en servidor de `<!-- RUTA_COMPLETADA -->`:** el cierre ya no depende solo del criterio del modelo. Se acepta únicamente si (i) respondió el modelo principal (no el auxiliar *lite*), (ii) la sesión tiene preguntas guía y (iii) el estudiante lleva al menos `max(4, nº de preguntas guía)` turnos. La regla 5 de la Capa 1 se reforzó en el mismo sentido.
-4. **El diagnóstico ya no cierra la tutoría:** se agregó la columna `participacion.ruta_completada BOOLEAN NOT NULL DEFAULT FALSE` (creada directamente en Supabase). La tutoría queda finalizada solo si `ruta_completada = true` o el estudiante envió feedback / SUS+TAM (`Participacion#isTutoriaFinalizada`). Generar el diagnóstico desde el panel docente (`progreso_md`) **no** bloquea al estudiante.
+4. **El diagnóstico ya no cierra la tutoría:** se agregó la columna `participacion.ruta_completada BOOLEAN NOT NULL DEFAULT FALSE` (creada directamente en Supabase). La tutoría queda finalizada solo si `ruta_completada = true` o el estudiante envió la encuesta SUS+TAM (`Participacion#isTutoriaFinalizada`; el feedback al profesor dejó de cerrarla en §14.17). Generar el diagnóstico desde el panel docente (`progreso_md`) **no** bloquea al estudiante.
 5. **Errores de IA fuera de la persistencia:** si ningún modelo responde, no se guarda ni el mensaje del estudiante ni el texto de error; el endpoint responde `503` reintentable. `cerrarSesionYGenerarProgreso` lanza `IllegalStateException` en lugar de guardar el texto de error como diagnóstico, y la síntesis grupal tampoco lo almacena en caché. Como efecto adicional, el mensaje nuevo ya no aparece duplicado en el prompt (antes iba en el historial y en la consulta).
 6. **Frontend del chat sin recarga ante errores:** se eliminó el respaldo `form.submit()`. Ante un fallo se retira la burbuja del estudiante, se devuelve su texto al cuadro de entrada y se muestra el error dentro del chat; la entrada solo se bloquea si el servidor indica sesión pausada o tutoría realmente finalizada. Un 403 sin JSON (token CSRF expirado) se trata como sesión de ingreso expirada, no como cierre de tutoría.
 ---
@@ -683,3 +683,48 @@ Antes de la evaluación con usuarios reales se revisaron 15 inconsistencias entr
 | > margen, sin señales | Diálogo perseverante | azul |
 
    La etiqueta muestra el margen (por ejemplo *"15 de 15 turnos · Ritmo normal"*). Dentro del margen nunca se marca *"Requiere apoyo"*.
+
+---
+
+### 14.16. M-01 Expresada en Porcentaje de Estudiantes (Octubre 2026)
+
+Antes, cada barra de *"Focos de Dificultad y Falencias (M-01)"* usaba una escala fija sin relación con el grupo: cada aparición llenaba un 20 % y la barra se completaba con 5 apariciones, sin importar el tamaño de la clase. Ahora:
+
+* **Base (100 %):** los estudiantes de la sesión con informe generado.
+* **Valor:** cuántos de esos estudiantes presentan el error. Cada estudiante cuenta **una sola vez** por error, aunque su informe lo repita.
+* **Etiqueta:** por ejemplo *"50% · 2 de 4 estudiantes"*; barra llena = todos los estudiantes con informe presentan el error.
+* **Orden:** de mayor a menor porcentaje.
+* **Sin informes:** se muestra la invitación a generarlos. Se eliminó la barra *"Consultas en tema: X"*, que contaba mensajes y no errores.
+* **Nota al pie:** indica la base del cálculo (*"Porcentajes calculados sobre N estudiantes con informe generado (de M en la clase)"*).
+* Los errores se siguen agrupando por el título exacto que redacta la IA; no se usan categorías fijas.
+
+---
+
+### 14.17. Información Veraz en las Vistas (Octubre 2026)
+
+Se revisó el código buscando información que la plataforma mostraba sin que fuera cierta: datos de relleno, textos que prometían algo que no ocurre y etiquetas que no correspondían a lo calculado. Correcciones:
+
+1. **Síntesis Consolidada del grupo sin texto inventado:** si Gemini falla, se informa el error y no se guarda nada. Antes se mostraba (y se guardaba en caché) un texto prefabricado que afirmaba resultados no verificados.
+2. **Síntesis basada en evidencia real:** antes se analizaban como máximo 5 mensajes de toda la clase. Ahora `AnalyticsService.generarYGuardarSintesisIa` envía a Gemini las preguntas guía, las métricas de la sesión, el **informe individual** de cada estudiante que lo tenga y, para quienes no lo tienen, **sus mensajes** (hasta 3000 caracteres por estudiante). Los estudiantes van anonimizados (*"Estudiante N"*) y se le exige a la IA no inventar datos.
+3. **Asistente CRAFT honesto:** si la IA no responde, se cargan valores base con el aviso *"La IA no respondió…"* en lugar de *"Directrices generadas correctamente"*.
+4. **M-03 sin palabras sueltas:** el estado depende de si el estudiante completó la ruta y de si la sección *"Errores recurrentes"* de su informe lista errores:
+
+| Ruta completada | Informe | Estado |
+| :--- | :--- | :--- |
+| No | Sin informe | En diálogo activo |
+| No | Con errores | Dudas en progreso |
+| No | Sin errores | Avanzando sin errores |
+| Sí | Sin informe | Completó la ruta · genera el informe |
+| Sí | Con errores | **Completó con dudas** |
+| Sí | Sin errores | **Consolidado** |
+
+5. **M-02 rojo:** fuera del margen de turnos, *"Requiere apoyo"* exige ≥2 solicitudes de atajo **o** errores recurrentes en el informe (antes, palabras sueltas como "persiste").
+6. **M-05:** quien completó la tutoría muestra *"Sesión completada"* y nunca *"En riesgo"*.
+7. **KPI de estudiantes:** cuenta quienes han escrito al tutor (*"de N inscritos"*), no a todos los inscritos; el **promedio de turnos** se calcula solo entre ellos.
+8. **Fechas de actividad reales:** *"Última actividad"* (directorio) y la fecha bajo M-05 (dashboard) son la del último mensaje del estudiante, no la de inscripción.
+9. **Portal del estudiante:** una clase pausada se muestra como *"Pausada por el profesor"* (antes *"Finalizada"*) y se distingue la tutoría *"Completada"*.
+10. **Textos del modal de diagnóstico:** *"Este estudiante aún no ha escrito"* o *"Aún no se ha generado el informe…"*, en lugar de *"sesión no cerrada formalmente"*.
+11. **Resumen vacío:** sin interacciones no se muestra texto que prometa un análisis automático.
+12. **Cierre del chat:** solo al completar la última pregunta guía o al enviar la encuesta SUS+TAM. El *"Feedback Profe"* ya no cierra la tutoría, y se eliminaron el botón *"Finalizar Sesión"* (no guardaba nada), el aviso de cierre por frases como "ya entendí" y el endpoint `POST /chat/{enlace}/cerrar`.
+13. **Respuestas simuladas:** sin API key, el texto *"[Modo Mock/Desarrollo]"* ya no se guarda como informe ni como síntesis (`GeminiService.esTextoGeneradoValido`).
+14. **CRAFT visible:** la tarjeta del dashboard muestra, para cada campo vacío, el valor que realmente usa el tutor (`ChatService.CRAFT_DEFECTO_*`).

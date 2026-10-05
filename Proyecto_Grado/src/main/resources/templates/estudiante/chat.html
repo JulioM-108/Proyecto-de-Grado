@@ -297,18 +297,6 @@
                 <span class="d-none d-md-inline fw-semibold" th:text="${evaluacionCompletada ? 'Encuesta SUS+TAM (✓)' : 'Evaluar Plataforma (SUS+TAM)'}">Evaluar Plataforma</span>
             </button>
 
-            <!-- Botón Finalizar Sesión -->
-            <form th:if="${not #lists.isEmpty(mensajes) and param.cerrada == null and not sesionCompletada}" 
-                  id="formFinalizarSesion"
-                  th:action="@{/chat/{enlace}/cerrar(enlace=${sesion.enlaceUnico})}" 
-                  method="post"
-                  onsubmit="return confirm('¿Deseas finalizar la sesión de tutoría? Luego podrás responder la breve encuesta de evaluación de la plataforma.');">
-                <button type="submit" class="btn btn-outline-secondary btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2">
-                    <i class="bi bi-flag text-warning"></i>
-                    <span>Finalizar Sesión</span>
-                </button>
-            </form>
-
             <div class="user-profile-badge">
                 <div class="user-avatar" th:text="${(estudiante.nombre != null and !#strings.isEmpty(estudiante.nombre)) ? #strings.substring(estudiante.nombre, 0, 1).toUpperCase() : 'E'}">E</div>
                 <span class="d-none d-sm-inline fw-semibold text-dark" th:text="${estudiante.nombre}">Estudiante</span>
@@ -342,19 +330,6 @@
                             style="background-color: #6B21A8;" 
                             data-bs-toggle="modal" data-bs-target="#modalEvaluacionSusTam">
                         <i class="bi bi-clipboard2-check me-1"></i>Evaluar Plataforma (SUS+TAM)
-                    </button>
-                </div>
-            </div>
-
-            <!-- Banner sutil de sugerencia de cierre cuando el alumno expresa agradecimiento -->
-            <div id="bannerSugerenciaCierre" class="card border-0 rounded-4 shadow-sm p-2 mb-3 mx-auto text-start d-none" 
-                 style="max-width: 680px; background-color: #EFF6FF; border-left: 4px solid #2563EB !important;">
-                <div class="d-flex align-items-center justify-content-between gap-2 px-2">
-                    <span class="small text-primary-emphasis">
-                        <i class="bi bi-info-circle-fill me-1 text-primary"></i>¿Resolviste tu duda? Puedes finalizar la sesión para consolidar tu avance.
-                    </span>
-                    <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-0 px-2 small" onclick="confirmarCierreVoluntario()">
-                        Finalizar Sesión
                     </button>
                 </div>
             </div>
@@ -1112,8 +1087,6 @@
                     // Si el tutor determinó que se completaron todas las preguntas guía
                     if (data.sesionCompletada) {
                         activarCelebracionRutaCompletada();
-                    } else if (detectarIntencionCierre(mensajeTexto)) {
-                        mostrarSugerenciaCierre();
                     }
                 } else {
                     // Sin recargar la página: el mensaje no se guardó, se devuelve al cuadro de texto
@@ -1225,12 +1198,6 @@
                 contentLimit.insertAdjacentHTML('afterbegin', bannerHtml);
             }
 
-            const formCerrar = document.getElementById('formFinalizarSesion');
-            if (formCerrar) formCerrar.style.display = 'none';
-
-            const sugerencia = document.getElementById('bannerSugerenciaCierre');
-            if (sugerencia) sugerencia.classList.add('d-none');
-
             // Invitar al estudiante a completar la evaluación científica de la plataforma (SUS + TAM)
             abrirModalSusTamSiAplica();
         }
@@ -1245,30 +1212,6 @@
                         modalInstance.show();
                     }, 600);
                 }
-            }
-        }
-
-        // Respaldo 3: Detección sutil de intención conversacional de cierre
-        const palabrasCierre = ['ya entendí', 'ya me quedó claro', 'muchas gracias', 'muchas gracias profe', 'listo profe', 'ya terminé', 'eso era todo', 'ya quedó claro'];
-        function detectarIntencionCierre(texto) {
-            if (!texto) return false;
-            const t = texto.toLowerCase();
-            return palabrasCierre.some(p => t.includes(p));
-        }
-
-        function mostrarSugerenciaCierre() {
-            const sugerencia = document.getElementById('bannerSugerenciaCierre');
-            if (sugerencia && !document.getElementById('bannerRutaCompletada')) {
-                sugerencia.classList.remove('d-none');
-            }
-        }
-
-        function confirmarCierreVoluntario() {
-            const formCerrar = document.getElementById('formFinalizarSesion');
-            if (formCerrar) {
-                formCerrar.querySelector('button').click();
-            } else {
-                window.location.href = window.location.pathname + '?cerrada=true';
             }
         }
 

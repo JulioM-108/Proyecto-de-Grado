@@ -31,6 +31,11 @@ public interface MensajeRepository extends JpaRepository<Mensaje, UUID> {
     /** Cuenta total de mensajes en una participación. */
     long countByParticipacion(Participacion participacion);
 
+    /** Fecha del último mensaje del ESTUDIANTE por participación: filas [participacionId (UUID), fecha (OffsetDateTime)]. */
+    @Query("SELECT m.participacion.id, MAX(m.createdAt) FROM Mensaje m "
+            + "WHERE m.participacion IN :participaciones AND m.emisor = true GROUP BY m.participacion.id")
+    List<Object[]> findUltimoMensajeEstudiantePorParticipacion(@Param("participaciones") List<Participacion> participaciones);
+
     /** Cuenta los mensajes de un emisor (true = estudiante) en una participación. */
     long countByParticipacionAndEmisor(Participacion participacion, Boolean emisor);
 

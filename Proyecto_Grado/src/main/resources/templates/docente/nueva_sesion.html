@@ -360,7 +360,13 @@
                     actualizarYResaltar('craftFormato', craft.format);
                     actualizarYResaltar('craftTono', craft.tone);
 
-                    aiAlert.classList.remove('d-none');
+                    if (data.aviso) {
+                        // No fue la IA: se cargó la plantilla base
+                        aiAlert.classList.add('d-none');
+                        alert(data.aviso);
+                    } else {
+                        aiAlert.classList.remove('d-none');
+                    }
                 } else {
                     alert('No se pudo generar la propuesta con IA: ' + (data.error || 'Intenta nuevamente.'));
                 }

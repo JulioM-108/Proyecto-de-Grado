@@ -37,7 +37,7 @@ import java.util.Map;
  * GET  /chat/{enlace}            → muestra registro o chat
  * POST /chat/{enlace}/registro   → registro con contraseña del estudiante
  * POST /chat/{enlace}/mensaje    → procesa un nuevo mensaje
- * POST /chat/{enlace}/cerrar     → cierra la sesión y genera síntesis (Flujo 3)
+ * La tutoría se cierra al completar la ruta de preguntas guía o al enviar la encuesta SUS+TAM.
  */
 @Controller
 @RequestMapping("/chat")
@@ -118,7 +118,7 @@ public class ChatController {
                 || Boolean.TRUE.equals(completada);
         model.addAttribute("sesionCompletada", sesionCompletada);
         model.addAttribute("rutaCompletada", Boolean.TRUE.equals(participacion.getRutaCompletada()));
-        model.addAttribute("sesionCerrada", Boolean.TRUE.equals(cerrada) || participacion.getEvaluacionSusTam() != null || participacion.getValoracionEstudiante() != null);
+        model.addAttribute("sesionCerrada", Boolean.TRUE.equals(cerrada) || participacion.isTutoriaFinalizada());
         model.addAttribute("evaluacionSusTam", evaluacionDTO);
         model.addAttribute("evaluacionCompletada", evaluacionDTO != null);
         model.addAttribute("evaluacionExitosa", Boolean.TRUE.equals(evaluacionExitosa));
@@ -301,34 +301,6 @@ public class ChatController {
     }
 
     /**
-     * Flujo 3: Cierra la sesión activa y genera la síntesis pedagógica.
-     * Llama a Gemini para producir el resumen de 4 secciones en Markdown.
-     */
-    @PostMapping("/{enlace}/cerrar")
-    public String cerrarSesion(@PathVariable String enlace,
-                               HttpSession httpSession) {
-
-        Estudiante estudiante = (Estudiante) httpSession.getAttribute("estudianteActivo");
-        if (estudiante == null) {
-            return "redirect:/chat/" + enlace;
-        }
-
-        Sesion sesion = sesionRepository.findByEnlaceUnico(enlace)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-
-        participacionRepository
-                .findFirstByEstudianteAndSesionOrderByCreatedAtDesc(estudiante, sesion)
-                .ifPresent(p -> {
-                    // Al cerrar sesión sin terminar la ruta pedagógica, no se genera diagnóstico con IA.
-                    // Las métricas cuantitativas (turnos M-02, alertas RF-10) ya quedan acumuladas
-                    // en la base de datos de manera inmediata con cada consulta enviada.
-                    log.info("Estudiante {} cerró su sesión en la clase {}", estudiante.getCorreo(), sesion.getTema());
-                });
-
-        return "redirect:/chat/" + enlace + "?cerrada=true";
-    }
-
-    /**
      * Registro / actualización de retroalimentación cualitativa y valoración (1 a 5)
      * del estudiante para el profesor sobre la sesión.
      */
@@ -356,10 +328,11 @@ public class ChatController {
                         p.setFeedbackEstudiante(comentario.trim());
                     }
                     participacionRepository.save(p);
-                    log.info("Estudiante {} envió feedback de la clase {}. Sesión finalizada.", estudiante.getCorreo(), sesion.getTema());
+                    log.info("Estudiante {} envió feedback de la clase {}.", estudiante.getCorreo(), sesion.getTema());
                 });
 
-        return "redirect:/chat/" + enlace + "?cerrada=true&feedbackEnviado=true";
+        // El feedback al profesor no cierra la tutoría: el estudiante puede seguir conversando
+        return "redirect:/chat/" + enlace + "?feedbackEnviado=true";
     }
 
     /**

@@ -15,7 +15,6 @@ import org.thymeleaf.web.servlet.JakartaServletWebApplication;
 import org.thymeleaf.context.WebContext;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -53,11 +52,15 @@ class DocenteDashboardTemplateTest {
         AnalyticsService.MetricasDashboard metricas = AnalyticsService.MetricasDashboard.builder()
                 .totalSesiones(1)
                 .totalParticipaciones(3)
+                .estudiantesActivos(2)
                 .totalMensajes(12)
                 .totalConsultasEstudiante(6)
                 .totalRespuestasTutor(6)
                 .totalIntervencionesAuditorRf10(1)
-                .dificultadesPorConcepto(Map.of("Polimorfismo", 4L, "Interfaces", 2L))
+                .diagnosticosGenerados(2)
+                .dificultadesPorConcepto(List.of(
+                        new AnalyticsService.FocoDificultad("Polimorfismo", 2, 100),
+                        new AnalyticsService.FocoDificultad("Interfaces", 1, 50)))
                 .resumenIa("Diagnóstico generado con Gemini: El grupo presenta dudas en ligadura dinámica.")
                 .participacionesDetalle(List.of(
                         AnalyticsService.ParticipacionDetalleDto.builder()
@@ -97,6 +100,14 @@ class DocenteDashboardTemplateTest {
         assertTrue(htmlProcesado.contains("Seguimiento Individual de Estudiantes"));
         assertTrue(htmlProcesado.contains("modalDiagnosticoCognitivo"));
         assertTrue(htmlProcesado.contains("modalDesvincularEstudiante"));
+        // M-01: porcentaje sobre los estudiantes con informe y ancho de barra proporcional
+        assertTrue(htmlProcesado.contains("100% · 2 de 2 estudiantes"));
+        assertTrue(htmlProcesado.contains("50% · 1 de 2 estudiantes"));
+        assertTrue(htmlProcesado.contains("width: 50%;"));
+        // KPI de estudiantes: activos de inscritos; CRAFT vacío muestra el valor real que usa el tutor
+        assertTrue(htmlProcesado.contains("Han escrito al tutor · de 3 inscritos"));
+        assertTrue(htmlProcesado.contains("Contexto educativo de POO"));
+        assertTrue(htmlProcesado.contains("Preguntas y analogías"));
         // Comprobar que la jerga técnica RF-10 ya no aparece en el HTML docente
         org.junit.jupiter.api.Assertions.assertFalse(htmlProcesado.contains("Auditor RF-10"));
     }

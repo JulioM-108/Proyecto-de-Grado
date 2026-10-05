@@ -25,4 +25,5 @@ public class CraftConfigDto {
     private String tone;
     private String temaActualPoo; // Ej: "Polimorfismo y Herencia"
     private String preguntasGuia; // Preguntas guía del docente (una por línea)
+    private boolean generadoPorIa; // false si la IA no respondió y se usó la plantilla base
 }

@@ -73,9 +73,64 @@ class AnalyticsServiceTest {
         assertEquals(0, metricas.getTotalConsultasEstudiante());
         assertEquals(0, metricas.getTotalRespuestasTutor());
         assertEquals(0, metricas.getTotalIntervencionesAuditorRf10());
-        assertNotNull(metricas.getResumenIa());
-        assertTrue(metricas.getResumenIa().contains("Aún no se registran interacciones"));
+        assertEquals("", metricas.getResumenIa(), "Sin interacciones no se muestra ningún texto como si fuera análisis");
         assertTrue(metricas.getParticipacionesDetalle().isEmpty());
+        // Sin interacciones no se puede generar la síntesis (ni se inventa una)
+        assertThrows(IllegalStateException.class, () -> analyticsService.generarYGuardarSintesisIa(sesionDemo));
+    }
+
+    @Test
+    @DisplayName("Si la IA falla, la síntesis grupal NO devuelve un texto prefabricado ni lo guarda en caché")
+    void testSintesisSinTextoPrefabricadoCuandoFallaIa() {
+        Estudiante e = Estudiante.builder().id(UUID.randomUUID()).nombre("Ana").correo("ana@javerianacali.edu.co").build();
+        Participacion p = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e)
+                .createdAt(OffsetDateTime.now()).progresoMd("").build();
+        Mensaje m = Mensaje.builder().emisor(true).contenido("¿Qué es una interfaz?").participacion(p).build();
+        when(participacionRepository.findBySesion(sesionDemo)).thenReturn(List.of(p));
+        when(mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(List.of(p))).thenReturn(List.of(m));
+        when(metricaRepository.findByParticipacionIn(List.of(p))).thenReturn(List.of());
+        when(geminiService.generarRespuesta(any())).thenReturn(GeminiService.MENSAJE_ERROR_TEMPORAL);
+
+        assertThrows(IllegalStateException.class, () -> analyticsService.generarYGuardarSintesisIa(sesionDemo));
+        assertEquals("", analyticsService.obtenerMetricasPorSesion(sesionDemo).getResumenIa(), "No debe quedar nada en caché");
+    }
+
+    @Test
+    @DisplayName("La síntesis grupal usa el informe de quien lo tiene y los mensajes de quien no, anonimizados")
+    void testSintesisUsaInformesYMensajes() {
+        Estudiante e1 = Estudiante.builder().id(UUID.randomUUID()).nombre("Ana Pérez").correo("ana@javerianacali.edu.co").build();
+        Estudiante e2 = Estudiante.builder().id(UUID.randomUUID()).nombre("Luis Gómez").correo("luis@javerianacali.edu.co").build();
+        Participacion conInforme = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e1)
+                .createdAt(OffsetDateTime.now()).progresoMd("## Errores recurrentes\n- **INFORME_ANA:** x").build();
+        Participacion sinInforme = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e2)
+                .createdAt(OffsetDateTime.now()).progresoMd("").build();
+        List<Participacion> parts = List.of(conInforme, sinInforme);
+        when(participacionRepository.findBySesion(sesionDemo)).thenReturn(parts);
+        when(mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(parts)).thenReturn(List.of(
+                Mensaje.builder().emisor(true).contenido("hola tutor").participacion(conInforme).build(),
+                Mensaje.builder().emisor(true).contenido("MENSAJE_LUIS sobre herencia").participacion(sinInforme).build()));
+        when(metricaRepository.findByParticipacionIn(parts)).thenReturn(List.of());
+        when(geminiService.generarRespuesta(any())).thenReturn("### Diagnóstico Grupal\nok");
+
+        analyticsService.generarYGuardarSintesisIa(sesionDemo);
+
+        org.mockito.ArgumentCaptor<String> prompt = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(geminiService).generarRespuesta(prompt.capture());
+        assertTrue(prompt.getValue().contains("INFORME_ANA"));
+        assertTrue(prompt.getValue().contains("MENSAJE_LUIS"));
+        assertFalse(prompt.getValue().contains("Ana Pérez"), "Los estudiantes se anonimizan");
+    }
+
+    @Test
+    @DisplayName("M-03: estados según ruta completada y errores del informe")
+    void testClasificacionEvolucion() {
+        assertEquals("Sin interacción", AnalyticsService.clasificarEvolucion(0, false, false, false).etiqueta());
+        assertEquals("En diálogo activo", AnalyticsService.clasificarEvolucion(3, false, false, false).etiqueta());
+        assertEquals("Dudas en progreso", AnalyticsService.clasificarEvolucion(3, false, true, true).etiqueta());
+        assertEquals("Avanzando sin errores", AnalyticsService.clasificarEvolucion(3, false, true, false).etiqueta());
+        assertEquals("Completó con dudas", AnalyticsService.clasificarEvolucion(9, true, true, true).etiqueta());
+        assertEquals("Consolidado", AnalyticsService.clasificarEvolucion(9, true, true, false).etiqueta());
+        assertTrue(AnalyticsService.clasificarEvolucion(9, true, false, false).etiqueta().startsWith("Completó la ruta"));
     }
 
     @Test
@@ -181,6 +236,44 @@ class AnalyticsServiceTest {
         Mensaje pedido = Mensaje.builder().emisor(true).contenido("pásame el código").participacion(part).build();
         when(mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(List.of(part))).thenReturn(List.of(pedido));
         assertEquals(1, analyticsService.obtenerMetricasPorSesion(sesionDemo).getTotalSolicitudesDirectas());
+    }
+
+    @Test
+    @DisplayName("M-01: porcentaje de estudiantes con informe que presentan cada error, contando una vez por estudiante")
+    void testFocosDificultadEnPorcentaje() {
+        Estudiante e1 = Estudiante.builder().id(UUID.randomUUID()).nombre("Ana").correo("ana@javerianacali.edu.co").build();
+        Estudiante e2 = Estudiante.builder().id(UUID.randomUUID()).nombre("Luis").correo("luis@javerianacali.edu.co").build();
+        Estudiante e3 = Estudiante.builder().id(UUID.randomUUID()).nombre("Sin informe").correo("sin@javerianacali.edu.co").build();
+
+        // Ana repite el mismo error en dos viñetas: debe contar una sola vez
+        Participacion p1 = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e1)
+                .createdAt(OffsetDateTime.now())
+                .progresoMd("## Errores recurrentes\n- **Confusión clase/objeto:** a\n- **Confusión clase/objeto:** b\n- **Interferencia de otros lenguajes:** c\n## Recomendación para la siguiente sesión\n- x")
+                .build();
+        Participacion p2 = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e2)
+                .createdAt(OffsetDateTime.now())
+                .progresoMd("## Errores recurrentes\n- **Confusión clase/objeto:** d")
+                .build();
+        Participacion p3 = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e3)
+                .createdAt(OffsetDateTime.now()).progresoMd("").build();
+
+        List<Participacion> parts = List.of(p1, p2, p3);
+        when(participacionRepository.findBySesion(sesionDemo)).thenReturn(parts);
+        when(mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(parts)).thenReturn(List.of());
+        when(metricaRepository.findByParticipacionIn(parts)).thenReturn(List.of());
+
+        AnalyticsService.MetricasDashboard metricas = analyticsService.obtenerMetricasPorSesion(sesionDemo);
+
+        assertEquals(2, metricas.getDiagnosticosGenerados(), "La base son los 2 estudiantes con informe, no los 3 de la clase");
+        List<AnalyticsService.FocoDificultad> focos = metricas.getDificultadesPorConcepto();
+        assertEquals(2, focos.size());
+        // Ordenado de mayor a menor
+        assertEquals("Confusión clase/objeto", focos.get(0).getError());
+        assertEquals(2, focos.get(0).getEstudiantes());
+        assertEquals(100, focos.get(0).getPorcentaje());
+        assertEquals("Interferencia de otros lenguajes", focos.get(1).getError());
+        assertEquals(1, focos.get(1).getEstudiantes());
+        assertEquals(50, focos.get(1).getPorcentaje());
     }
 
     @Test

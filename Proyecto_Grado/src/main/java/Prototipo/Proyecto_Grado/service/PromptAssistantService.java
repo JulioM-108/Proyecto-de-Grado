@@ -82,6 +82,7 @@ public class PromptAssistantService {
                 .audience(root.path("audience").asText("Estudiantes de ingeniería de sistemas"))
                 .format(root.path("format").asText("Preguntas reflexivas y analogías concisas"))
                 .tone(root.path("tone").asText("Empático, motivador y reflexivo"))
+                .generadoPorIa(true)
                 .build();
 
         } catch (Exception ex) {

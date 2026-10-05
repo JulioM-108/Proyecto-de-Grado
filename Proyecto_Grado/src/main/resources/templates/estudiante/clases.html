@@ -250,8 +250,15 @@
                     <div>
                         <div class="d-flex align-items-center gap-2 mb-1">
                             <span class="class-code-badge" th:text="${part.sesion.enlaceUnico}">COD-123</span>
-                            <span th:if="${part.sesion.estado}" class="badge bg-success-subtle text-success border border-success-subtle py-1">Activa</span>
-                            <span th:unless="${part.sesion.estado}" class="badge bg-secondary-subtle text-secondary border py-1">Finalizada</span>
+                            <!-- Estado de la tutoría del estudiante (completó la ruta o envió la encuesta) -->
+                            <span th:if="${part.tutoriaFinalizada}" class="badge bg-success-subtle text-success border border-success-subtle py-1">
+                                <i class="bi bi-check-circle-fill me-1"></i>Completada
+                            </span>
+                            <!-- Estado de la clase definido por el profesor (pausar es reversible) -->
+                            <span th:if="${!part.tutoriaFinalizada and part.sesion.estado}" class="badge bg-primary-subtle text-primary border border-primary-subtle py-1">Activa</span>
+                            <span th:if="${!part.tutoriaFinalizada and !part.sesion.estado}" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle py-1">
+                                <i class="bi bi-pause-fill me-1"></i>Pausada por el profesor
+                            </span>
                             <span class="text-muted small ms-2" th:if="${part.createdAt != null}"
                                   th:text="${#temporals.format(part.createdAt, 'dd/MM/yyyy HH:mm')}">Fecha</span>
                         </div>
