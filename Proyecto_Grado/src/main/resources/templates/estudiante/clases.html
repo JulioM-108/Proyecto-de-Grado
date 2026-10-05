@@ -153,6 +153,7 @@
             font-weight: 600;
         }
     </style>
+    <link rel="stylesheet" th:href="@{/css/responsive.css}">
 </head>
 <body>
 
@@ -161,7 +162,7 @@
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-mortarboard-fill text-warning fs-4"></i>
             <span class="fw-bold fs-6" style="color: var(--puj-blue);">Tutor Socrático</span>
-            <span class="text-muted small">· Portal Estudiantil</span>
+            <span class="text-muted small rsp-ocultar-xs">· Portal Estudiantil</span>
         </div>
         <div class="d-flex align-items-center gap-3">
             <span class="small text-muted d-none d-sm-inline" th:text="${estudiante.correo}">estudiante@javerianacali.edu.co</span>
@@ -439,7 +440,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_2'">2</label>
                                             <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_3'" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_3'">3</label>
-                                            <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_4'" value="4" checked>
+                                            <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_4'">4</label>
                                             <input type="radio" class="btn-check" th:name="'sus1'" th:id="'sus1_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus1_' + ${part.id} + '_5'">5</label>
@@ -453,7 +454,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" th:name="'sus2'" th:id="'sus2_' + ${part.id} + '_1'" value="1" checked required>
+                                            <input type="radio" class="btn-check" th:name="'sus2'" th:id="'sus2_' + ${part.id} + '_1'" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus2_' + ${part.id} + '_1'">1</label>
                                             <input type="radio" class="btn-check" th:name="'sus2'" th:id="'sus2_' + ${part.id} + '_2'" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus2_' + ${part.id} + '_2'">2</label>
@@ -479,7 +480,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_2'">2</label>
                                             <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_3'" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_3'">3</label>
-                                            <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_4'" value="4" checked>
+                                            <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_4'">4</label>
                                             <input type="radio" class="btn-check" th:name="'sus3'" th:id="'sus3_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus3_' + ${part.id} + '_5'">5</label>
@@ -493,7 +494,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" th:name="'sus4'" th:id="'sus4_' + ${part.id} + '_1'" value="1" checked required>
+                                            <input type="radio" class="btn-check" th:name="'sus4'" th:id="'sus4_' + ${part.id} + '_1'" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus4_' + ${part.id} + '_1'">1</label>
                                             <input type="radio" class="btn-check" th:name="'sus4'" th:id="'sus4_' + ${part.id} + '_2'" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus4_' + ${part.id} + '_2'">2</label>
@@ -519,7 +520,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_2'">2</label>
                                             <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_3'" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_3'">3</label>
-                                            <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_4'" value="4" checked>
+                                            <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_4'">4</label>
                                             <input type="radio" class="btn-check" th:name="'sus5'" th:id="'sus5_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus5_' + ${part.id} + '_5'">5</label>
@@ -533,7 +534,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" th:name="'sus6'" th:id="'sus6_' + ${part.id} + '_1'" value="1" checked required>
+                                            <input type="radio" class="btn-check" th:name="'sus6'" th:id="'sus6_' + ${part.id} + '_1'" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus6_' + ${part.id} + '_1'">1</label>
                                             <input type="radio" class="btn-check" th:name="'sus6'" th:id="'sus6_' + ${part.id} + '_2'" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus6_' + ${part.id} + '_2'">2</label>
@@ -559,7 +560,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_2'">2</label>
                                             <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_3'" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_3'">3</label>
-                                            <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_4'" value="4" checked>
+                                            <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_4'">4</label>
                                             <input type="radio" class="btn-check" th:name="'sus7'" th:id="'sus7_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus7_' + ${part.id} + '_5'">5</label>
@@ -573,7 +574,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" th:name="'sus8'" th:id="'sus8_' + ${part.id} + '_1'" value="1" checked required>
+                                            <input type="radio" class="btn-check" th:name="'sus8'" th:id="'sus8_' + ${part.id} + '_1'" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus8_' + ${part.id} + '_1'">1</label>
                                             <input type="radio" class="btn-check" th:name="'sus8'" th:id="'sus8_' + ${part.id} + '_2'" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus8_' + ${part.id} + '_2'">2</label>
@@ -599,7 +600,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_2'">2</label>
                                             <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_3'" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_3'">3</label>
-                                            <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_4'" value="4" checked>
+                                            <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_4'">4</label>
                                             <input type="radio" class="btn-check" th:name="'sus9'" th:id="'sus9_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus9_' + ${part.id} + '_5'">5</label>
@@ -613,7 +614,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" th:name="'sus10'" th:id="'sus10_' + ${part.id} + '_1'" value="1" checked required>
+                                            <input type="radio" class="btn-check" th:name="'sus10'" th:id="'sus10_' + ${part.id} + '_1'" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus10_' + ${part.id} + '_1'">1</label>
                                             <input type="radio" class="btn-check" th:name="'sus10'" th:id="'sus10_' + ${part.id} + '_2'" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'sus10_' + ${part.id} + '_2'">2</label>
@@ -651,7 +652,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam1_' + ${part.id} + '_3'">3</label>
                                             <input type="radio" class="btn-check" th:name="'tamUtilidad'" th:id="'tam1_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam1_' + ${part.id} + '_4'">4</label>
-                                            <input type="radio" class="btn-check" th:name="'tamUtilidad'" th:id="'tam1_' + ${part.id} + '_5'" value="5" checked>
+                                            <input type="radio" class="btn-check" th:name="'tamUtilidad'" th:id="'tam1_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam1_' + ${part.id} + '_5'">5</label>
                                         </div>
                                         <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
@@ -669,7 +670,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_2'">2</label>
                                             <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_3'" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_3'">3</label>
-                                            <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_4'" value="4" checked>
+                                            <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_4'">4</label>
                                             <input type="radio" class="btn-check" th:name="'tamAutonomia'" th:id="'tam2_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam2_' + ${part.id} + '_5'">5</label>
@@ -691,7 +692,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam3_' + ${part.id} + '_3'">3</label>
                                             <input type="radio" class="btn-check" th:name="'tamFrustracion'" th:id="'tam3_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam3_' + ${part.id} + '_4'">4</label>
-                                            <input type="radio" class="btn-check" th:name="'tamFrustracion'" th:id="'tam3_' + ${part.id} + '_5'" value="5" checked>
+                                            <input type="radio" class="btn-check" th:name="'tamFrustracion'" th:id="'tam3_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam3_' + ${part.id} + '_5'">5</label>
                                         </div>
                                         <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
@@ -709,7 +710,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_2'">2</label>
                                             <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_3'" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_3'">3</label>
-                                            <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_4'" value="4" checked>
+                                            <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_4'">4</label>
                                             <input type="radio" class="btn-check" th:name="'tamDialogo'" th:id="'tam4_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam4_' + ${part.id} + '_5'">5</label>
@@ -731,7 +732,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam5_' + ${part.id} + '_3'">3</label>
                                             <input type="radio" class="btn-check" th:name="'tamVentaja'" th:id="'tam5_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam5_' + ${part.id} + '_4'">4</label>
-                                            <input type="radio" class="btn-check" th:name="'tamVentaja'" th:id="'tam5_' + ${part.id} + '_5'" value="5" checked>
+                                            <input type="radio" class="btn-check" th:name="'tamVentaja'" th:id="'tam5_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam5_' + ${part.id} + '_5'">5</label>
                                         </div>
                                         <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
@@ -749,7 +750,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_2'">2</label>
                                             <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_3'" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_3'">3</label>
-                                            <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_4'" value="4" checked>
+                                            <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_4'" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_4'">4</label>
                                             <input type="radio" class="btn-check" th:name="'tamAdopcion'" th:id="'tam6_' + ${part.id} + '_5'" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" th:for="'tam6_' + ${part.id} + '_5'">5</label>

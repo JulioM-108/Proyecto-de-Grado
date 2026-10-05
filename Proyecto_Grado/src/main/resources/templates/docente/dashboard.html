@@ -107,6 +107,7 @@
             font-weight: 700;
         }
     </style>
+    <link rel="stylesheet" th:href="@{/css/responsive.css}">
 </head>
 <body>
 
@@ -117,8 +118,8 @@
                 <i class="bi bi-mortarboard-fill text-warning fs-5"></i>
                 <span class="fw-bold fs-6">Panel Docente</span>
             </a>
-            <span class="text-muted">·</span>
-            <span class="small text-muted">Analítica de Sesión</span>
+            <span class="text-muted rsp-ocultar-xs">·</span>
+            <span class="small text-muted rsp-ocultar-xs">Analítica de Sesión</span>
         </div>
         <a th:href="@{/docente/sesiones}" class="btn btn-outline-secondary btn-sm rounded-3">
             <i class="bi bi-arrow-left me-1"></i>Mis Clases
@@ -179,7 +180,7 @@
         <!-- 1. KPIs Numéricos Minimalistas -->
         <div class="row g-3 mb-4">
             <!-- Estudiantes -->
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-6 col-lg-3">
                 <div class="card-kpi d-flex align-items-center justify-content-between">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Estudiantes</span>
@@ -194,7 +195,7 @@
             </div>
 
             <!-- Preguntas Alumnos -->
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-6 col-lg-3">
                 <div class="card-kpi d-flex align-items-center justify-content-between">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Preguntas</span>
@@ -208,7 +209,7 @@
             </div>
 
             <!-- Promedio Turnos (M-02) -->
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-6 col-lg-3">
                 <div class="card-kpi d-flex align-items-center justify-content-between">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Promedio Turnos</span>
@@ -222,7 +223,7 @@
             </div>
 
             <!-- Solicitudes de Código Directo (M-04) -->
-            <div class="col-sm-6 col-lg-3">
+            <div class="col-6 col-lg-3">
                 <div class="card-kpi d-flex align-items-center justify-content-between">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Alertas de Atajo</span>
@@ -243,7 +244,7 @@
                     <i class="bi bi-compass text-primary fs-5"></i>
                     <h6 class="fw-bold mb-0 text-dark">Hoja de Ruta Pedagógica: Preguntas Guía de la Sesión</h6>
                 </div>
-                <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 small fw-semibold"
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 small fw-semibold text-nowrap flex-shrink-0"
                         data-bs-toggle="modal" data-bs-target="#modalEditarCraft"
                         onclick="abrirModalEditarCraft()">
                     <i class="bi bi-pencil-square me-1"></i>Configurar Guía
@@ -402,7 +403,7 @@
                     </h6>
                     <small class="text-muted">Métricas de esfuerzo (M-02), evolución (M-03) y actividad (M-05)</small>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="d-flex flex-wrap gap-2">
                     <button type="button" class="btn btn-outline-primary btn-sm rounded-3 d-flex align-items-center gap-1"
                             data-bs-toggle="modal" data-bs-target="#modalVincularEstudiante">
                         <i class="bi bi-person-plus-fill"></i>
@@ -417,7 +418,7 @@
             </div>
 
             <div th:if="${metricas.participacionesDetalle != null and !metricas.participacionesDetalle.isEmpty()}" class="table-responsive">
-                <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+                <table class="table table-hover align-middle mb-0 tabla-movil" style="font-size: 0.88rem;">
                     <thead class="table-light">
                         <tr>
                             <th class="ps-3">Estudiante</th>
@@ -429,7 +430,7 @@
                     </thead>
                     <tbody>
                         <tr th:each="part : ${metricas.participacionesDetalle}">
-                            <td class="ps-3">
+                            <td class="ps-3 tabla-movil-titulo">
                                 <div class="d-flex align-items-center gap-2">
                                     <div class="student-avatar" th:text="${(part.estudianteNombre != null and !#strings.isEmpty(part.estudianteNombre)) ? #strings.substring(part.estudianteNombre, 0, 1).toUpperCase() : 'E'}">E</div>
                                     <div>
@@ -438,19 +439,19 @@
                                     </div>
                                 </div>
                             </td>
-                            <td>
-                                <span class="badge py-1 px-2" th:classappend="${part.nivelDificultadClase}" th:text="${part.nivelDificultad}">3 turnos · Fluido</span>
+                            <td data-label="Turnos (M-02)">
+                                <span class="badge py-1 px-2 text-wrap" th:classappend="${part.nivelDificultadClase}" th:text="${part.nivelDificultad}">3 turnos · Fluido</span>
                             </td>
-                            <td>
-                                <span class="badge py-1 px-2" th:classappend="${part.estadoEvolucionClase}" th:text="${part.estadoEvolucion}">En Diálogo</span>
+                            <td data-label="Evolución (M-03)">
+                                <span class="badge py-1 px-2 text-wrap" th:classappend="${part.estadoEvolucionClase}" th:text="${part.estadoEvolucion}">En Diálogo</span>
                             </td>
-                            <td>
+                            <td data-label="Actividad (M-05)">
                                 <div class="d-flex flex-column">
                                     <span class="small" th:classappend="${part.estadoActividadColor}" th:text="${part.estadoActividad}">Activo hoy</span>
                                     <small class="text-muted" style="font-size: 0.74rem;" th:text="${part.fechaFormateada}">01/01/2026</small>
                                 </div>
                             </td>
-                            <td class="text-end pe-3">
+                            <td class="text-end pe-3 tabla-movil-acciones">
                                 <div class="d-inline-flex align-items-center gap-2">
                                     <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 d-inline-flex align-items-center gap-1"
                                             th:data-part-id="${part.id}"

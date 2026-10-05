@@ -258,12 +258,13 @@
             margin-top: 8px;
         }
     </style>
+    <link rel="stylesheet" th:href="@{/css/responsive.css}">
 </head>
-<body>
+<body class="rsp-chat-body">
 
     <!-- 1. Barra Superior Minimalista -->
-    <header class="top-navbar d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-3">
+    <header class="top-navbar rsp-chat-header d-flex align-items-center justify-content-between">
+        <div class="rsp-chat-izq d-flex align-items-center gap-3">
             <a th:href="@{/}" class="text-decoration-none d-flex align-items-center gap-2" style="color: var(--puj-blue-dark);">
                 <i class="bi bi-mortarboard-fill text-warning fs-5"></i>
                 <span class="fw-bold fs-6">Tutor Socrático</span>
@@ -583,7 +584,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_2">2</label>
                                             <input type="radio" class="btn-check" name="sus1" id="sus1_3" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_3">3</label>
-                                            <input type="radio" class="btn-check" name="sus1" id="sus1_4" value="4" checked>
+                                            <input type="radio" class="btn-check" name="sus1" id="sus1_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_4">4</label>
                                             <input type="radio" class="btn-check" name="sus1" id="sus1_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus1_5">5</label>
@@ -598,7 +599,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" name="sus2" id="sus2_1" value="1" checked required>
+                                            <input type="radio" class="btn-check" name="sus2" id="sus2_1" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus2_1">1</label>
                                             <input type="radio" class="btn-check" name="sus2" id="sus2_2" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus2_2">2</label>
@@ -625,7 +626,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_2">2</label>
                                             <input type="radio" class="btn-check" name="sus3" id="sus3_3" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_3">3</label>
-                                            <input type="radio" class="btn-check" name="sus3" id="sus3_4" value="4" checked>
+                                            <input type="radio" class="btn-check" name="sus3" id="sus3_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_4">4</label>
                                             <input type="radio" class="btn-check" name="sus3" id="sus3_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus3_5">5</label>
@@ -640,7 +641,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" name="sus4" id="sus4_1" value="1" checked required>
+                                            <input type="radio" class="btn-check" name="sus4" id="sus4_1" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus4_1">1</label>
                                             <input type="radio" class="btn-check" name="sus4" id="sus4_2" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus4_2">2</label>
@@ -667,7 +668,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_2">2</label>
                                             <input type="radio" class="btn-check" name="sus5" id="sus5_3" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_3">3</label>
-                                            <input type="radio" class="btn-check" name="sus5" id="sus5_4" value="4" checked>
+                                            <input type="radio" class="btn-check" name="sus5" id="sus5_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_4">4</label>
                                             <input type="radio" class="btn-check" name="sus5" id="sus5_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus5_5">5</label>
@@ -682,7 +683,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" name="sus6" id="sus6_1" value="1" checked required>
+                                            <input type="radio" class="btn-check" name="sus6" id="sus6_1" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus6_1">1</label>
                                             <input type="radio" class="btn-check" name="sus6" id="sus6_2" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus6_2">2</label>
@@ -709,7 +710,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_2">2</label>
                                             <input type="radio" class="btn-check" name="sus7" id="sus7_3" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_3">3</label>
-                                            <input type="radio" class="btn-check" name="sus7" id="sus7_4" value="4" checked>
+                                            <input type="radio" class="btn-check" name="sus7" id="sus7_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_4">4</label>
                                             <input type="radio" class="btn-check" name="sus7" id="sus7_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus7_5">5</label>
@@ -724,7 +725,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" name="sus8" id="sus8_1" value="1" checked required>
+                                            <input type="radio" class="btn-check" name="sus8" id="sus8_1" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus8_1">1</label>
                                             <input type="radio" class="btn-check" name="sus8" id="sus8_2" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus8_2">2</label>
@@ -751,7 +752,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_2">2</label>
                                             <input type="radio" class="btn-check" name="sus9" id="sus9_3" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_3">3</label>
-                                            <input type="radio" class="btn-check" name="sus9" id="sus9_4" value="4" checked>
+                                            <input type="radio" class="btn-check" name="sus9" id="sus9_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_4">4</label>
                                             <input type="radio" class="btn-check" name="sus9" id="sus9_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus9_5">5</label>
@@ -766,7 +767,7 @@
                                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                                         <span class="small text-muted" style="font-size: 0.72rem;">Desacuerdo</span>
                                         <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" name="sus10" id="sus10_1" value="1" checked required>
+                                            <input type="radio" class="btn-check" name="sus10" id="sus10_1" value="1" required>
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus10_1">1</label>
                                             <input type="radio" class="btn-check" name="sus10" id="sus10_2" value="2">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="sus10_2">2</label>
@@ -805,7 +806,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam1_3">3</label>
                                             <input type="radio" class="btn-check" name="tamUtilidad" id="tam1_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam1_4">4</label>
-                                            <input type="radio" class="btn-check" name="tamUtilidad" id="tam1_5" value="5" checked>
+                                            <input type="radio" class="btn-check" name="tamUtilidad" id="tam1_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam1_5">5</label>
                                         </div>
                                         <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
@@ -824,7 +825,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_2">2</label>
                                             <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_3" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_3">3</label>
-                                            <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_4" value="4" checked>
+                                            <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_4">4</label>
                                             <input type="radio" class="btn-check" name="tamAutonomia" id="tam2_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam2_5">5</label>
@@ -847,7 +848,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam3_3">3</label>
                                             <input type="radio" class="btn-check" name="tamFrustracion" id="tam3_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam3_4">4</label>
-                                            <input type="radio" class="btn-check" name="tamFrustracion" id="tam3_5" value="5" checked>
+                                            <input type="radio" class="btn-check" name="tamFrustracion" id="tam3_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam3_5">5</label>
                                         </div>
                                         <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
@@ -866,7 +867,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_2">2</label>
                                             <input type="radio" class="btn-check" name="tamDialogo" id="tam4_3" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_3">3</label>
-                                            <input type="radio" class="btn-check" name="tamDialogo" id="tam4_4" value="4" checked>
+                                            <input type="radio" class="btn-check" name="tamDialogo" id="tam4_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_4">4</label>
                                             <input type="radio" class="btn-check" name="tamDialogo" id="tam4_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam4_5">5</label>
@@ -889,7 +890,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam5_3">3</label>
                                             <input type="radio" class="btn-check" name="tamVentaja" id="tam5_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam5_4">4</label>
-                                            <input type="radio" class="btn-check" name="tamVentaja" id="tam5_5" value="5" checked>
+                                            <input type="radio" class="btn-check" name="tamVentaja" id="tam5_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam5_5">5</label>
                                         </div>
                                         <span class="small text-muted" style="font-size: 0.72rem;">De acuerdo</span>
@@ -908,7 +909,7 @@
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_2">2</label>
                                             <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_3" value="3">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_3">3</label>
-                                            <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_4" value="4" checked>
+                                            <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_4" value="4">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_4">4</label>
                                             <input type="radio" class="btn-check" name="tamAdopcion" id="tam6_5" value="5">
                                             <label class="btn btn-outline-secondary btn-sm px-3" for="tam6_5">5</label>

@@ -1,0 +1,261 @@
+/* ==============================================================================
+ * Ajustes responsive compartidos por todas las vistas (teléfono, tablet y escritorio).
+ * Se carga DESPUÉS de los estilos propios de cada plantilla para poder ajustarlos.
+ * Puntos de corte alineados con Bootstrap 5: sm 576px, md 768px, lg 992px.
+ * ============================================================================== */
+
+/* ── Generales ──────────────────────────────────────────────────────────────── */
+
+/* Textos largos sin espacios (correos, códigos) no deben ensanchar la página */
+.text-break-anywhere,
+.card-panel, .card-kpi, .craft-item, .alert, td, .modal-body {
+    overflow-wrap: anywhere;
+}
+
+/* Los bloques de código del tutor se desplazan dentro de su burbuja, no la página */
+pre, .markdown-content pre {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* Avisos con botón de cerrar: .p-3 (!important) anulaba el espacio reservado para la "X",
+   que quedaba encima del texto */
+.alert-dismissible {
+    padding-right: 3rem !important;
+}
+
+/* Imágenes y medios nunca más anchos que su contenedor */
+img, video, iframe {
+    max-width: 100%;
+}
+
+/* ── Barra superior del docente (Mis Sesiones / Mis Estudiantes / Feedback) ── */
+
+@media (max-width: 991.98px) {
+    .rsp-nav {
+        flex-wrap: wrap;
+        row-gap: 10px;
+        padding: 10px 16px !important;
+    }
+    /* El bloque izquierdo "se disuelve": logo y botón Salir quedan en la primera fila
+       y las pestañas pasan a una segunda fila completa */
+    .rsp-nav > .rsp-nav-izq {
+        display: contents !important; /* gana a .d-flex de Bootstrap (display:flex !important) */
+    }
+    .rsp-nav-tabs {
+        order: 3;
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+    }
+    .rsp-nav-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    .rsp-nav-tabs .nav-pill-tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 6px 12px;
+        font-size: 0.82rem;
+    }
+}
+
+/* En teléfono las tres pestañas se reparten el ancho (sin iconos) para no tener que deslizar */
+@media (max-width: 575.98px) {
+    .rsp-nav-tabs .nav-pill-tab {
+        flex: 1 1 0;
+        justify-content: center;
+        text-align: center;
+        white-space: normal;
+        line-height: 1.15;
+        padding: 6px 6px;
+        font-size: 0.78rem;
+        min-height: 38px;
+    }
+    .rsp-nav-tabs .nav-pill-tab > i {
+        display: none;
+    }
+}
+
+/* Barras simples (dashboard, nueva clase, portal del estudiante) */
+@media (max-width: 575.98px) {
+    .navbar-minimal {
+        padding: 10px 16px !important;
+    }
+    .rsp-ocultar-xs {
+        display: none !important;
+    }
+}
+
+/* KPI del dashboard de 2 en 2 en teléfono: más compactos */
+@media (max-width: 575.98px) {
+    .card-kpi {
+        padding: 14px !important;
+    }
+    .card-kpi h3 {
+        font-size: 1.4rem;
+    }
+    .card-kpi .kpi-icon-pill {
+        display: none !important;
+    }
+}
+
+/* ── Tablas que en teléfono se muestran como tarjetas apiladas ──────────────── */
+/* Uso: <table class="tabla-movil"> y cada <td data-label="Título de la columna"> */
+
+@media (max-width: 767.98px) {
+    .tabla-movil thead {
+        display: none;
+    }
+    .tabla-movil,
+    .tabla-movil tbody,
+    .tabla-movil tr,
+    .tabla-movil td {
+        display: block;
+        width: 100%;
+    }
+    .tabla-movil tr {
+        border: 1px solid #D8DDE6;
+        border-radius: 14px;
+        padding: 6px 4px;
+        margin-bottom: 12px;
+        background: #FFFFFF;
+    }
+    .tabla-movil td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border: 0 !important;
+        padding: 6px 12px !important;
+        text-align: right !important;
+    }
+    .tabla-movil td[data-label]::before {
+        content: attr(data-label);
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #5a6272;
+        text-align: left;
+        flex: 0 0 auto;
+    }
+    /* Primera celda (estudiante) ocupa la fila completa, sin etiqueta */
+    .tabla-movil td.tabla-movil-titulo {
+        justify-content: flex-start;
+        text-align: left !important;
+        border-bottom: 1px solid #EEF1F5 !important;
+        padding-bottom: 10px !important;
+        margin-bottom: 4px;
+    }
+    /* Celda de acciones: botones a todo el ancho */
+    .tabla-movil td.tabla-movil-acciones {
+        justify-content: flex-end;
+        padding-top: 10px !important;
+    }
+    .tabla-movil .table-responsive,
+    .table-responsive:has(> .tabla-movil) {
+        overflow-x: visible;
+    }
+}
+
+/* ── Chat del estudiante ────────────────────────────────────────────────────── */
+
+/* 100dvh evita que la barra del navegador móvil tape el cuadro de texto */
+@supports (height: 100dvh) {
+    body.rsp-chat-body {
+        height: 100dvh !important;
+    }
+}
+
+/* Escritorio: una sola fila; el tema se recorta con "…" y los botones no parten su texto */
+@media (min-width: 992px) {
+    .rsp-chat-header {
+        gap: 16px;
+    }
+    .rsp-chat-header .btn,
+    .rsp-chat-header .fw-bold.fs-6,
+    .rsp-chat-header .user-profile-badge span {
+        white-space: nowrap;
+    }
+    .rsp-chat-header > .rsp-chat-izq {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+    .rsp-chat-header .session-topic-pill {
+        min-width: 160px;
+        max-width: 100%;
+        overflow: hidden;
+    }
+    .rsp-chat-header .session-topic-pill span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .rsp-chat-header > div:last-child {
+        flex: 0 0 auto;
+    }
+}
+/* Escritorio pequeño: se oculta el nombre del estudiante para dar espacio al tema */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .rsp-chat-header .user-profile-badge {
+        display: none;
+    }
+}
+
+/* Teléfono y tablet: el tema de la clase baja a su propia fila */
+@media (max-width: 991.98px) {
+    .rsp-chat-header .btn {
+        white-space: nowrap;
+    }
+    .rsp-chat-header {
+        flex-wrap: wrap;
+        row-gap: 8px;
+        padding: 10px 14px !important;
+    }
+    .rsp-chat-header > .rsp-chat-izq {
+        display: contents !important; /* gana a .d-flex de Bootstrap (display:flex !important) */
+    }
+    .rsp-chat-header .gap-3 {
+        gap: 8px !important;
+    }
+    /* El tema de la clase pasa a su propia fila, en una sola línea */
+    .rsp-chat-header .session-topic-pill {
+        order: 3;
+        width: 100%;
+        min-width: 0;
+        border-radius: 10px;
+    }
+    .rsp-chat-header .session-topic-pill span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+    }
+    .rsp-chat-header .user-profile-badge {
+        display: none;
+    }
+}
+
+/* Solo teléfono: menos relleno alrededor de los mensajes */
+@media (max-width: 767.98px) {
+    .chat-scroll-area {
+        padding: 16px 10px !important;
+    }
+    .chat-input-bar {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+}
+
+/* ── Modales: en teléfono ocupan casi toda la pantalla y se desplazan por dentro ── */
+
+@media (max-width: 575.98px) {
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+    .modal-body {
+        padding: 1rem;
+    }
+}

@@ -728,3 +728,23 @@ Se revisó el código buscando información que la plataforma mostraba sin que f
 12. **Cierre del chat:** solo al completar la última pregunta guía o al enviar la encuesta SUS+TAM. El *"Feedback Profe"* ya no cierra la tutoría, y se eliminaron el botón *"Finalizar Sesión"* (no guardaba nada), el aviso de cierre por frases como "ya entendí" y el endpoint `POST /chat/{enlace}/cerrar`.
 13. **Respuestas simuladas:** sin API key, el texto *"[Modo Mock/Desarrollo]"* ya no se guarda como informe ni como síntesis (`GeminiService.esTextoGeneradoValido`).
 14. **CRAFT visible:** la tarjeta del dashboard muestra, para cada campo vacío, el valor que realmente usa el tutor (`ChatService.CRAFT_DEFECTO_*`).
+
+---
+
+### 14.18. Diseño Responsive para Teléfono, Tablet y Escritorio (Octubre 2026)
+
+Se revisaron las 10 vistas renderizadas con datos de ejemplo y capturadas a 390 px (teléfono), 768 px (tablet), 1024 px y 1366 px (escritorio). Las plantillas no tenían reglas `@media` propias y dependían solo de Bootstrap.
+
+**Hoja compartida `static/css/responsive.css`:** se enlaza en todas las plantillas, después de sus estilos propios.
+
+| Problema detectado | Corrección |
+| :--- | :--- |
+| En *Mis Sesiones*, *Mis Estudiantes* y *Feedback*, la barra del docente se salía de la pantalla del teléfono (no se veían *Feedback* ni *Salir*) | En pantallas < 992 px, el logo y *Salir* quedan en la primera fila y las pestañas en una segunda fila; en teléfono se reparten el ancho (`.rsp-nav`) |
+| Las tablas del dashboard y del directorio solo mostraban el nombre: los botones *Ver Diagnóstico*, *Asignar* y *Eliminar* quedaban ocultos a la derecha | En < 768 px cada fila se muestra como tarjeta, con la etiqueta de cada dato y los botones visibles (`.tabla-movil` + `data-label`) |
+| Cabecera del chat saturada en teléfono y tablet (el tema ocupaba 5 líneas y se cortaban el avatar y *Mis Clases*) | En < 992 px el tema pasa a su propia fila, en una sola línea; en escritorio el tema se recorta con "…" y los botones no parten su texto |
+| En el chat, la barra del navegador móvil podía tapar el cuadro de texto | `height: 100dvh` en la página del chat |
+| La "X" de los avisos se montaba sobre el texto | Espacio reservado para el botón de cierre (`.alert-dismissible`) |
+| KPI del dashboard de uno en uno (ocupaban una pantalla entera en teléfono) | Dos por fila en teléfono, sin icono |
+| Correos y códigos largos ensanchaban las tarjetas | `overflow-wrap: anywhere`; los bloques de código se desplazan dentro de su burbuja |
+
+**Corrección metodológica detectada durante la revisión:** la encuesta SUS+TAM (en `chat.html` y en `clases.html`) venía **pre-llenada con las respuestas más favorables**: SUS impares = 4, pares = 1 y TAM = 4–5. Enviarla sin tocar nada registraba un SUS de 87,5 (*"Excelente"*). Se eliminaron todas las respuestas pre-marcadas; las 16 preguntas siguen siendo obligatorias, por lo que el navegador no permite enviar la encuesta incompleta. **Las evaluaciones registradas antes de este cambio podrían contener respuestas por defecto y conviene revisarlas antes del análisis del Capítulo 5.**

@@ -142,6 +142,7 @@
             100% { background-color: #FFFFFF; }
         }
     </style>
+    <link rel="stylesheet" th:href="@{/css/responsive.css}">
 </head>
 <body>
 
@@ -152,8 +153,8 @@
                 <i class="bi bi-mortarboard-fill text-warning fs-5"></i>
                 <span class="fw-bold fs-6">Panel Docente</span>
             </a>
-            <span class="text-muted">·</span>
-            <span class="small text-muted">Configuración de Sesión</span>
+            <span class="text-muted rsp-ocultar-xs">·</span>
+            <span class="small text-muted rsp-ocultar-xs">Configuración de Sesión</span>
         </div>
         <a th:href="@{/docente/sesiones}" class="btn btn-outline-secondary btn-sm rounded-3">
             <i class="bi bi-arrow-left me-1"></i>Volver a mis clases

@@ -207,17 +207,18 @@
             border: 1px solid #C5D5EA;
         }
     </style>
+    <link rel="stylesheet" th:href="@{/css/responsive.css}">
 </head>
 <body>
 
     <!-- 1. Navegación Superior -->
-    <nav class="navbar-minimal d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-3">
+    <nav class="navbar-minimal rsp-nav d-flex align-items-center justify-content-between">
+        <div class="rsp-nav-izq d-flex align-items-center gap-3">
             <a th:href="@{/docente/sesiones}" class="text-decoration-none d-flex align-items-center gap-2 me-2" style="color: var(--puj-blue-dark);">
                 <i class="bi bi-mortarboard-fill text-warning fs-5"></i>
                 <span class="fw-bold fs-6">Tutor Socrático</span>
             </a>
-            <div class="d-flex align-items-center gap-2">
+            <div class="rsp-nav-tabs d-flex align-items-center gap-2">
                 <a th:href="@{/docente/sesiones}" class="nav-pill-tab inactive">
                     <i class="bi bi-collection-play-fill"></i>
                     <span>Mis Sesiones</span>
@@ -360,7 +361,7 @@
         <!-- Tabla de Estudiantes -->
         <div class="card-panel">
             <div th:if="${directorio != null and !directorio.isEmpty()}" class="table-responsive">
-                <table class="table table-institutional align-middle mb-0" id="tablaEstudiantes">
+                <table class="table table-institutional align-middle mb-0 tabla-movil" id="tablaEstudiantes">
                     <thead>
                         <tr>
                             <th class="ps-4">Estudiante</th>
@@ -373,7 +374,7 @@
                     </thead>
                     <tbody>
                         <tr th:each="est : ${directorio}" class="fila-estudiante">
-                            <td class="ps-4">
+                            <td class="ps-4 tabla-movil-titulo">
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="avatar-initial" th:text="${(est.nombre != null and !#strings.isEmpty(est.nombre)) ? #strings.substring(est.nombre, 0, 1).toUpperCase() : 'E'}">E</div>
                                     <div>
@@ -381,16 +382,16 @@
                                     </div>
                                 </div>
                             </td>
-                            <td>
+                            <td data-label="Correo">
                                 <span class="text-muted" th:text="${est.correo}">correo@javerianacali.edu.co</span>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" data-label="Clases">
                                 <span th:class="${est.totalClases > 0 ? 'badge-classes' : 'badge bg-light text-muted border px-2 py-1'}" th:text="${est.totalClases} + ' clase(s)'">0 clase(s)</span>
                             </td>
-                            <td>
+                            <td data-label="Última actividad">
                                 <span class="small" style="color: var(--text-muted);" th:text="${est.ultimaActividadFormateada}">01/01/2026</span>
                             </td>
-                            <td>
+                            <td data-label="Estado">
                                 <span th:if="${est.clasesActivas > 0}" class="badge-active">
                                     <i class="bi bi-check-circle-fill me-1"></i>En clase activa
                                 </span>
@@ -401,7 +402,7 @@
                                     <i class="bi bi-dash-circle me-1"></i>Sin clases
                                 </span>
                             </td>
-                            <td class="text-end pe-4">
+                            <td class="text-end pe-4 tabla-movil-acciones">
                                 <div class="d-inline-flex align-items-center gap-2">
                                     <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 fw-semibold"
                                             th:data-id="${est.id}"
