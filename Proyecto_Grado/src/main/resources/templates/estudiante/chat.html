@@ -1025,7 +1025,7 @@
                         </div>
                         <div class="d-flex align-items-center gap-2 text-muted py-2" style="font-size: 0.85rem;">
                             <div class="spinner-grow spinner-grow-sm text-primary" style="width: 0.75rem; height: 0.75rem;" role="status"></div>
-                            <span class="fst-italic">Tutor reflexionando tu consulta...</span>
+                            <span class="fst-italic" id="${typingId}_texto">Tutor reflexionando tu consulta...</span>
                         </div>
                     </div>
                 </div>
@@ -1043,6 +1043,16 @@
                 // Límite de espera en el navegador (el servidor acota su propio peor caso a ~70 s)
                 const abortCtrl = new AbortController();
                 const abortTimer = setTimeout(() => abortCtrl.abort(), 90000);
+                // Si el tutor tarda, el texto de espera cambia para que el estudiante sepa que sigue funcionando
+                const textosEspera = [
+                    [15000, 'El tutor está analizando tu respuesta con más detalle...'],
+                    [35000, 'Está tardando un poco más de lo normal. Tu mensaje no se ha perdido, espera un momento...'],
+                    [60000, 'Ya casi... si no responde pronto, te avisaremos para que lo intentes de nuevo.']
+                ];
+                const timersEspera = textosEspera.map(([ms, texto]) => setTimeout(() => {
+                    const el = document.getElementById(typingId + '_texto');
+                    if (el) el.textContent = texto;
+                }, ms));
                 let response;
                 try {
                     response = await fetch(form.action, {
@@ -1056,6 +1066,7 @@
                     });
                 } finally {
                     clearTimeout(abortTimer);
+                    timersEspera.forEach(clearTimeout);
                 }
 
                 const indicatorEl = document.getElementById(typingId);
@@ -1093,7 +1104,7 @@
                     // Sin recargar la página: el mensaje no se guardó, se devuelve al cuadro de texto
                     let data = {};
                     try { data = await response.json(); } catch (_) { /* respuesta sin JSON */ }
-                    manejarErrorEnvio(response.status, data.error, mensajeTexto, studentBubbleId);
+                    manejarErrorEnvio(response.status, mensajeParaEstudiante(response.status, data), mensajeTexto, studentBubbleId);
                 }
             } catch (err) {
                 console.error("Error en comunicación asincrónica:", err);
@@ -1112,6 +1123,15 @@
          * Muestra el error dentro del chat y conserva el mensaje del estudiante.
          * Solo bloquea la entrada cuando el servidor indica que la sesión realmente no admite más mensajes.
          */
+        // Solo los mensajes que redacta ChatController son para el estudiante. El JSON de error por defecto
+        // de Spring (trae timestamp y path, p. ej. "Internal Server Error" o "Forbidden") nunca se muestra.
+        function mensajeParaEstudiante(status, data) {
+            if (!data || typeof data.error !== 'string') return null;
+            if (data.timestamp !== undefined || data.path !== undefined) return null;
+            if (status >= 500 && status !== 503) return null;
+            return data.error;
+        }
+
         function manejarErrorEnvio(status, mensajeServidor, mensajeTexto, studentBubbleId) {
             const burbuja = document.getElementById(studentBubbleId);
             if (burbuja) burbuja.remove();

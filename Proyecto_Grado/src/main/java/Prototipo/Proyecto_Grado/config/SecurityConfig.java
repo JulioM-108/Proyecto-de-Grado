@@ -23,6 +23,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Recursos estáticos (CSS, JS, imágenes)
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**").permitAll()
+                // Página de error de Spring Boot: sin esto, cualquier error (p. ej. un 400) se mostraba como 403 "Access Denied"
+                .requestMatchers("/error").permitAll()
                 // Rutas del prototipo accesibles durante el desarrollo
                 .requestMatchers("/", "/login/**", "/logout", "/chat/**", "/docente/**", "/docente", "/estudiante/**", "/estudiante", "/api/**").permitAll()
                 .anyRequest().authenticated()

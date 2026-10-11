@@ -222,6 +222,14 @@
             </div>
         </div>
 
+        <div th:if="${error2fa}" class="alert alert-danger alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-exclamation-triangle text-danger fs-5"></i>
+                <div>La contraseña es incorrecta. El Doble Factor de Autenticación (2FA) sigue activo.</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        </div>
+
         <div th:if="${dosFaDesactivado}" class="alert alert-warning alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-shield-slash text-warning fs-5"></i>
@@ -283,8 +291,11 @@
 
                         <div th:if="${profesor != null and profesor.dosFactorActivo}">
                             <p class="small text-muted mb-2" style="font-size: 0.8rem;">Cuenta protegida mediante código TOTP de 6 dígitos.</p>
-                            <form th:action="@{/docente/2fa/desactivar}" method="post" class="m-0 text-end">
-                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-3 py-1 px-2" onclick="return confirm('¿Deseas desactivar el Doble Factor de Autenticación?');">
+                            <form th:action="@{/docente/2fa/desactivar}" method="post" class="m-0 d-flex gap-2 justify-content-end align-items-center">
+                                <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                <input type="password" name="contrasena" class="form-control form-control-sm rounded-3" style="max-width: 200px;"
+                                       placeholder="Tu contraseña" aria-label="Contraseña para desactivar 2FA" autocomplete="current-password" required>
+                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-3 py-1 px-2 text-nowrap" onclick="return confirm('¿Deseas desactivar el Doble Factor de Autenticación?');">
                                     <i class="bi bi-shield-slash me-1"></i>Desactivar
                                 </button>
                             </form>

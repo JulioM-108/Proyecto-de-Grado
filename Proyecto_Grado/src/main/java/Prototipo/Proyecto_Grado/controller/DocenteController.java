@@ -3,8 +3,6 @@ package Prototipo.Proyecto_Grado.controller;
 import Prototipo.Proyecto_Grado.model.dto.CraftConfigDto;
 import Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO;
 import Prototipo.Proyecto_Grado.model.entity.Estudiante;
-import Prototipo.Proyecto_Grado.model.entity.Mensaje;
-import Prototipo.Proyecto_Grado.model.entity.Metrica;
 import Prototipo.Proyecto_Grado.model.entity.Participacion;
 import Prototipo.Proyecto_Grado.model.entity.Profesor;
 import Prototipo.Proyecto_Grado.model.entity.Sesion;
@@ -73,6 +71,7 @@ public class DocenteController {
             @RequestParam(value = "perfilActualizado", required = false) Boolean perfilActualizado,
             @RequestParam(value = "2faDesactivado", required = false) Boolean dosFaDesactivado,
             @RequestParam(value = "2faActivado", required = false) Boolean dosFaActivado,
+            @RequestParam(value = "error2fa", required = false) String error2fa,
             HttpSession session,
             Model model) {
 
@@ -89,6 +88,7 @@ public class DocenteController {
         model.addAttribute("perfilActualizado", Boolean.TRUE.equals(perfilActualizado));
         model.addAttribute("dosFaDesactivado", Boolean.TRUE.equals(dosFaDesactivado));
         model.addAttribute("dosFaActivado", Boolean.TRUE.equals(dosFaActivado));
+        model.addAttribute("error2fa", "contrasenaIncorrecta".equals(error2fa));
 
         return "docente/sesiones";
     }
