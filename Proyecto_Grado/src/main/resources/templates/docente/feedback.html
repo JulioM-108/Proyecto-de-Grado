@@ -113,6 +113,31 @@
             color: var(--text-muted);
             font-weight: 500;
         }
+        /* Desde 2 columnas: todas las tarjetas miden lo mismo y el texto largo se corta con "…";
+           al pasar el mouse la tarjeta se despliega por encima (sin mover a las demás) y muestra el texto completo. */
+        .kpi-col {
+            position: relative;
+        }
+        @media (min-width: 576px) {
+            .kpi-label {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .kpi-card:hover {
+                position: absolute;
+                top: 0;
+                left: calc(var(--bs-gutter-x) * .5);
+                right: calc(var(--bs-gutter-x) * .5);
+                height: auto !important;
+                min-height: 100%;
+                z-index: 5;
+            }
+            .kpi-card:hover .kpi-label {
+                white-space: normal;
+                overflow: visible;
+            }
+        }
         .feedback-card {
             background: #FFFFFF;
             border: 1px solid var(--border-subtle);
@@ -201,8 +226,8 @@
 
         <!-- KPI Cards -->
         <div class="row g-3 mb-4">
-            <div class="col-sm-6 col-lg-3">
-                <div class="kpi-card d-flex align-items-center gap-3">
+            <div class="col-sm-6 col-lg-3 kpi-col">
+                <div class="kpi-card h-100 d-flex align-items-center gap-3">
                     <div class="kpi-icon amber">
                         <i class="bi bi-star-fill"></i>
                     </div>
@@ -212,19 +237,19 @@
                     </div>
                 </div>
             </div>
-            <div class="col-sm-6 col-lg-3">
-                <div class="kpi-card d-flex align-items-center gap-3">
+            <div class="col-sm-6 col-lg-3 kpi-col">
+                <div class="kpi-card h-100 d-flex align-items-center gap-3">
                     <div class="kpi-icon purple">
                         <i class="bi bi-clipboard2-data-fill"></i>
                     </div>
-                    <div>
+                    <div style="min-width: 0;">
                         <div class="kpi-value" th:text="${promedioSusGlobal} + ' / 100'">0.0 / 100</div>
                         <div class="kpi-label" style="color: #6B21A8; font-weight: 600;" th:text="${interpretacionSusGlobal}">Estándar SUS</div>
                     </div>
                 </div>
             </div>
-            <div class="col-sm-6 col-lg-3">
-                <div class="kpi-card d-flex align-items-center gap-3">
+            <div class="col-sm-6 col-lg-3 kpi-col">
+                <div class="kpi-card h-100 d-flex align-items-center gap-3">
                     <div class="kpi-icon green">
                         <i class="bi bi-patch-check-fill"></i>
                     </div>
@@ -234,8 +259,8 @@
                     </div>
                 </div>
             </div>
-            <div class="col-sm-6 col-lg-3">
-                <div class="kpi-card d-flex align-items-center gap-3">
+            <div class="col-sm-6 col-lg-3 kpi-col">
+                <div class="kpi-card h-100 d-flex align-items-center gap-3">
                     <div class="kpi-icon blue">
                         <i class="bi bi-journal-bookmark-fill"></i>
                     </div>

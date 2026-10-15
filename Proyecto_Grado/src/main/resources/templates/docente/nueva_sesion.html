@@ -99,6 +99,10 @@
             color: var(--text-main);
             transition: all 0.15s ease;
         }
+        .form-control::placeholder {
+            color: #A9B2BE;
+            opacity: 1;
+        }
         .form-control:focus {
             border-color: var(--puj-blue);
             box-shadow: 0 0 0 3px rgba(44, 86, 151, 0.12);
@@ -228,7 +232,7 @@
                             <span>Context (Contexto de la Lección)</span>
                         </label>
                         <textarea class="form-control" id="craftContexto" name="craftContexto" rows="3" 
-                                  placeholder="Contexto del curso y conocimientos previos..."
+                                  placeholder="Ej: Curso de Programación Orientada a Objetos - Semestre 2026-1"
                                   th:text="${craft.context}" required></textarea>
                     </div>
 
@@ -239,7 +243,7 @@
                             <span>Role (Rol del Tutor)</span>
                         </label>
                         <textarea class="form-control" id="craftRol" name="craftRol" rows="3" 
-                                  placeholder="Postura pedagógica socrática..."
+                                  placeholder="Ej: Tutor socrático exigente y empático. Guía al estudiante mediante preguntas y analogías, sin entregar soluciones de código completas."
                                   th:text="${craft.role}" required></textarea>
                     </div>
 
@@ -250,7 +254,7 @@
                             <span>Audience (Público Objetivo)</span>
                         </label>
                         <textarea class="form-control" id="craftAudiencia" name="craftAudiencia" rows="3" 
-                                  placeholder="Nivel de los estudiantes..."
+                                  placeholder="Ej: Estudiantes universitarios de tercer semestre de Ingeniería de Sistemas."
                                   th:text="${craft.audience}" required></textarea>
                     </div>
 
@@ -261,7 +265,7 @@
                             <span>Format (Estructura de Respuesta)</span>
                         </label>
                         <textarea class="form-control" id="craftFormato" name="craftFormato" rows="3" 
-                                  placeholder="1 analogía cotidiana + 1 pregunta orientadora..."
+                                  placeholder="Ej: 1 analogía cotidiana que ilustre el concepto + 1 pregunta clave que invite al estudiante a formular el razonamiento."
                                   th:text="${craft.format}" required></textarea>
                     </div>
 
@@ -272,7 +276,7 @@
                             <span>Tone (Tono Pedagógico)</span>
                         </label>
                         <input type="text" class="form-control" id="craftTono" name="craftTono" 
-                               placeholder="Empático, reflexivo, paciente y motivador"
+                               placeholder="Ej: Motivador, reflexivo, constructivo y académicamente riguroso."
                                th:value="${craft.tone}" required />
                     </div>
                 </div>

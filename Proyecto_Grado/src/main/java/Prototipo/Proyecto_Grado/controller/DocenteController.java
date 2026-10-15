@@ -144,13 +144,9 @@ public class DocenteController {
         Profesor profesor = obtenerProfesorActual(session);
         if (profesor == null) return "redirect:/login";
 
+        // Los campos CRAFT empiezan vacíos: la plantilla muestra ejemplos como placeholder
         CraftConfigDto craftInicial = CraftConfigDto.builder()
                 .temaActualPoo((tema != null && !tema.isBlank()) ? tema : "")
-                .context("Curso de Programación Orientada a Objetos - Semestre 2026-1")
-                .role("Tutor socrático exigente y empático. Guía al estudiante mediante preguntas y analogías, sin entregar soluciones de código completas.")
-                .audience("Estudiantes universitarios de tercer semestre de Ingeniería de Sistemas.")
-                .format("1 analogía cotidiana que ilustre el concepto + 1 pregunta clave que invite al estudiante a formular el razonamiento.")
-                .tone("Motivador, reflexivo, constructivo y académicamente riguroso.")
                 .build();
 
         model.addAttribute("profesor", profesor);

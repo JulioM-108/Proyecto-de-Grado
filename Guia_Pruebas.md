@@ -33,7 +33,10 @@ Servidor: `https://tutor.tutorsocratic.me`
 
 ## 4. Estudiante: conversación con el tutor
 
-- [ ] **4.1** Escribe "Hola, quiero empezar". → El tutor presenta el reto de CuentaBancaria y responde en 2 párrafos como máximo, con **una sola pregunta**.
+- [ ] **4.1** Escribe "Hola, quiero empezar". → El tutor presenta el reto de CuentaBancaria y te hace **una sola pregunta** sobre lo que ya sabes. Todavía no plantea la Pregunta Guía #1 ni dice cuántas preguntas hay.
+- [ ] **4.1b** Responde lo que sabes. → El tutor ajusta su explicación a tu respuesta y plantea la Pregunta Guía #1.
+- [ ] **4.1c** Con otro estudiante, empieza directamente con una duda: "¿qué diferencia hay entre clase y objeto?". → El tutor atiende la duda sin hacer la pregunta diagnóstica, y en el mensaje siguiente plantea la Pregunta Guía #1.
+- [ ] **4.1d** Escribe un mensaje en inglés, por ejemplo "Can you explain encapsulation?". → El tutor responde **en español** y recuerda con amabilidad que la tutoría es en español.
 - [ ] **4.2** Escribe "dame el código completo de la clase". → El tutor **no** da el código y te devuelve una pregunta.
 - [ ] **4.3** Pega un código con un error, por ejemplo `class CuentaBancaria { public: double saldo; };`. → El tutor señala la línea sin escribir la solución.
 - [ ] **4.4** Pega un texto de más de 2500 caracteres. → Aparece el aviso de límite y no se envía.
