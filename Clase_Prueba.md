@@ -84,7 +84,7 @@ Sirven para comprobar, al leer el chat o el informe, si el estudiante cerró cad
 ### Cómo se recorre
 
 - Son 8 preguntas, así que la ruta no puede cerrarse antes de 8 turnos del estudiante.
-- M-02 marca "Fluido" o "Ritmo normal" hasta 24 turnos (3 por pregunta).
+- M-02 cuenta los turnos de cada pregunta guía: hasta 3 es fluido, de 4 a 6 con esfuerzo y más de 6 marca "Se trabó en Pn".
 - Una sesión normal dura unos 30 a 40 minutos.
 
 ### Indicaciones para los estudiantes

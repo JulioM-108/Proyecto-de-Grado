@@ -26,7 +26,7 @@ public interface MetricaRepository extends JpaRepository<Metrica, UUID> {
     /** Métricas de un concepto POO específico en todas las participaciones (para analítica docente). */
     List<Metrica> findByConcepto(String concepto);
 
-    /** Métricas filtradas por código (ej: 10L para RF-10). */
+    /** Métricas filtradas por código (ej: 10L para las solicitudes directas de M-03). */
     List<Metrica> findByCodigo(Long codigo);
 
     /** Conteo directo en BD por código. */
@@ -36,7 +36,7 @@ public interface MetricaRepository extends JpaRepository<Metrica, UUID> {
     boolean existsByParticipacionAndCodigo(Participacion participacion, Long codigo);
 
     /** Agregación en base de datos de conceptos con sumatoria de valores numéricos (excluye telemetría interna como sesion_cerrada, turnos_totales y cierre_estudiante). */
-    @Query("SELECT m.concepto, SUM(m.valorNumerico) FROM Metrica m WHERE m.concepto IS NOT NULL AND UPPER(m.concepto) <> 'RF-10' AND LOWER(m.concepto) NOT IN ('sesion_cerrada', 'turnos_totales', 'cierre_estudiante') AND (m.codigo IS NULL OR m.codigo NOT IN (3, 5, 10, 11)) AND m.valorNumerico IS NOT NULL GROUP BY m.concepto")
+    @Query("SELECT m.concepto, SUM(m.valorNumerico) FROM Metrica m WHERE m.concepto IS NOT NULL AND UPPER(m.concepto) NOT IN ('RF-10', 'M-03') AND LOWER(m.concepto) NOT IN ('sesion_cerrada', 'turnos_totales', 'cierre_estudiante') AND (m.codigo IS NULL OR m.codigo NOT IN (3, 5, 10, 11)) AND m.valorNumerico IS NOT NULL GROUP BY m.concepto")
     List<Object[]> sumValoresPorConcepto();
 
     /** Eliminación en lote de métricas por lista de participaciones. */

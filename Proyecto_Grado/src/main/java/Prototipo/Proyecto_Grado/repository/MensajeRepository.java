@@ -36,6 +36,10 @@ public interface MensajeRepository extends JpaRepository<Mensaje, UUID> {
             + "WHERE m.participacion IN :participaciones AND m.emisor = true GROUP BY m.participacion.id")
     List<Object[]> findUltimoMensajeEstudiantePorParticipacion(@Param("participaciones") List<Participacion> participaciones);
 
+    /** Hora de cada mensaje (estudiante y tutor) por participación, para el tiempo activo (M-04): filas [participacionId (UUID), fecha (OffsetDateTime)]. */
+    @Query("SELECT m.participacion.id, m.createdAt FROM Mensaje m WHERE m.participacion IN :participaciones")
+    List<Object[]> findHorasMensajesPorParticipacion(@Param("participaciones") List<Participacion> participaciones);
+
     /** Cuenta los mensajes de un emisor (true = estudiante) en una participación. */
     long countByParticipacionAndEmisor(Participacion participacion, Boolean emisor);
 

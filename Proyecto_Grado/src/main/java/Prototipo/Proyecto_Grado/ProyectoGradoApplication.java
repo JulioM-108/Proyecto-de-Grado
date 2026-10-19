@@ -13,6 +13,18 @@ public class ProyectoGradoApplication {
 
 	static {
 		cargarVariablesEntorno();
+		configurarZonaHoraria();
+	}
+
+	/**
+	 * Zona horaria de la aplicación (por defecto Colombia). Sin esto, las fechas leídas de Supabase se mostraban
+	 * en UTC: un mensaje del 18/10 a las 20:26 aparecía como "19/10 01:26". Junto con
+	 * hibernate.timezone.default_storage=NORMALIZE, las fechas se leen y se muestran en esta zona en todas las vistas.
+	 * Se puede cambiar con la variable APP_ZONA_HORARIA.
+	 */
+	public static void configurarZonaHoraria() {
+		String zona = System.getProperty("APP_ZONA_HORARIA", System.getenv().getOrDefault("APP_ZONA_HORARIA", "America/Bogota"));
+		java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(java.time.ZoneId.of(zona)));
 	}
 
 	public static void main(String[] args) {

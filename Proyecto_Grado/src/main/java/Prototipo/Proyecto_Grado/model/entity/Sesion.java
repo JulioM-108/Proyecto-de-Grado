@@ -10,7 +10,8 @@ import java.util.UUID;
  * Entidad JPA mapeada a la tabla "Sesion" de Supabase.
  * Columnas: id (uuid PK), created_at (timestamptz), tema (varchar), craft_contexto (text),
  *           craft_rol (text), craft_audiencia (text), craft_formato (text), craft_tono (text),
- *           enlace_unico (varchar), estado (bool), profesor_id (uuid FK → Profesor).
+ *           enlace_unico (varchar), estado (bool), preguntas_guia (text), sintesis_md (text),
+ *           sintesis_fecha (timestamptz), profesor_id (uuid FK → Profesor).
  */
 @Entity
 @Table(name = "\"Sesion\"")
@@ -57,6 +58,14 @@ public class Sesion {
     /** Preguntas guía del docente para orientar la sesión socrática. */
     @Column(name = "preguntas_guia", columnDefinition = "TEXT")
     private String preguntasGuia;
+
+    /** RF-07: última síntesis pedagógica grupal generada con IA (Markdown), persistida para que sobreviva a reinicios. */
+    @Column(name = "sintesis_md", columnDefinition = "TEXT")
+    private String sintesisMd;
+
+    /** RF-07: fecha en que se generó la síntesis grupal. */
+    @Column(name = "sintesis_fecha", columnDefinition = "timestamptz")
+    private OffsetDateTime sintesisFecha;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "profesor_id")

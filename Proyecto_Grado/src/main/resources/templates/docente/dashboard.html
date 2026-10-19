@@ -36,7 +36,8 @@
             padding: 14px 28px;
         }
         .container-custom {
-            max-width: 1100px;
+            /* Más ancho en pantallas grandes: la tabla de seguimiento necesita espacio para las insignias de M-02 */
+            max-width: 1360px;
             margin: 0 auto;
             padding: 28px 20px 60px 20px;
         }
@@ -60,6 +61,97 @@
         .card-kpi:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 16px -4px rgba(27, 52, 92, 0.05);
+        }
+        /* KPI del mismo tamaño: el subtítulo largo se corta con "…". Al pasar el mouse o tocar la tarjeta
+           (foco), se despliega por encima de las demás con el texto completo y la explicación de la métrica. */
+        .kpi-col {
+            position: relative;
+        }
+        .card-kpi > div:first-child {
+            min-width: 0;
+        }
+        .card-kpi .kpi-icon-pill {
+            flex-shrink: 0;
+        }
+        .card-kpi .kpi-sub {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            overflow-wrap: normal;
+        }
+        .card-kpi .kpi-detalle {
+            display: none;
+            font-size: 0.74rem;
+            color: var(--bs-secondary-color);
+            line-height: 1.35;
+            margin-top: 6px;
+            overflow-wrap: normal;
+        }
+        .card-kpi:focus {
+            outline: none;
+        }
+        /* Tabla de seguimiento: sin cortes a mitad de palabra (responsive.css usa overflow-wrap: anywhere en td) */
+        .tabla-seguimiento td {
+            overflow-wrap: normal;
+        }
+        .tabla-seguimiento .correo-est {
+            font-size: 0.76rem;
+        }
+        .tabla-seguimiento .actividad-est small {
+            font-size: 0.78rem;
+            line-height: 1.35;
+            white-space: nowrap;
+        }
+        .tabla-seguimiento th {
+            overflow-wrap: normal;
+        }
+        .tabla-seguimiento td {
+            padding-top: 14px;
+            padding-bottom: 14px;
+        }
+        .tabla-seguimiento .tramos-est .badge {
+            font-size: 0.72rem !important;
+        }
+        @media (min-width: 768px) {
+            /* Reparto de columnas: M-02 con espacio para que las insignias de cada pregunta quepan en una línea */
+            .tabla-seguimiento .col-estudiante { width: 21%; }
+            .tabla-seguimiento .col-avance { width: 33%; min-width: 300px; }
+            .tabla-seguimiento .col-solicitudes { width: 15%; }
+            .tabla-seguimiento .col-actividad { width: 17%; }
+            .tabla-seguimiento .col-acciones { width: 14%; }
+        }
+        @media (max-width: 767.98px) {
+            /* En tarjeta, el bloque de M-02 ocupa el espacio a la derecha de su etiqueta y se acomoda en columna */
+            .tabla-seguimiento .avance-est {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                min-width: 0;
+            }
+            .tabla-seguimiento .tramos-est {
+                justify-content: flex-end;
+            }
+        }
+        .card-kpi:hover,
+        .card-kpi:focus-within {
+            position: absolute;
+            top: 0;
+            left: calc(var(--bs-gutter-x) * .5);
+            right: calc(var(--bs-gutter-x) * .5);
+            height: auto;
+            min-height: 100%;
+            z-index: 5;
+            align-items: flex-start !important;
+            box-shadow: 0 12px 24px -6px rgba(27, 52, 92, 0.18);
+        }
+        .card-kpi:hover .kpi-sub,
+        .card-kpi:focus-within .kpi-sub {
+            white-space: normal;
+        }
+        .card-kpi:hover .kpi-detalle,
+        .card-kpi:focus-within .kpi-detalle {
+            display: block;
         }
         .kpi-icon-pill {
             width: 44px;
@@ -180,13 +272,14 @@
         <!-- 1. KPIs Numéricos Minimalistas -->
         <div class="row g-3 mb-4">
             <!-- Estudiantes -->
-            <div class="col-6 col-lg-3">
-                <div class="card-kpi d-flex align-items-center justify-content-between">
+            <div class="col-6 col-lg-3 kpi-col">
+                <div class="card-kpi d-flex align-items-center justify-content-between" tabindex="0">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Estudiantes</span>
                         <h3 class="fw-bold my-1 text-dark" th:text="${metricas.estudiantesActivos}">0</h3>
-                        <small class="text-muted" style="font-size: 0.78rem;"
+                        <small class="text-muted kpi-sub" style="font-size: 0.78rem;"
                                th:text="${'Han escrito al tutor · de ' + metricas.totalParticipaciones + ' inscritos'}">Han escrito al tutor</small>
+                        <div class="kpi-detalle">Estudiantes que han enviado al menos un mensaje al tutor, de todos los inscritos en la clase.</div>
                     </div>
                     <div class="kpi-icon-pill bg-primary-subtle text-primary">
                         <i class="bi bi-people"></i>
@@ -194,27 +287,15 @@
                 </div>
             </div>
 
-            <!-- Preguntas Alumnos -->
-            <div class="col-6 col-lg-3">
-                <div class="card-kpi d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Preguntas</span>
-                        <h3 class="fw-bold my-1 text-dark" th:text="${metricas.totalConsultasEstudiante}">0</h3>
-                        <small class="text-muted" style="font-size: 0.78rem;">Consultas de alumnos</small>
-                    </div>
-                    <div class="kpi-icon-pill bg-info-subtle text-info">
-                        <i class="bi bi-chat-left-text"></i>
-                    </div>
-                </div>
-            </div>
-
             <!-- Promedio Turnos (M-02) -->
-            <div class="col-6 col-lg-3">
-                <div class="card-kpi d-flex align-items-center justify-content-between">
+            <div class="col-6 col-lg-3 kpi-col">
+                <div class="card-kpi d-flex align-items-center justify-content-between" tabindex="0">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Promedio Turnos</span>
                         <h3 class="fw-bold my-1 text-dark" th:text="${metricas.promedioTurnosPorEstudiante}">0.0</h3>
-                        <small class="text-muted" style="font-size: 0.78rem;">Consultas por alumno que escribió (M-02)</small>
+                        <small class="text-muted kpi-sub" style="font-size: 0.78rem;"
+                               th:text="${'Por alumno · ' + metricas.totalConsultasEstudiante + ' consultas (M-02)'}">Por alumno (M-02)</small>
+                        <div class="kpi-detalle">Mensajes promedio por estudiante que ha escrito (M-02). El detalle por pregunta guía está en la Hoja de Ruta y en el seguimiento individual.</div>
                     </div>
                     <div class="kpi-icon-pill bg-success-subtle text-success">
                         <i class="bi bi-arrow-repeat"></i>
@@ -222,13 +303,30 @@
                 </div>
             </div>
 
-            <!-- Solicitudes de Código Directo (M-04) -->
-            <div class="col-6 col-lg-3">
-                <div class="card-kpi d-flex align-items-center justify-content-between">
+            <!-- Tiempo activo (M-04) -->
+            <div class="col-6 col-lg-3 kpi-col">
+                <div class="card-kpi d-flex align-items-center justify-content-between" tabindex="0">
+                    <div>
+                        <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Tiempo Activo</span>
+                        <h3 class="fw-bold my-1 text-dark" th:text="${metricas.tiempoActivoPromedio != null ? metricas.tiempoActivoPromedio : '—'}">—</h3>
+                        <small class="text-muted kpi-sub" style="font-size: 0.78rem;">Promedio por alumno (M-04)</small>
+                        <div class="kpi-detalle">Tiempo activo promedio en esta clase entre quienes escribieron (M-04). No cuenta silencios de más de 10 minutos entre mensajes.</div>
+                    </div>
+                    <div class="kpi-icon-pill bg-info-subtle text-info">
+                        <i class="bi bi-stopwatch"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Solicitudes de Código Directo (M-03) -->
+            <div class="col-6 col-lg-3 kpi-col">
+                <div class="card-kpi d-flex align-items-center justify-content-between" tabindex="0">
                     <div>
                         <span class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Alertas de Atajo</span>
                         <h3 class="fw-bold my-1 text-dark" th:text="${metricas.totalSolicitudesDirectas}">0</h3>
-                        <small class="text-muted" style="font-size: 0.78rem;">Código exigido (M-04)</small>
+                        <small class="text-muted kpi-sub" style="font-size: 0.78rem;"
+                               th:text="${metricas.tasaSolicitudesDirectas + ' % de las consultas (M-03)'}">% de las consultas (M-03)</small>
+                        <div class="kpi-detalle">Veces que los estudiantes pidieron el código o la respuesta directa (M-03) y su porcentaje sobre todas las consultas del grupo.</div>
                     </div>
                     <div class="kpi-icon-pill bg-warning-subtle text-warning-emphasis">
                         <i class="bi bi-shield-check"></i>
@@ -253,12 +351,26 @@
 
             <div th:if="${preguntasGuiaList != null and !preguntasGuiaList.isEmpty()}">
                 <div class="row g-2">
-                    <div th:each="pregunta, iterStat : ${preguntasGuiaList}" class="col-12">
-                        <div class="p-3 bg-light rounded-3 border d-flex align-items-start gap-3">
+                    <div th:each="pregunta, iterStat : ${preguntasGuiaList}" class="col-12"
+                         th:with="guia=${metricas.turnosPorPreguntaGuia != null and iterStat.index < metricas.turnosPorPreguntaGuia.size() ? metricas.turnosPorPreguntaGuia[iterStat.index] : null}">
+                        <div class="p-3 bg-light rounded-3 border d-flex align-items-start gap-3 flex-wrap flex-sm-nowrap">
                             <span class="badge bg-primary text-white rounded-pill px-2 py-1 mt-1 small" th:text="'Hito ' + ${iterStat.count}">Hito 1</span>
-                            <div class="text-dark small fw-medium" style="line-height: 1.5;" th:text="${pregunta}">Pregunta orientadora</div>
+                            <div class="text-dark small fw-medium flex-grow-1" style="line-height: 1.5;" th:text="${pregunta}">Pregunta orientadora</div>
+                            <!-- M-02 grupal: turnos promedio de esta pregunta entre quienes la superaron -->
+                            <div th:if="${guia != null}" class="text-sm-end flex-shrink-0">
+                                <span th:if="${guia.promedio != null}" class="badge py-1 px-2" th:classappend="${guia.clase}"
+                                      th:text="${guia.promedio + ' turnos · ' + guia.estudiantes + (guia.estudiantes == 1 ? ' alumno' : ' alumnos')}"
+                                      th:title="${'Turnos promedio que tomó superar esta pregunta (M-02)'}">3.0 turnos</span>
+                                <span th:if="${guia.promedio == null}" class="badge bg-light text-muted border py-1 px-2">Sin datos aún</span>
+                                <div th:if="${guia.masDificil}" class="small text-danger fw-semibold mt-1" style="font-size: 0.74rem;">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>La que más le cuesta al grupo
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </div>
+                <div class="small text-muted mt-2" style="font-size: 0.76rem;">
+                    <i class="bi bi-info-circle me-1"></i>Turnos promedio por pregunta guía (M-02): hasta 3 es fluido, de 4 a 6 con esfuerzo y más de 6 indica que el grupo se trabó.
                 </div>
             </div>
             <div th:unless="${preguntasGuiaList != null and !preguntasGuiaList.isEmpty()}" class="p-3 bg-light rounded-3 text-center text-muted small">
@@ -272,6 +384,8 @@
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-stars text-primary fs-5"></i>
                     <h6 class="fw-bold mb-0 text-dark">Síntesis Pedagógica Consolidada</h6>
+                    <small id="sintesisFecha" class="text-muted" style="font-size: 0.74rem;"
+                           th:text="${metricas.resumenIaFecha != null ? '· Generada el ' + metricas.resumenIaFecha : ''}"></small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <button type="button" id="btnActualizarSintesis" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 small fw-semibold" style="display: none;" onclick="generarSintesisConsolidada()">
@@ -293,11 +407,11 @@
             <!-- 3. Falencias Conceptuales -->
             <div class="col-lg-6">
                 <div class="card-panel h-100">
-                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mb-3 pb-2 border-bottom">
                         <h6 class="fw-bold mb-0 text-dark">
-                            <i class="bi bi-bar-chart me-1 text-primary"></i>Focos de Dificultad y Falencias (M-01)
+                            <i class="bi bi-bar-chart me-1 text-primary"></i>Focos de Dificultad y Falencias <span class="text-nowrap">(M-01)</span>
                         </h6>
-                        <small class="text-muted">% de estudiantes con informe</small>
+                        <small class="text-muted text-nowrap">% de estudiantes con informe</small>
                     </div>
 
                     <!-- Cada barra = porcentaje de estudiantes (con informe generado) que presentan ese error.
@@ -321,7 +435,7 @@
                     <!-- Sin informes todavía: no hay de dónde extraer errores -->
                     <div th:if="${metricas.diagnosticosGenerados == 0}" class="text-center py-4 text-muted">
                         <i class="bi bi-file-earmark-medical text-primary fs-2 d-block mb-1"></i>
-                        <small>Genera informes de los estudiantes ("Ver / Generar") para ver sus focos de dificultad.</small>
+                        <small>Los informes se generan automáticamente cuando el estudiante completa la ruta. Para los demás usa «Generar informes pendientes».</small>
                     </div>
 
                     <!-- Hay informes, pero ninguno reporta errores recurrentes -->
@@ -335,9 +449,25 @@
                         <i class="bi bi-info-circle me-1"></i>
                         Porcentajes calculados sobre <strong th:text="${metricas.diagnosticosGenerados}">0</strong>
                         estudiantes con informe generado (de <strong th:text="${metricas.totalParticipaciones}">0</strong> en la clase).
-                        <span th:if="${metricas.diagnosticosGenerados < metricas.totalParticipaciones}">
-                            Genera más informes ("Ver / Generar") para que reflejen a todo el grupo.
-                        </span>
+                    </div>
+
+                    <!-- Flujo 3: informes de quienes escribieron y no completaron la ruta -->
+                    <div id="zonaInformesPendientes" class="mt-2">
+                        <div th:if="${informesEnProceso == true}" class="alert alert-info small py-2 px-3 mb-0">
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            Generando informes en segundo plano… recarga la página en unos minutos.
+                        </div>
+                        <div th:if="${informesEnProceso != true and metricas.informesPendientes > 0}"
+                             class="d-flex align-items-center justify-content-between flex-wrap gap-2 small">
+                            <span class="text-muted"
+                                  th:text="${metricas.informesPendientes + (metricas.informesPendientes == 1 ? ' estudiante interactuó y aún no tiene informe.' : ' estudiantes interactuaron y aún no tienen informe.')}">
+                                N estudiantes sin informe.
+                            </span>
+                            <button type="button" id="btnInformesPendientes" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 fw-semibold"
+                                    th:attr="data-sesion-id=${sesion.id}" onclick="generarInformesPendientes(this)">
+                                <i class="bi bi-file-earmark-plus me-1"></i><span th:text="${'Generar informes pendientes (' + metricas.informesPendientes + ')'}">Generar informes pendientes</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -394,14 +524,14 @@
             </div>
         </div>
 
-        <!-- 5. Tabla de Participación de Estudiantes (M-02, M-03, M-05) -->
+        <!-- 5. Tabla de Participación de Estudiantes (M-02, M-03, M-04) -->
         <div class="card-panel mb-4">
             <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                 <div>
                     <h6 class="fw-bold mb-0 text-dark">
                         <i class="bi bi-people me-1 text-primary"></i>Seguimiento Individual de Estudiantes
                     </h6>
-                    <small class="text-muted">Métricas de esfuerzo (M-02), evolución (M-03) y actividad (M-05)</small>
+                    <small class="text-muted">Avance por pregunta guía (M-02), solicitudes de respuesta directa (M-03) y frecuencia y duración (M-04)</small>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <button type="button" class="btn btn-outline-primary btn-sm rounded-3 d-flex align-items-center gap-1"
@@ -418,14 +548,14 @@
             </div>
 
             <div th:if="${metricas.participacionesDetalle != null and !metricas.participacionesDetalle.isEmpty()}" class="table-responsive">
-                <table class="table table-hover align-middle mb-0 tabla-movil" style="font-size: 0.88rem;">
+                <table class="table table-hover align-middle mb-0 tabla-movil tabla-seguimiento" style="font-size: 0.88rem;">
                     <thead class="table-light">
                         <tr>
-                            <th class="ps-3">Estudiante</th>
-                            <th>Turnos y Nivel (M-02)</th>
-                            <th>Evolución (M-03)</th>
-                            <th>Actividad (M-05)</th>
-                            <th class="text-end pe-3">Acciones / Diagnóstico</th>
+                            <th class="ps-3 col-estudiante">Estudiante</th>
+                            <th class="col-avance">Avance por Pregunta Guía <span class="text-nowrap">(M-02)</span></th>
+                            <th class="col-solicitudes">Solicitudes Directas <span class="text-nowrap">(M-03)</span></th>
+                            <th class="col-actividad">Frecuencia y Duración <span class="text-nowrap">(M-04)</span></th>
+                            <th class="text-end pe-3 col-acciones">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -433,27 +563,45 @@
                             <td class="ps-3 tabla-movil-titulo">
                                 <div class="d-flex align-items-center gap-2">
                                     <div class="student-avatar" th:text="${(part.estudianteNombre != null and !#strings.isEmpty(part.estudianteNombre)) ? #strings.substring(part.estudianteNombre, 0, 1).toUpperCase() : 'E'}">E</div>
-                                    <div>
+                                    <div class="lh-sm">
                                         <div class="fw-semibold text-dark" th:text="${part.estudianteNombre}">Estudiante</div>
-                                        <small class="text-muted" th:text="${part.estudianteCorreo}">correo</small>
+                                        <!-- El correo se corta en la "@" para que no se parta a mitad de palabra -->
+                                        <small class="text-muted d-block correo-est" th:title="${part.estudianteCorreo}"
+                                               th:if="${part.estudianteCorreo != null and part.estudianteCorreo.contains('@')}">
+                                            <span th:text="${#strings.substringBefore(part.estudianteCorreo, '@')}">usuario</span><wbr><span th:text="${'@' + #strings.substringAfter(part.estudianteCorreo, '@')}">@dominio</span>
+                                        </small>
+                                        <small class="text-muted d-block correo-est" th:unless="${part.estudianteCorreo != null and part.estudianteCorreo.contains('@')}"
+                                               th:text="${part.estudianteCorreo}">correo</small>
                                     </div>
                                 </div>
                             </td>
-                            <td data-label="Turnos (M-02)">
-                                <span class="badge py-1 px-2 text-wrap" th:classappend="${part.nivelDificultadClase}" th:text="${part.nivelDificultad}">3 turnos · Fluido</span>
+                            <td data-label="Avance (M-02)">
+                                <!-- Estado e insignias en un solo bloque (en el teléfono se alinean a la derecha, sin salirse) -->
+                                <div class="avance-est">
+                                    <span class="badge py-1 px-2 text-nowrap" th:classappend="${part.nivelDificultadClase}" th:text="${part.nivelDificultad}">Avanzando · va en P2 de 8</span>
+                                    <div th:if="${part.tramosGuia != null and !part.tramosGuia.isEmpty()}" class="d-flex flex-wrap gap-1 mt-1 tramos-est">
+                                        <span th:each="tramo : ${part.tramosGuia}" class="badge fw-normal text-nowrap" style="font-size: 0.7rem;"
+                                              th:classappend="${tramo.clase}" th:text="${tramo.etiqueta}" th:title="${tramo.titulo}">P1 · 2</span>
+                                    </div>
+                                </div>
                             </td>
-                            <td data-label="Evolución (M-03)">
-                                <span class="badge py-1 px-2 text-wrap" th:classappend="${part.estadoEvolucionClase}" th:text="${part.estadoEvolucion}">En Diálogo</span>
+                            <td data-label="Solicitudes (M-03)">
+                                <span class="badge py-1 px-2 text-nowrap" th:classappend="${part.claseSolicitudes}" th:text="${part.etiquetaSolicitudes}"
+                                      th:title="${'Solicitudes de código o respuesta directa · ' + part.tasaSolicitudesDirectas + ' % de sus consultas'}">Sin solicitudes</span>
                             </td>
-                            <td data-label="Actividad (M-05)">
-                                <div class="d-flex flex-column">
-                                    <span class="small" th:classappend="${part.estadoActividadColor}" th:text="${part.estadoActividad}">Activo hoy</span>
-                                    <small class="text-muted" style="font-size: 0.74rem;" th:text="${part.fechaFormateada}">01/01/2026</small>
+                            <td data-label="Actividad (M-04)">
+                                <div class="d-flex flex-column lh-sm actividad-est"
+                                     title="Tiempo activo en esta clase (sin contar pausas de más de 10 min) y clases del estudiante contigo">
+                                    <span class="small fw-semibold" th:classappend="${part.estadoActividadColor}" th:text="${part.estadoActividad}">Activo hoy</span>
+                                    <small class="text-muted" th:text="${part.tiempoActivo + ' activos'}">12 min activos</small>
+                                    <small class="text-muted"
+                                           th:text="${part.clasesConElDocente + (part.clasesConElDocente == 1 ? ' clase · ' : ' clases · ') + part.clasesCompletadas + (part.clasesCompletadas == 1 ? ' completada' : ' completadas')}">1 clase · 0 completadas</small>
+                                    <small class="text-muted" th:text="${'Último: ' + part.fechaFormateada}">Último: 01/01/2026 10:00</small>
                                 </div>
                             </td>
                             <td class="text-end pe-3 tabla-movil-acciones">
-                                <div class="d-inline-flex align-items-center gap-2">
-                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 d-inline-flex align-items-center gap-1"
+                                <div class="d-inline-flex align-items-center gap-2 flex-nowrap">
+                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-2 d-inline-flex align-items-center gap-1 text-nowrap"
                                             th:data-part-id="${part.id}"
                                             th:data-estudiante-nombre="${part.estudianteNombre}"
                                             th:data-consultas="${part.consultasEstudiante}"
@@ -889,7 +1037,7 @@
         // (data-accion) en lugar de onclick en línea: así el nombre del estudiante (dato controlado por él)
         // nunca se interpola dentro de código JavaScript (prevención de XSS).
         let diagnosticoActual = null;
-        // Si se genera o reemplaza un informe, M-01 / M-03 cambian: se recarga el panel al cerrar el modal
+        // Si se genera o reemplaza un informe, M-01 y las señales de M-02 cambian: se recarga el panel al cerrar el modal
         let metricasDesactualizadas = false;
 
         // Botón (sin datos interpolados) para reemplazar el informe actual por uno basado en la conversación al día
@@ -1078,6 +1226,34 @@
             }
         }
 
+        // Flujo 3: encola en el servidor los informes de quienes escribieron y aún no tienen informe
+        function generarInformesPendientes(boton) {
+            const sesionId = boton.getAttribute('data-sesion-id');
+            const zona = document.getElementById('zonaInformesPendientes');
+            boton.disabled = true;
+
+            const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+            const headers = { 'Accept': 'application/json' };
+            if (csrfToken && csrfHeader) headers[csrfHeader] = csrfToken;
+
+            const mostrar = (clase, texto) => {
+                if (zona) zona.innerHTML = `<div class="alert ${clase} small py-2 px-3 mb-0">${escapeHtml(texto)}</div>`;
+            };
+
+            fetch('/docente/api/sesiones/' + encodeURIComponent(sesionId) + '/generar-informes-pendientes', {
+                method: 'POST',
+                headers: headers
+            })
+            .then(res => res.json())
+            .then(data => mostrar(data.success ? 'alert-info' : 'alert-warning', data.mensaje || 'Solicitud procesada.'))
+            .catch(err => {
+                console.error(err);
+                boton.disabled = false;
+                mostrar('alert-danger', 'No se pudo conectar con el servidor. Intenta de nuevo.');
+            });
+        }
+
         function generarSintesisConsolidada() {
             const sesionId = "[[${sesion.id}]]";
             const targetContainer = document.getElementById('resumenIaCards');
@@ -1110,6 +1286,8 @@
                         rawEl.value = data.sintesis;
                         rawEl.textContent = data.sintesis;
                     }
+                    const fechaEl = document.getElementById('sintesisFecha');
+                    if (fechaEl) fechaEl.textContent = '· Generada ahora';
                     renderizarSintesisPedagogica();
                 } else {
                     const msgError = data.error || 'No se pudo consolidar la síntesis.';

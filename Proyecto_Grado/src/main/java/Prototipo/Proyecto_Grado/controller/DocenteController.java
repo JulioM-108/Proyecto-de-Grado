@@ -288,6 +288,52 @@ public class DocenteController {
         }
     }
 
+    // ─── 5.1b Informes Pendientes del Grupo (Flujo 3) ─────────────────────────
+
+    public record GenerarInformesPendientesResponse(boolean success, int pendientes, String mensaje) {}
+
+    /**
+     * Genera en segundo plano los informes de quienes escribieron al tutor y aún no tienen informe
+     * (los que completan la ruta ya lo reciben automáticamente).
+     */
+    @PostMapping("/api/sesiones/{sesionId}/generar-informes-pendientes")
+    @ResponseBody
+    public ResponseEntity<GenerarInformesPendientesResponse> generarInformesPendientes(
+            @PathVariable UUID sesionId,
+            HttpSession session) {
+
+        Profesor profesor = obtenerProfesorActual(session);
+        if (profesor == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new GenerarInformesPendientesResponse(false, 0, "No autorizado."));
+        }
+
+        Sesion sesion = sesionRepository.findById(sesionId).orElse(null);
+        if (sesion == null || !sesion.getProfesor().getId().equals(profesor.getId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new GenerarInformesPendientesResponse(false, 0, "Sesión no encontrada o no pertenece a sus clases."));
+        }
+
+        try {
+            int pendientes = chatService.generarInformesPendientes(sesion);
+            if (pendientes < 0) {
+                return ResponseEntity.ok(new GenerarInformesPendientesResponse(false, 0,
+                        "Ya se están generando los informes de esta clase. Recarga la página en unos minutos."));
+            }
+            if (pendientes == 0) {
+                return ResponseEntity.ok(new GenerarInformesPendientesResponse(true, 0, "No hay informes pendientes."));
+            }
+            return ResponseEntity.ok(new GenerarInformesPendientesResponse(true, pendientes,
+                    "Se están generando " + pendientes + (pendientes == 1 ? " informe" : " informes")
+                            + " en segundo plano (unos " + Math.max(1, Math.round(pendientes * 15 / 60.0))
+                            + " min). Recarga la página para verlos."));
+        } catch (Exception e) {
+            log.error("Error al encolar los informes pendientes de la sesión {}: {}", sesionId, e.getMessage(), e);
+            return ResponseEntity.ok(new GenerarInformesPendientesResponse(false, 0,
+                    "No se pudieron iniciar los informes. Intenta de nuevo en unos segundos."));
+        }
+    }
+
     // ─── 5.2 Síntesis Pedagógica Consolidada Grupal Bajo Demanda ──────────────
 
     public record GenerarSintesisGrupalResponse(boolean success, String sintesis, String error) {}
@@ -421,6 +467,7 @@ public class DocenteController {
         model.addAttribute("sesion", sesion);
         model.addAttribute("preguntasGuiaList", preguntasGuiaList);
         model.addAttribute("metricas", metricas);
+        model.addAttribute("informesEnProceso", chatService.estaGenerandoInformes(sesion.getId()));
         model.addAttribute("estudiantesDisponibles", estudiantesDisponibles);
         model.addAttribute("feedbacksSesion", feedbacksSesion);
         model.addAttribute("evaluacionesSesion", evaluacionesSesion);
@@ -613,7 +660,11 @@ public class DocenteController {
             String correo,
             long totalClases,
             long clasesActivas,
-            String ultimaActividadFormateada
+            String ultimaActividadFormateada,
+            /** M-04: clases con la ruta completada */
+            long clasesCompletadas,
+            /** M-04: tiempo activo promedio por clase en la que escribió */
+            String tiempoActivoPromedio
     ) {}
 
     @Transactional(readOnly = true)
@@ -639,6 +690,16 @@ public class DocenteController {
             for (Object[] fila : mensajeRepository.findUltimoMensajeEstudiantePorParticipacion(participaciones)) {
                 if (fila[0] != null && fila[1] != null) {
                     ultimoMensajePorParticipacion.put((UUID) fila[0], (java.time.OffsetDateTime) fila[1]);
+                }
+            }
+        }
+
+        // M-04: horas de todos los mensajes por participación, para el tiempo activo
+        Map<UUID, List<java.time.OffsetDateTime>> horasPorParticipacion = new HashMap<>();
+        if (!participaciones.isEmpty()) {
+            for (Object[] fila : mensajeRepository.findHorasMensajesPorParticipacion(participaciones)) {
+                if (fila[0] != null && fila[1] != null) {
+                    horasPorParticipacion.computeIfAbsent((UUID) fila[0], k -> new ArrayList<>()).add((java.time.OffsetDateTime) fila[1]);
                 }
             }
         }
@@ -671,13 +732,25 @@ public class DocenteController {
                 ultimaActividad = "Sin clases asignadas";
             }
 
+            long clasesCompletadas = (parts != null) ? parts.stream()
+                    .filter(p -> Boolean.TRUE.equals(p.getRutaCompletada())).count() : 0;
+            List<Long> minutosPorClase = (parts == null) ? List.of() : parts.stream()
+                    .map(p -> horasPorParticipacion.getOrDefault(p.getId(), List.of()))
+                    .filter(h -> !h.isEmpty())
+                    .map(AnalyticsService::minutosActivos)
+                    .toList();
+            String tiempoActivoPromedio = minutosPorClase.isEmpty() ? "—"
+                    : AnalyticsService.formatearMinutos(Math.round(minutosPorClase.stream().mapToLong(Long::longValue).average().orElse(0)));
+
             directorio.add(new EstudianteDirectorioDto(
                     est.getId(),
                     est.getNombre() != null && !est.getNombre().isBlank() ? est.getNombre() : "Estudiante",
                     est.getCorreo(),
                     totalClases,
                     clasesActivas,
-                    ultimaActividad
+                    ultimaActividad,
+                    clasesCompletadas,
+                    tiempoActivoPromedio
             ));
         }
 

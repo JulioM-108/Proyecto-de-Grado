@@ -62,7 +62,7 @@
             transform: translateY(-1px);
         }
         .container-custom {
-            max-width: 1080px;
+            max-width: 1240px;
             margin: 0 auto;
             padding: 28px 20px 60px 20px;
         }
@@ -151,6 +151,8 @@
             background-color: var(--puj-blue-dark);
         }
         .table-institutional thead th {
+            /* Bootstrap pinta el fondo de cada celda (--bs-table-bg): sin esto el encabezado quedaba blanco sobre blanco */
+            background-color: var(--puj-blue-dark);
             color: #FFFFFF;
             font-size: 0.8rem;
             font-weight: 600;
@@ -174,6 +176,24 @@
             font-size: 0.88rem;
             vertical-align: middle;
             border: none;
+            /* responsive.css usa overflow-wrap: anywhere en td, que partía "clase(s)" y "Asignar" letra por letra */
+            overflow-wrap: normal;
+        }
+        .table-institutional .correo-est {
+            display: block;
+            font-size: 0.8rem;
+        }
+        .table-institutional .badge-active,
+        .table-institutional .badge-classes {
+            white-space: nowrap;
+            display: inline-block;
+        }
+        @media (min-width: 768px) {
+            .table-institutional .col-estudiante { width: 32%; }
+            .table-institutional .col-clases { width: 22%; }
+            .table-institutional .col-actividad { width: 15%; }
+            .table-institutional .col-estado { width: 15%; }
+            .table-institutional .col-accion { width: 16%; }
         }
         .avatar-initial {
             width: 38px;
@@ -364,34 +384,45 @@
                 <table class="table table-institutional align-middle mb-0 tabla-movil" id="tablaEstudiantes">
                     <thead>
                         <tr>
-                            <th class="ps-4">Estudiante</th>
-                            <th>Correo Institucional</th>
-                            <th class="text-center">Clases</th>
-                            <th>Última Actividad</th>
-                            <th>Estado</th>
-                            <th class="text-end pe-4">Acción</th>
+                            <th class="ps-4 col-estudiante">Estudiante</th>
+                            <th class="col-clases" title="Frecuencia y duración (M-04)">Clases y tiempo activo</th>
+                            <th class="col-actividad">Última actividad</th>
+                            <th class="col-estado">Estado</th>
+                            <th class="text-end pe-4 col-accion">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr th:each="est : ${directorio}" class="fila-estudiante">
+                            <!-- Nombre y correo juntos; el correo se corta en la "@" para no partirse a mitad de palabra -->
                             <td class="ps-4 tabla-movil-titulo">
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="avatar-initial" th:text="${(est.nombre != null and !#strings.isEmpty(est.nombre)) ? #strings.substring(est.nombre, 0, 1).toUpperCase() : 'E'}">E</div>
-                                    <div>
+                                    <div class="lh-sm" style="min-width: 0;">
                                         <div class="fw-semibold" style="color: var(--puj-black);" th:text="${est.nombre}">Nombre Estudiante</div>
+                                        <small class="text-muted correo-est" th:title="${est.correo}"
+                                               th:if="${est.correo != null and est.correo.contains('@')}"><span th:text="${#strings.substringBefore(est.correo, '@')}">usuario</span><wbr><span th:text="${'@' + #strings.substringAfter(est.correo, '@')}">@dominio</span></small>
+                                        <small class="text-muted correo-est" th:unless="${est.correo != null and est.correo.contains('@')}" th:text="${est.correo}">correo</small>
                                     </div>
                                 </div>
                             </td>
-                            <td data-label="Correo">
-                                <span class="text-muted" th:text="${est.correo}">correo@javerianacali.edu.co</span>
-                            </td>
-                            <td class="text-center" data-label="Clases">
-                                <span th:class="${est.totalClases > 0 ? 'badge-classes' : 'badge bg-light text-muted border px-2 py-1'}" th:text="${est.totalClases} + ' clase(s)'">0 clase(s)</span>
+                            <!-- M-04: clases con el docente, cuántas completó y tiempo activo promedio -->
+                            <td data-label="Clases y tiempo">
+                                <div class="text-end text-md-start">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end justify-content-md-start">
+                                        <span th:class="${est.totalClases > 0 ? 'badge-classes' : 'badge bg-light text-muted border px-2 py-1'}"
+                                              th:text="${est.totalClases + (est.totalClases == 1 ? ' clase' : ' clases')}">0 clases</span>
+                                        <span class="small fw-semibold text-dark text-nowrap"
+                                              th:text="${est.clasesCompletadas + (est.clasesCompletadas == 1 ? ' completada' : ' completadas')}">0 completadas</span>
+                                    </div>
+                                    <div class="small mt-1" style="color: var(--text-muted); font-size: 0.78rem;"
+                                         th:text="${est.tiempoActivoPromedio == '—' ? 'Sin tiempo registrado' : est.tiempoActivoPromedio + ' activos por clase'}"
+                                         title="Tiempo activo promedio por clase, sin contar pausas de más de 10 minutos (M-04)">—</div>
+                                </div>
                             </td>
                             <td data-label="Última actividad">
-                                <span class="small" style="color: var(--text-muted);" th:text="${est.ultimaActividadFormateada}">01/01/2026</span>
+                                <span class="small text-nowrap" style="color: var(--text-muted);" th:text="${est.ultimaActividadFormateada}">01/01/2026</span>
                             </td>
-                            <td data-label="Estado">
+                            <td data-label="Estado" class="text-nowrap">
                                 <span th:if="${est.clasesActivas > 0}" class="badge-active">
                                     <i class="bi bi-check-circle-fill me-1"></i>En clase activa
                                 </span>
@@ -403,8 +434,8 @@
                                 </span>
                             </td>
                             <td class="text-end pe-4 tabla-movil-acciones">
-                                <div class="d-inline-flex align-items-center gap-2">
-                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 fw-semibold"
+                                <div class="d-inline-flex align-items-center gap-2 flex-nowrap">
+                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 fw-semibold text-nowrap"
                                             th:data-id="${est.id}"
                                             th:data-nombre="${est.nombre}"
                                             onclick="abrirModalAsignar(this.dataset.id, this.dataset.nombre)">

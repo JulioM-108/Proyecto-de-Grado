@@ -53,6 +53,11 @@ out/
 Thumbs.db
 ehthumbs.db
 
+#Pruebas
+Pruebas/ 
+__pycache__/
+*.pyc
+
 # Environment & Secrets
 .env
 .env.*

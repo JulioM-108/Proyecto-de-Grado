@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -34,6 +35,9 @@ class AnalyticsServiceTest {
 
     @Mock
     private GeminiService geminiService;
+
+    @Mock
+    private SesionRepository sesionRepository;
 
     @InjectMocks
     private AnalyticsService analyticsService;
@@ -80,7 +84,7 @@ class AnalyticsServiceTest {
     }
 
     @Test
-    @DisplayName("Si la IA falla, la síntesis grupal NO devuelve un texto prefabricado ni lo guarda en caché")
+    @DisplayName("Si la IA falla, la síntesis grupal NO devuelve un texto prefabricado ni se guarda en la sesión")
     void testSintesisSinTextoPrefabricadoCuandoFallaIa() {
         Estudiante e = Estudiante.builder().id(UUID.randomUUID()).nombre("Ana").correo("ana@javerianacali.edu.co").build();
         Participacion p = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e)
@@ -92,7 +96,7 @@ class AnalyticsServiceTest {
         when(geminiService.generarRespuesta(any())).thenReturn(GeminiService.MENSAJE_ERROR_TEMPORAL);
 
         assertThrows(IllegalStateException.class, () -> analyticsService.generarYGuardarSintesisIa(sesionDemo));
-        assertEquals("", analyticsService.obtenerMetricasPorSesion(sesionDemo).getResumenIa(), "No debe quedar nada en caché");
+        assertEquals("", analyticsService.obtenerMetricasPorSesion(sesionDemo).getResumenIa(), "No debe quedar nada guardado");
     }
 
     @Test
@@ -121,20 +125,193 @@ class AnalyticsServiceTest {
         assertFalse(prompt.getValue().contains("Ana Pérez"), "Los estudiantes se anonimizan");
     }
 
-    @Test
-    @DisplayName("M-03: estados según ruta completada y errores del informe")
-    void testClasificacionEvolucion() {
-        assertEquals("Sin interacción", AnalyticsService.clasificarEvolucion(0, false, false, false).etiqueta());
-        assertEquals("En diálogo activo", AnalyticsService.clasificarEvolucion(3, false, false, false).etiqueta());
-        assertEquals("Dudas en progreso", AnalyticsService.clasificarEvolucion(3, false, true, true).etiqueta());
-        assertEquals("Avanzando sin errores", AnalyticsService.clasificarEvolucion(3, false, true, false).etiqueta());
-        assertEquals("Completó con dudas", AnalyticsService.clasificarEvolucion(9, true, true, true).etiqueta());
-        assertEquals("Consolidado", AnalyticsService.clasificarEvolucion(9, true, true, false).etiqueta());
-        assertTrue(AnalyticsService.clasificarEvolucion(9, true, false, false).etiqueta().startsWith("Completó la ruta"));
+    private static Metrica hito(String concepto, long turnos) {
+        return Metrica.builder().codigo(ChatService.CODIGO_TURNOS_POR_GUIA).concepto(concepto).valorNumerico(turnos).build();
     }
 
     @Test
-    @DisplayName("Obtener métricas con interacciones y activación del Auditor RF-10")
+    @DisplayName("M-02: avance por pregunta guía y estados (avanzando, se trabó, requiere apoyo, ruta completada)")
+    void testAvancePorPreguntaGuia() {
+        // P1 2 turnos, P2 9 turnos (se trabó), va en P3 con 1 turno
+        AnalyticsService.AvanceGuias avance = AnalyticsService.calcularAvance(
+                List.of(hito("P1", 2), hito("P2", 9)), 12, 8, false);
+        assertEquals(3, avance.preguntaEnCurso());
+        assertEquals(1, avance.turnosEnCurso());
+        assertEquals("Se trabó en P2 (9 turnos)", AnalyticsService.clasificarAvance(avance, 12, 8, false, false).etiqueta());
+        assertEquals("Requiere apoyo · P2", AnalyticsService.clasificarAvance(avance, 12, 8, false, true).etiqueta());
+
+        AnalyticsService.AvanceGuias fluido = AnalyticsService.calcularAvance(List.of(hito("P1", 2)), 4, 8, false);
+        assertEquals("Avanzando · va en P2 de 8", AnalyticsService.clasificarAvance(fluido, 4, 8, false, true).etiqueta());
+
+        AnalyticsService.AvanceGuias completa = AnalyticsService.calcularAvance(List.of(hito("P1", 3), hito("P2-P8", 15)), 18, 8, true);
+        assertEquals("Ruta completada en 18 turnos", AnalyticsService.clasificarAvance(completa, 18, 8, true, false).etiqueta());
+        assertEquals(0, completa.preguntaEnCurso());
+
+        // Insignias: tramo agrupado neutro y pregunta en curso marcada "en curso"
+        List<AnalyticsService.TramoGuia> vista = AnalyticsService.tramosParaVista(avance);
+        assertEquals("P1 · 2", vista.get(0).getEtiqueta());
+        assertEquals("P3 · 1 en curso", vista.get(2).getEtiqueta());
+        assertEquals("P2-P8 · 15", AnalyticsService.tramosParaVista(completa).get(1).getEtiqueta());
+
+        assertEquals("Sin consultas", AnalyticsService.clasificarAvance(AnalyticsService.calcularAvance(List.of(), 0, 8, false), 0, 8, false, false).etiqueta());
+    }
+
+    @Test
+    @DisplayName("M-02: un tramo agrupado con más de 3 turnos por pregunta se muestra como 'esfuerzo en Pa-Pb'")
+    void testTramoAgrupadoConEsfuerzo() {
+        // Caso real: el tutor no marcó P3 y el estudiante se confundió ahí (P3-P4 con 7 turnos > 2 x 3)
+        List<Metrica> conEsfuerzo = List.of(hito("P1", 1), hito("P2", 1), hito("P3-P4", 7), hito("P5", 1));
+        AnalyticsService.AvanceGuias completa = AnalyticsService.calcularAvance(conEsfuerzo, 10, 5, true);
+        assertEquals("Ruta completada · esfuerzo en P3-P4", AnalyticsService.clasificarAvance(completa, 10, 5, true, false).etiqueta());
+        assertTrue(AnalyticsService.tramosParaVista(completa).get(2).getClase().contains("warning"));
+
+        AnalyticsService.AvanceGuias enCurso = AnalyticsService.calcularAvance(
+                List.of(hito("P1", 1), hito("P2-P3", 8)), 9, 5, false);
+        assertEquals("Esfuerzo en P2-P3 (8 turnos)", AnalyticsService.clasificarAvance(enCurso, 9, 5, false, false).etiqueta());
+        assertEquals("Requiere apoyo · P2-P3", AnalyticsService.clasificarAvance(enCurso, 9, 5, false, true).etiqueta());
+
+        // Agrupado dentro de lo esperado (6 turnos en 2 preguntas): no es señal
+        AnalyticsService.AvanceGuias normal = AnalyticsService.calcularAvance(
+                List.of(hito("P1", 1), hito("P2-P3", 6), hito("P4", 1), hito("P5", 1)), 9, 5, true);
+        assertEquals("Ruta completada en 9 turnos", AnalyticsService.clasificarAvance(normal, 9, 5, true, false).etiqueta());
+    }
+
+    @Test
+    @DisplayName("M-02 grupal: promedio por pregunta guía solo con tramos individuales y marca de la más difícil")
+    void testPromediosPorGuia() {
+        List<AnalyticsService.AvanceGuias> avances = List.of(
+                AnalyticsService.calcularAvance(List.of(hito("P1", 2), hito("P2", 8)), 10, 3, false),
+                AnalyticsService.calcularAvance(List.of(hito("P1", 4), hito("P2-P3", 6)), 10, 3, true));
+        List<AnalyticsService.PromedioGuia> promedios = AnalyticsService.promediosPorGuia(avances, 3);
+        assertEquals(3, promedios.size());
+        assertEquals(3.0, promedios.get(0).getPromedio());
+        assertEquals(2, promedios.get(0).getEstudiantes());
+        assertEquals(8.0, promedios.get(1).getPromedio(), "El tramo agrupado P2-P3 no entra al promedio de P2");
+        assertTrue(promedios.get(1).isMasDificil());
+        assertNull(promedios.get(2).getPromedio());
+    }
+
+    @Test
+    @DisplayName("M-02 grupal: 'la que más le cuesta' solo se marca si la pregunta más costosa supera los 3 turnos")
+    void testMasDificilSoloSiNoEsFluida() {
+        List<AnalyticsService.AvanceGuias> fluidos = List.of(
+                AnalyticsService.calcularAvance(List.of(hito("P1", 3), hito("P2", 1)), 4, 2, true),
+                AnalyticsService.calcularAvance(List.of(hito("P1", 2), hito("P2", 1)), 3, 2, true));
+        assertFalse(AnalyticsService.promediosPorGuia(fluidos, 2).stream().anyMatch(AnalyticsService.PromedioGuia::isMasDificil),
+                "P1 con 2,5 turnos es fluida: no se marca");
+    }
+
+    @Test
+    @DisplayName("M-02: la apertura (código 20) se muestra aparte y no cuenta en la pregunta en curso")
+    void testAperturaSeparadaDeP1() {
+        Metrica apertura = Metrica.builder().codigo(ChatService.CODIGO_APERTURA).concepto("APERTURA").valorNumerico(2L).build();
+        AnalyticsService.AvanceGuias avance = AnalyticsService.calcularAvance(List.of(apertura), 3, 5, false);
+        assertEquals(1, avance.preguntaEnCurso());
+        assertEquals(1, avance.turnosEnCurso(), "3 consultas - 2 de apertura = 1 turno en P1");
+        List<AnalyticsService.TramoGuia> vista = AnalyticsService.tramosParaVista(avance);
+        assertEquals("Apertura · 2", vista.get(0).getEtiqueta());
+        assertEquals("P1 · 1 en curso", vista.get(1).getEtiqueta());
+    }
+
+    @Test
+    @DisplayName("M-01: títulos equivalentes (mayúsculas, tildes, puntuación) cuentan como el mismo error")
+    void testErroresEquivalentesSeAgrupan() {
+        Estudiante e1 = Estudiante.builder().id(UUID.randomUUID()).nombre("Ana").correo("ana@javerianacali.edu.co").build();
+        Estudiante e2 = Estudiante.builder().id(UUID.randomUUID()).nombre("Luis").correo("luis@javerianacali.edu.co").build();
+        Participacion p1 = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e1).createdAt(OffsetDateTime.now())
+                .progresoMd("## Errores recurrentes\n- **Composición vs. agregación:** a\n## Recomendación para la siguiente sesión\n- x").build();
+        Participacion p2 = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e2).createdAt(OffsetDateTime.now())
+                .progresoMd("## Errores recurrentes\n- **composicion vs agregacion:** b\n## Recomendación para la siguiente sesión\n- y").build();
+        List<Participacion> parts = List.of(p1, p2);
+        when(participacionRepository.findBySesion(sesionDemo)).thenReturn(parts);
+        when(mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(parts)).thenReturn(List.of());
+        when(metricaRepository.findByParticipacionIn(parts)).thenReturn(List.of());
+
+        List<AnalyticsService.FocoDificultad> focos = analyticsService.obtenerMetricasPorSesion(sesionDemo).getDificultadesPorConcepto();
+        assertEquals(1, focos.size());
+        assertEquals("Composición vs. agregación", focos.get(0).getError());
+        assertEquals(2, focos.get(0).getEstudiantes());
+        assertEquals(100, focos.get(0).getPorcentaje());
+    }
+
+    @Test
+    @DisplayName("M-01: las viñetas que dicen que no hubo errores no se cuentan como errores")
+    void testErroresIgnoraNegaciones() {
+        String informe = """
+                ## Errores recurrentes
+                * No se observaron errores conceptuales durante la sesión. El estudiante avanzó bien.
+                * En este historial **no se observan errores recurrentes**; respondió con precisión.
+                * Se detectó una **limitación inicial** (no un error): no conocía los nombres formales.
+                * Ninguno observado.
+                * **Ninguno**
+                * **Ninguno detectado:** el estudiante respondió con precisión en toda la sesión.
+                * **Nota:** el estudiante escribió en inglés al inicio.
+                * **Nota de precaución:** las respuestas fueron breves.
+                * **Sesgo hacia la Composición:** prefiere siempre la composición.
+                ## Recomendación para la siguiente sesión
+                - x
+                """;
+        assertEquals(Set.of("Sesgo hacia la Composición"), AnalyticsService.extraerErroresRecurrentes(informe));
+        assertFalse(AnalyticsService.niegaErrores("Confunde el manejo de errores con excepciones"));
+    }
+
+    @Test
+    void testErroresConNegacionEnLaExplicacionSeConservan() {
+        String informe = """
+                ## Errores recurrentes
+                * **Manejo de excepciones:** no captura los errores de entrada del usuario.
+                * **Validación de datos:** sin controlar los errores de formato.
+                * **Herencia:** no se observaron errores en este tema.
+                ## Recomendación para la siguiente sesión
+                - x
+                """;
+        assertEquals(Set.of("Manejo de excepciones", "Validación de datos"), AnalyticsService.extraerErroresRecurrentes(informe));
+    }
+
+    @Test
+    @DisplayName("M-03: tasa de solicitudes directas y 'Posible frustración' con ≥2 solicitudes y ≥20 %")
+    void testSolicitudesDirectas() {
+        assertEquals(60, AnalyticsService.tasaSolicitudes(3, 5));
+        assertTrue(AnalyticsService.posibleFrustracion(3, 5));
+        assertFalse(AnalyticsService.posibleFrustracion(3, 40), "3 de 40 es puntual");
+        assertFalse(AnalyticsService.posibleFrustracion(1, 2), "Una sola solicitud no basta");
+        assertEquals("3 · 60 % · Posible frustración", AnalyticsService.clasificarSolicitudes(3, 5).etiqueta());
+        assertEquals("3 · 8 % · Puntual", AnalyticsService.clasificarSolicitudes(3, 40).etiqueta());
+        assertEquals("Sin solicitudes", AnalyticsService.clasificarSolicitudes(0, 10).etiqueta());
+    }
+
+    @Test
+    @DisplayName("M-04: el tiempo activo no cuenta silencios de más de 10 minutos")
+    void testTiempoActivo() {
+        OffsetDateTime t0 = OffsetDateTime.parse("2026-10-18T10:00:00-05:00");
+        List<OffsetDateTime> horas = List.of(t0, t0.plusMinutes(3), t0.plusMinutes(7), t0.plusHours(4), t0.plusHours(4).plusMinutes(5));
+        assertEquals(12, AnalyticsService.minutosActivos(horas), "3 + 4 + 5 min; el almuerzo de 4 h no cuenta");
+        assertEquals(0, AnalyticsService.minutosActivos(List.of(t0)));
+        assertEquals("< 1 min", AnalyticsService.formatearMinutos(0));
+        assertEquals("18 min", AnalyticsService.formatearMinutos(18));
+        assertEquals("1 h 05 min", AnalyticsService.formatearMinutos(65));
+    }
+
+    @Test
+    @DisplayName("Informes pendientes: cuenta a quienes escribieron y no tienen informe")
+    void testInformesPendientes() {
+        Estudiante e1 = Estudiante.builder().id(UUID.randomUUID()).nombre("Ana").correo("ana@javerianacali.edu.co").build();
+        Estudiante e2 = Estudiante.builder().id(UUID.randomUUID()).nombre("Luis").correo("luis@javerianacali.edu.co").build();
+        Participacion escribioSinInforme = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e1)
+                .createdAt(OffsetDateTime.now()).progresoMd("").build();
+        Participacion sinEscribir = Participacion.builder().id(UUID.randomUUID()).sesion(sesionDemo).estudiante(e2)
+                .createdAt(OffsetDateTime.now()).progresoMd("").build();
+        List<Participacion> parts = List.of(escribioSinInforme, sinEscribir);
+        when(participacionRepository.findBySesion(sesionDemo)).thenReturn(parts);
+        when(mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(parts)).thenReturn(List.of(
+                Mensaje.builder().emisor(true).contenido("hola").participacion(escribioSinInforme).build()));
+        when(metricaRepository.findByParticipacionIn(parts)).thenReturn(List.of());
+
+        assertEquals(1, analyticsService.obtenerMetricasPorSesion(sesionDemo).getInformesPendientes());
+    }
+
+    @Test
+    @DisplayName("Obtener métricas con interacciones, solicitudes directas (M-03) y síntesis guardada en la sesión (RF-07)")
     void testObtenerMetricasConInteracciones() {
         Estudiante estudiante = Estudiante.builder()
                 .id(UUID.randomUUID())
@@ -169,7 +346,7 @@ class AnalyticsServiceTest {
 
         Metrica rf10 = Metrica.builder()
                 .codigo(10L)
-                .concepto("RF-10")
+                .concepto("RF-10") // concepto de los registros antiguos: se sigue leyendo
                 .valorNumerico(1L)
                 .participacion(part)
                 .build();
@@ -194,13 +371,13 @@ class AnalyticsServiceTest {
         String sintesis = analyticsService.generarYGuardarSintesisIa(sesionDemo);
         assertEquals("Diagnóstico: El grupo muestra curiosidad.", sintesis);
 
-        // 3. Ahora en consultas posteriores al dashboard, se recupera directamente de la memoria sin invocar a Gemini
+        // 3. Se guarda en Supabase (sobrevive a reinicios) y las consultas posteriores la leen de la sesión sin invocar a Gemini
         AnalyticsService.MetricasDashboard metricasEnCache = analyticsService.obtenerMetricasPorSesion(sesionDemo);
         assertEquals("Diagnóstico: El grupo muestra curiosidad.", metricasEnCache.getResumenIa());
     }
 
     @Test
-    @DisplayName("RF-10 no se infiere de palabras del diagnóstico; sí de los mensajes del estudiante. M-01 cuenta diagnósticos")
+    @DisplayName("M-03 no se infiere de palabras del diagnóstico; sí de los mensajes del estudiante. M-01 cuenta diagnósticos")
     void testAtajoSoloDesdeMensajesNoDesdeDiagnostico() {
         Estudiante estudiante = Estudiante.builder()
                 .id(UUID.randomUUID())
@@ -277,7 +454,7 @@ class AnalyticsServiceTest {
     }
 
     @Test
-    @DisplayName("M-02: 5 preguntas guía dan un margen de 15 turnos; dentro del margen nunca es 'Requiere apoyo'")
+    @DisplayName("M-02 (sin marcas por pregunta): 5 preguntas guía dan un margen de 15 turnos; dentro del margen nunca es 'Requiere apoyo'")
     void testClasificacionTurnosConMargenPorPreguntaGuia() {
         // Dentro del margen (15), aunque haya señales de apoyo
         assertTrue(AnalyticsService.clasificarTurnos(15, 5, true).etiqueta().contains("Ritmo normal"));
@@ -294,7 +471,7 @@ class AnalyticsServiceTest {
     }
 
     @ParameterizedTest
-    @DisplayName("esSolicitudAtajo reconoce solicitudes de código/solución directa (RF-10)")
+    @DisplayName("esSolicitudAtajo reconoce solicitudes de código/solución directa (M-03)")
     @ValueSource(strings = {
             "dime la respuesta",
             "cuál es el código",

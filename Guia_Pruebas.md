@@ -51,15 +51,18 @@ Servidor: `https://tutor.tutorsocratic.me`
 
 - [ ] **5.1** Abre el dashboard de la clase. → El KPI "Han escrito al tutor" muestra 1 de N inscritos.
 - [ ] **5.2** Revisa la fila del estudiante:
-  - **M-02** muestra "X de 24 turnos" (8 preguntas × 3).
-  - **M-03** muestra "Completó la ruta · genera el informe".
-  - **M-05** muestra "Sesión completada".
-- [ ] **5.3** Revisa las alertas de atajo. → Aparece al menos 1, por el paso 4.2.
-- [ ] **5.4** Pulsa *Ver Diagnóstico → Generar informe*. → Aparece el informe con sus 4 secciones y M-03 cambia a "Consolidado" o "Completó con dudas".
-- [ ] **5.5** Pulsa *Generar nuevo informe* y cierra el modal. → El informe se reemplaza y M-01 (focos de dificultad) se actualiza en %.
-- [ ] **5.6** Genera la síntesis grupal. → Aparece un texto basado en los estudiantes de la clase, no uno genérico.
+  - **M-02** muestra "Ruta completada en X turnos" y debajo los turnos de cada pregunta (P1 · 2, P2 · 3, …).
+  - **M-03** muestra las solicitudes directas con su porcentaje (por ejemplo "1 · 8 % · Puntual").
+  - **M-04** muestra "Sesión completada", los minutos activos y "1 clase (1 completada)".
+- [ ] **5.3** Revisa el KPI *Alertas de Atajo*. → Aparece al menos 1, por el paso 4.2, con su porcentaje de las consultas.
+- [ ] **5.4** Revisa *Hoja de Ruta*. → Cada pregunta guía muestra los turnos promedio del grupo.
+- [ ] **5.5** Sin presionar nada, recarga el dashboard unos 15 s después de completar la ruta. → El informe ya existe (*Ver Diagnóstico*) y M-01 lo cuenta.
+- [ ] **5.5b** Con otro estudiante que escribió pero no terminó, pulsa *Generar informes pendientes*. → Aparece el aviso y, al recargar en un par de minutos, su informe ya está.
+- [ ] **5.5c** Pulsa *Generar nuevo informe* en un estudiante y cierra el modal. → El informe se reemplaza y M-01 se actualiza en %.
+- [ ] **5.6** Genera la síntesis grupal. → Aparece un texto basado en los estudiantes de la clase, no uno genérico, con "Generada el …" junto al título.
+- [ ] **5.6b** Después de un redespliegue, abre de nuevo el dashboard. → La síntesis sigue ahí con la misma fecha. Tras "Generar informes pendientes" se actualiza sola.
 - [ ] **5.7** Abre la pestaña *Feedback*. → Aparece el comentario del paso 4.10.
-- [ ] **5.8** En *Mis Estudiantes*, revisa al estudiante. → Aparece con su última actividad.
+- [ ] **5.8** En *Mis Estudiantes*, revisa al estudiante. → Aparece con su última actividad, sus clases completadas y su tiempo activo promedio (M-04).
 
 ## 6. Teléfono
 

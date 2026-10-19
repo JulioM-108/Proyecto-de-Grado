@@ -104,11 +104,17 @@ class DocenteDashboardTemplateTest {
         assertTrue(htmlProcesado.contains("100% · 2 de 2 estudiantes"));
         assertTrue(htmlProcesado.contains("50% · 1 de 2 estudiantes"));
         assertTrue(htmlProcesado.contains("width: 50%;"));
+        // Métricas renumeradas: M-02 avance, M-03 solicitudes directas, M-04 frecuencia y duración; ya no hay "Evolución"
+        assertTrue(htmlProcesado.contains("Avance por Pregunta Guía <span class=\"text-nowrap\">(M-02)</span>"));
+        assertTrue(htmlProcesado.contains("Solicitudes Directas <span class=\"text-nowrap\">(M-03)</span>"));
+        assertTrue(htmlProcesado.contains("Frecuencia y Duración <span class=\"text-nowrap\">(M-04)</span>"));
+        org.junit.jupiter.api.Assertions.assertFalse(htmlProcesado.contains("Evolución (M-03)"));
+        org.junit.jupiter.api.Assertions.assertFalse(htmlProcesado.contains("M-05"));
         // KPI de estudiantes: activos de inscritos; CRAFT vacío muestra el valor real que usa el tutor
         assertTrue(htmlProcesado.contains("Han escrito al tutor · de 3 inscritos"));
         assertTrue(htmlProcesado.contains("Contexto educativo de POO"));
         assertTrue(htmlProcesado.contains("Preguntas y analogías"));
-        // Comprobar que la jerga técnica RF-10 ya no aparece en el HTML docente
+        // La jerga técnica del antiguo "auditor" no aparece en el HTML docente
         org.junit.jupiter.api.Assertions.assertFalse(htmlProcesado.contains("Auditor RF-10"));
     }
 }

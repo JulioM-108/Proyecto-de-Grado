@@ -2,13 +2,15 @@
 Prueba de carga del chat socrático: simula N estudiantes que se registran por el enlace de una
 clase y conversan con el tutor al mismo tiempo, con un ritmo parecido al de una persona real.
 
-Uso (crear antes una clase llamada "Prueba de carga" y copiar su enlace):
+Uso (crear antes una clase llamada "Prueba de carga" y copiar su enlace; definir PRUEBA_CONTRASENA):
+    $env:PRUEBA_CONTRASENA = "<contraseña>"      # PowerShell
     python scripts/prueba_carga.py --url https://tutor.tutorsocratic.me --enlace <ENLACE> --estudiantes 2 --mensajes 2
 
 Cada estudiante virtual usa el correo carga.NN@javeriana.edu.co (ver la limpieza en Guia_Pruebas.md).
 Cada mensaje es una llamada real a Gemini: 30 estudiantes x 6 mensajes = 180 llamadas.
 """
 import argparse
+import os
 import random
 import re
 import statistics
@@ -26,7 +28,9 @@ try:
 except ImportError:
     pass
 
-CONTRASENA = "CargaPrueba2026!"
+# Contraseña de los estudiantes virtuales: se lee del entorno para no dejarla en el repositorio
+CONTRASENA = os.environ.get("PRUEBA_CONTRASENA") or exit("Define la variable de entorno PRUEBA_CONTRASENA "
+                                                         "con la contraseña de los estudiantes virtuales.")
 TIMEOUT_S = 95  # el navegador corta a los 90 s (AbortController en chat.html)
 
 # Respuestas típicas de un estudiante al reto de CuentaBancaria (Clase_Prueba.md)
