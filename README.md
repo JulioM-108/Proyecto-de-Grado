@@ -2,7 +2,6 @@
 
 Prototipo de plataforma web de tutoría inteligente que acompaña a estudiantes de programación mediante el **método socrático**: el tutor no entrega el código ni la solución, sino que guía al estudiante con preguntas, pistas progresivas y analogías. A partir de esa misma conversación, la plataforma le entrega al docente métricas de seguimiento, informes pedagógicos por estudiante y una síntesis del grupo con recomendaciones para la siguiente clase.
 
-**Plataforma desplegada:** https://tutor.tutorsocratic.me
 
 | | |
 |---|---|
@@ -143,18 +142,17 @@ El modelo marca los eventos de la tutoría con comentarios HTML ocultos. El serv
 │   ├── src/main/resources/
 │   │   ├── templates/               # Vistas Thymeleaf: docente/, estudiante/, Login/ e index.html
 │   │   ├── static/css/              # Estilos responsivos
-│   │   ├── prompts/capa1_socratico.md   # Capa 1 del prompt (la que se usa en producción)
+│   │   ├── prompts/capa1_socratico.md   # Capa 1 del prompt (reglas fijas del tutor socrático)
 │   │   └── application.properties
 │   ├── src/test/java/               # Pruebas unitarias y de integración
 │   ├── scripts/                     # Scripts de simulación de estudiantes (carga y perfiles)
 │   ├── Dockerfile · docker-compose.yml · .env.example
 │   └── pom.xml
-├── Prompts/                         # Documentos de trabajo del diseño de la Capa 1
 ├── Archivo/Proyecto_de_Grado.pdf    # Documento final de la tesis
 └── Entregables/                     # Guía del docente y prompt de prueba
 ```
 
-> La versión vigente de la Capa 1 es `Proyecto_Grado/src/main/resources/prompts/capa1_socratico.md`. Los archivos de `Prompts/` son versiones de trabajo del proceso de diseño.
+> Las reglas fijas del tutor (Capa 1 del prompt) están en `Proyecto_Grado/src/main/resources/prompts/capa1_socratico.md`.
 
 ---
 
