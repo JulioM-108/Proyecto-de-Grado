@@ -34,7 +34,6 @@ Prototipo de plataforma web de tutoría inteligente que acompaña a estudiantes 
     - [Docker](#docker)
     - [Despliegue](#despliegue)
   - [Pruebas](#pruebas)
-    - [Scripts de simulación](#scripts-de-simulación)
   - [Documentación y entregables](#documentación-y-entregables)
   - [Seguridad y privacidad](#seguridad-y-privacidad)
 
@@ -145,10 +144,8 @@ El modelo marca los eventos de la tutoría con comentarios HTML ocultos. El serv
 │   │   ├── prompts/capa1_socratico.md   # Capa 1 del prompt (reglas fijas del tutor socrático)
 │   │   └── application.properties
 │   ├── src/test/java/               # Pruebas unitarias y de integración
-│   ├── scripts/                     # Scripts de simulación de estudiantes (carga y perfiles)
 │   ├── Dockerfile · docker-compose.yml · .env.example
 │   └── pom.xml
-├── Archivo/Proyecto_de_Grado.pdf    # Documento final de la tesis
 └── Entregables/                     # Guía del docente y prompt de prueba
 ```
 
@@ -230,21 +227,12 @@ cd Proyecto_Grado
 ./mvnw test -Dtest="ChatServiceTest,AnalyticsServiceTest,AuthServiceTest,TotpServiceTest,PromptAssistantServiceTest,EvaluacionSusTamTest,SecurityAndInterceptorTest"
 ```
 
-### Scripts de simulación
-La carpeta `Proyecto_Grado/scripts/` contiene dos scripts de Python que simulan estudiantes virtuales contra una clase real. **Cada mensaje genera una llamada real a Gemini.**
-
-- `prueba_carga.py`: varios estudiantes conversan con el tutor al mismo tiempo.
-- `prueba_perfiles.py`: estudiantes con comportamientos distintos (fluido, con atajos, etc.), para revisar cómo se reflejan en las métricas M-01 a M-04, los informes y la síntesis grupal.
-
-Las instrucciones de uso están al inicio de cada script. Los estudiantes virtuales usan correos `carga.*`, y conviene eliminarlos después desde *Mis Estudiantes*.
-
 ---
 
 ## Documentación y entregables
 
 | Documento | Ubicación |
 |---|---|
-| Documento final del proyecto de grado | [`Archivo/Proyecto_de_Grado.pdf`](Archivo/Proyecto_de_Grado.pdf) |
 | Guía de Gestión Pedagógica para el Docente | [`Entregables/Guia_Gestion_Pedagogica_Docente.pdf`](Entregables/Guia_Gestion_Pedagogica_Docente.pdf) |
 | Prompt de prueba utilizado en la evaluación (clase «Herencia») | [`Entregables/Prompt_de_Prueba_Clase_Herencia.pdf`](Entregables/Prompt_de_Prueba_Clase_Herencia.pdf) |
 | Capa 1 del prompt (reglas del tutor) | [`capa1_socratico.md`](Proyecto_Grado/src/main/resources/prompts/capa1_socratico.md) |

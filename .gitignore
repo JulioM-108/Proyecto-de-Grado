@@ -69,3 +69,5 @@ application-secret.properties
 # Material de consulta local (no se versiona)
 Textos_Requisitos/
 Prompts/
+Archivo/
+Proyecto_Grado/scripts/
