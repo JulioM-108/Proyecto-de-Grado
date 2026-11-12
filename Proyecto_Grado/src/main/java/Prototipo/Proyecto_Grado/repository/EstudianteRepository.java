@@ -9,6 +9,7 @@ import java.util.UUID;
 
 /**
  * Repositorio JPA para la tabla "Estudiante" de Supabase.
+ * Se usa en el registro, el login y para resolver al estudiante de la sesión HTTP por su correo.
  */
 @Repository
 public interface EstudianteRepository extends JpaRepository<Estudiante, UUID> {

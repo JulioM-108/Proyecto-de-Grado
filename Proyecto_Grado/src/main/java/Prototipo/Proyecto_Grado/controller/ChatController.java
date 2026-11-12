@@ -31,13 +31,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Controlador MVC para el Módulo de Tutoría Socrática (Estudiante).
- * Implementa RF-01 (registro mínimo por enlace único) y el Flujo 3 (cierre de sesión).
- *
- * GET  /chat/{enlace}            → muestra registro o chat
- * POST /chat/{enlace}/registro   → registro con contraseña del estudiante
- * POST /chat/{enlace}/mensaje    → procesa un nuevo mensaje
- * La tutoría se cierra al completar la ruta de preguntas guía o al enviar la encuesta SUS+TAM.
+ * Controlador del chat socrático del estudiante, al que se entra por el enlace único de la clase.
+ * <p>
+ * Ruta base: {@code /chat/{enlace}}. No la cubre el interceptor de roles, por lo que cada endpoint
+ * valida al estudiante con el atributo de sesión {@code estudianteActivo} y opera solo sobre su propia
+ * participación (RNF-01).
+ * <ul>
+ *   <li>GET  {@code /chat/{enlace}}: formulario de registro o inicio de sesión, o el chat con su historial.</li>
+ *   <li>POST {@code /chat/{enlace}/registro}: registro o inicio de sesión del estudiante desde el enlace.</li>
+ *   <li>POST {@code /chat/{enlace}/mensaje}: envía un mensaje al tutor socrático.</li>
+ *   <li>POST {@code /chat/{enlace}/feedback}: "Feedback Profe" (valoración y comentario).</li>
+ *   <li>POST {@code /chat/{enlace}/evaluacion-sus-tam}: encuesta SUS+TAM, que finaliza la tutoría.</li>
+ * </ul>
+ * La tutoría finaliza cuando el estudiante completa la ruta de preguntas guía o envía la encuesta SUS+TAM.
+ * <p>
+ * Requisitos: RF-01, RF-02, RF-03, RF-04, RF-09, RNF-01 y RNF-02.
  */
 @Controller
 @RequestMapping("/chat")
@@ -55,8 +63,13 @@ public class ChatController {
     private final LoginRateLimiterService rateLimiterService;
 
     /**
-     * Muestra la interfaz de chat o redirige al formulario de registro (RF-01).
-     * Si el estudiante ya tiene sesión HTTP activa, accede directamente al chat.
+     * GET {@code /chat/{enlace}}: punto de entrada del estudiante a la clase.
+     * Sin estudiante en sesión, muestra el formulario de registro o inicio de sesión (RF-01) con el
+     * mensaje de error que corresponda. Con estudiante en sesión, obtiene su participación (o la crea,
+     * lo que lo vincula a la clase y al directorio del docente) y muestra el chat con el historial (RF-04).
+     * Los parámetros {@code cerrada} y {@code completada} solo llegan tras finalizar la tutoría.
+     *
+     * @return vista {@code estudiante/registro} o {@code estudiante/chat}; 404 si el enlace no existe
      */
     @GetMapping("/{enlace}")
     public String verChat(@PathVariable String enlace,
@@ -73,7 +86,7 @@ public class ChatController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Sesión no encontrada"));
 
-        // RF-01: Verificar si hay estudiante en sesión HTTP
+        // RF-01: sin estudiante en sesión se muestra el formulario de acceso
         Estudiante estudiante = (Estudiante) httpSession.getAttribute("estudianteActivo");
         if (estudiante == null) {
             model.addAttribute("enlace", enlace);
@@ -96,12 +109,12 @@ public class ChatController {
             return "estudiante/registro";
         }
 
-        // Obtener o crear la participación del estudiante en esta sesión
+        // Primera visita del estudiante a esta clase: se crea su participación (RF-01)
         Participacion participacion = participacionRepository
                 .findFirstByEstudianteAndSesionOrderByCreatedAtDesc(estudiante, sesion)
                 .orElseGet(() -> chatService.crearParticipacion(estudiante, sesion));
 
-        // Cargar historial de mensajes
+        // RF-04: historial completo para retomar la tutoría
         java.util.List<Mensaje> mensajes = mensajeRepository
                 .findByParticipacionOrderByCreatedAtAsc(participacion);
 
@@ -126,10 +139,17 @@ public class ChatController {
     }
 
     /**
-     * RF-01: Registro/autenticación del estudiante al acceder por enlace único.
-     * Soporta dos modos dentro de la misma interfaz:
-     * - "login": Estudiante con cuenta previa; solo requiere correo institucional y contraseña.
-     * - "registro": Estudiante nuevo; requiere nombre completo, correo institucional y contraseña.
+     * POST {@code /chat/{enlace}/registro}: registro o inicio de sesión del estudiante desde el enlace (RF-01).
+     * Modos de la misma interfaz:
+     * <ul>
+     *   <li>"login": estudiante con cuenta; requiere correo institucional y contraseña.</li>
+     *   <li>"registro": estudiante nuevo; requiere nombre, correo institucional y contraseña
+     *       (guardada con BCrypt, RNF-02). Si el correo ya existe, se trata como inicio de sesión.</li>
+     * </ul>
+     * Solo admite dominios institucionales y aplica el mismo bloqueo por intentos fallidos que
+     * {@code /login}. Al autenticar, renueva el id de sesión y guarda los atributos de sesión del estudiante.
+     *
+     * @return redirección a {@code /chat/{enlace}}, con {@code error} y {@code modo} si el acceso falla
      */
     @PostMapping("/{enlace}/registro")
     public String registrarEstudiante(@PathVariable String enlace,
@@ -181,7 +201,7 @@ public class ChatController {
         // Rotar ID de sesión para prevenir Session Fixation
         request.changeSessionId();
 
-        // Sincronizar todas las variables de sesión HTTP
+        // Mismos atributos que fija LoginController, para que el estudiante también pueda usar /estudiante
         httpSession.setAttribute("estudianteActivo", estudiante);
         httpSession.setAttribute("usuarioLogueado", estudiante.getCorreo());
         httpSession.setAttribute("nombreUsuario", estudiante.getNombre());
@@ -192,7 +212,15 @@ public class ChatController {
     }
 
     /**
-     * Procesa el mensaje enviado por el estudiante en el chat socrático.
+     * POST {@code /chat/{enlace}/mensaje}: procesa un mensaje del estudiante en el chat socrático (RF-02, RF-03).
+     * Rechaza el envío si no hay estudiante en sesión, la clase no existe o está pausada, la tutoría ya
+     * finalizó, el mensaje supera 2500 caracteres o llega menos de 1,5 s después del anterior.
+     * {@link ChatService} llama a Gemini y guarda en la BD el mensaje, la respuesta del tutor y las métricas.
+     * <p>
+     * Atiende dos clientes: si la petición es AJAX ({@code X-Requested-With} o {@code Accept: application/json})
+     * responde JSON con el código de estado del error; si no, redirige al chat con un parámetro de aviso.
+     *
+     * @return JSON con la respuesta del tutor, la hora y si la ruta quedó completada; o una redirección 302
      */
     @PostMapping("/{enlace}/mensaje")
     public ResponseEntity<?> enviarMensaje(@PathVariable String enlace,
@@ -220,6 +248,7 @@ public class ChatController {
             }
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/estudiante")).build();
         }
+        // Clase pausada por el docente: el estudiante ve su chat pero no puede escribir
         if (Boolean.FALSE.equals(sesion.getEstado())) {
             if (esAjax) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -228,7 +257,7 @@ public class ChatController {
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace + "?pausada=true")).build();
         }
 
-        // Validación de sesión cerrada / finalizada para el estudiante
+        // Tutoría finalizada (ruta completada o encuesta SUS+TAM enviada): no se aceptan más mensajes
         Participacion partActiva = participacionRepository
                 .findFirstByEstudianteAndSesionOrderByCreatedAtDesc(estudiante, sesion)
                 .orElse(null);
@@ -252,7 +281,7 @@ public class ChatController {
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/chat/" + enlace + "?errorLongitud=true")).build();
         }
 
-        // Rate limiting defensivo (debounce de 1.5s entre mensajes por estudiante)
+        // Debounce de 1,5 s por sesión HTTP: evita envíos duplicados y llamadas a Gemini en ráfaga
         Long ultimoEnvioMs = (Long) httpSession.getAttribute("ultimoEnvioChatMs");
         long ahoraMs = System.currentTimeMillis();
         if (ultimoEnvioMs != null && (ahoraMs - ultimoEnvioMs) < 1500) {
@@ -301,8 +330,11 @@ public class ChatController {
     }
 
     /**
-     * Registro / actualización de retroalimentación cualitativa y valoración (1 a 5)
-     * del estudiante para el profesor sobre la sesión.
+     * POST {@code /chat/{enlace}/feedback}: guarda o actualiza el "Feedback Profe" del estudiante (RF-09):
+     * valoración de 1 a 5 y comentario. Los valores fuera de rango o vacíos se ignoran sin sobrescribir los previos.
+     * Solo modifica la participación del estudiante en sesión (RNF-01). Escribe en la BD.
+     *
+     * @return redirección a {@code /chat/{enlace}?feedbackEnviado=true}; 404 si el enlace no existe
      */
     @PostMapping("/{enlace}/feedback")
     public String guardarFeedback(@PathVariable String enlace,
@@ -336,9 +368,13 @@ public class ChatController {
     }
 
     /**
-     * Registro de la evaluación científica de usabilidad (SUS) y aceptación socrática (TAM).
-     * Recibe los 10 ítems SUS, 6 ítems TAM y comentario cualitativo, calcula el puntaje
-     * estandarizado de Brooke (1986) y persiste la estructura en formato JSON.
+     * POST {@code /chat/{enlace}/evaluacion-sus-tam}: guarda la encuesta SUS+TAM del estudiante.
+     * Recibe los 10 ítems SUS y los 6 ítems TAM (escala Likert de 1 a 5) y un comentario opcional,
+     * calcula el puntaje SUS de Brooke (1986) y guarda todo como JSON en la participación del estudiante
+     * en sesión (RNF-01). Enviar la encuesta finaliza la tutoría.
+     *
+     * @return redirección a {@code /chat/{enlace}?cerrada=true&evaluacionExitosa=true}, o con
+     *         {@code errorEvaluacion=rangoInvalido} si algún ítem está fuera de rango
      */
     @PostMapping("/{enlace}/evaluacion-sus-tam")
     public String guardarEvaluacionSusTam(
@@ -406,6 +442,7 @@ public class ChatController {
         return "redirect:/chat/" + enlace + "?cerrada=true&evaluacionExitosa=true";
     }
 
+    /** Comprueba que todas las respuestas estén presentes y en la escala Likert de 1 a 5. */
     private boolean validarRangoLikert(Integer... valores) {
         for (Integer v : valores) {
             if (v == null || v < 1 || v > 5) {

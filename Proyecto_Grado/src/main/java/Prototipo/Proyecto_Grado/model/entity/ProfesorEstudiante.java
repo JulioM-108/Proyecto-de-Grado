@@ -7,8 +7,9 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Entidad JPA mapeada a la tabla "profesor_estudiante".
- * Representa la relación de pertenencia persistente (Muchos a Muchos) entre un Profesor y un Estudiante.
+ * Entidad JPA mapeada a la tabla profesor_estudiante.
+ * Tabla intermedia de la relación muchos a muchos entre {@link Profesor} y {@link Estudiante}
+ * (dos ManyToOne, con unicidad del par profesor_id y estudiante_id).
  * Permite que un estudiante permanezca en el directorio de alumnos de un docente aunque sea
  * desvinculado de una sesión específica o no tenga clases activas actualmente.
  */
@@ -39,6 +40,7 @@ public class ProfesorEstudiante {
     @Column(name = "fecha_vinculacion", columnDefinition = "timestamptz")
     private OffsetDateTime fechaVinculacion;
 
+    /** Asigna la fecha de vinculación al insertar si no se proporcionó. */
     @PrePersist
     public void prePersist() {
         if (this.fechaVinculacion == null) {

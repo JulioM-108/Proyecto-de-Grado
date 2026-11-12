@@ -1,24 +1,28 @@
 """
 Prueba por perfiles: simula estudiantes con comportamientos distintos para ver cómo se registra cada
 caso en las métricas del dashboard (M-01 a M-04), el informe automático y la síntesis grupal.
+Al final muestra una tabla por estudiante y lo que debería verse en el dashboard para cada perfil.
 
 Las respuestas y palabras clave están escritas para la clase "Relaciones e interacciones entre objetos"
 (5 preguntas guía, ver CLAVES y RESPUESTAS). Para otra clase hay que cambiar esos dos bloques.
+
+Requisitos: Python 3 con requests (pip install requests); truststore es opcional.
 
 Uso (antes definir la contraseña de los estudiantes virtuales: $env:PRUEBA_CONTRASENA = "<contraseña>"):
     python scripts/prueba_perfiles.py --url http://localhost:8080 --enlace <ENLACE>
     python scripts/prueba_perfiles.py --url http://localhost:8080 --enlace <ENLACE> --perfiles fluido=2,atajos=1 --inicio 10
 
-Perfiles (correo carga.<perfil>.NN@javeriana.edu.co, nombre "Carga <Perfil> NN"):
+Perfiles (correo carga.<perfil>.NN@javeriana.edu.co; el nombre visible se toma de NOMBRES):
     fluido    responde bien cada pregunta guía hasta completar la ruta
-    trabado   responde bien, pero se confunde varias veces en la pregunta 3 (private/public)
+    trabado   responde bien, pero se confunde varias veces en la pregunta 3 (qué tipo de relación usar)
     atajos    pide el código o la solución en la mitad de sus mensajes y abandona
     abandona  responde las 2 primeras preguntas y se va sin terminar
     directo   empieza con una duda concreta (sin saludar) y se va a mitad de ruta
     ingles    escribe en inglés para comprobar que el tutor responde en español
 
 Cada mensaje es una llamada real a Gemini (más el informe automático de quienes completan la ruta).
-Limpieza: los correos empiezan por "carga." (ver sección 8 de Guia_Pruebas.md).
+Limpieza: al terminar, borre los estudiantes virtuales (correos que empiezan por "carga.") desde la
+sección Mis Estudiantes.
 """
 import argparse
 import os
@@ -101,6 +105,7 @@ ATAJOS = [
 
 
 def normalizar(texto):
+    """Minúsculas, sin tildes y con espacios simples, para comparar con CLAVES."""
     t = unicodedata.normalize("NFD", texto.lower())
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")
     return re.sub(r"\s+", " ", t)
@@ -121,6 +126,7 @@ def pregunta_detectada(respuesta, actual):
 
 
 def parece_espanol(texto):
+    """Heurística: True si en el texto hay más palabras frecuentes del español que del inglés."""
     t = " " + normalizar(texto) + " "
     es = sum(t.count(w) for w in (" el ", " la ", " que ", " de ", " es ", " una ", " para "))
     en = sum(t.count(w) for w in (" the ", " is ", " and ", " you ", " what ", " of "))
@@ -135,6 +141,7 @@ PATRON_CSRF = [
 
 
 def extraer_csrf(html):
+    """Devuelve el token CSRF del formulario o de la etiqueta meta de la página, o None si no hay."""
     for patron in PATRON_CSRF:
         m = patron.search(html)
         if m:
@@ -143,6 +150,8 @@ def extraer_csrf(html):
 
 
 class Estudiante:
+    """Estudiante virtual con su propia sesión HTTP: ejecuta el guion de su perfil (métodos perfil_*)
+    y acumula turnos, atajos, errores y si completó la ruta, para el resumen final."""
     def __init__(self, perfil, numero, args, nombre=None):
         self.perfil, self.numero, self.args = perfil, numero, args
         self.etiqueta = f"{perfil}.{numero:02d}"
@@ -163,6 +172,8 @@ class Estudiante:
         print(f"[{self.etiqueta:<12}] {texto}", flush=True)
 
     def entrar(self):
+        """Entra al chat por el enlace: prueba el registro y luego el inicio de sesión hasta llegar al chat,
+        y guarda el token CSRF de esa página."""
         r = self.s.get(self.base, timeout=30)
         r.raise_for_status()
         for modo in ("registro", "login"):
@@ -178,7 +189,7 @@ class Estudiante:
         raise RuntimeError("no llegó al chat (¿ya completó la ruta en una corrida anterior?)")
 
     def enviar(self, texto):
-        """Envía un mensaje; devuelve el texto del tutor o None si falló."""
+        """Envía un mensaje (con una pausa aleatoria antes, salvo el primero); devuelve el texto del tutor o None si falló."""
         if self.turnos > 0:
             time.sleep(random.uniform(self.args.espera_min, self.args.espera_max))
         datos = {"mensaje": texto}
@@ -263,6 +274,7 @@ class Estudiante:
             self.respuestas_en_espanol.append(parece_espanol(resp))
 
     def correr(self):
+        """Destino del hilo: entra al chat y ejecuta el método perfil_<perfil>."""
         try:
             self.entrar()
         except Exception as e:
@@ -272,6 +284,7 @@ class Estudiante:
         getattr(self, f"perfil_{self.perfil}")()
 
 
+# Lo que debería verse en el dashboard para cada perfil (se imprime al final)
 ESPERADO = {
     "fluido":   "M-02 'Ruta completada en X turnos' con P1…P5 cortos · informe automático ~15 s después · M-04 'Sesión completada'",
     "trabado":  "M-02 'Ruta completada · se trabó en P3' (P3 con > 6 turnos) · en el grupo, P3 'la que más le cuesta'",
@@ -283,6 +296,7 @@ ESPERADO = {
 
 
 def main():
+    """Crea los estudiantes de cada perfil, lanza un hilo por estudiante cada 1,5 s y muestra el resumen."""
     ap = argparse.ArgumentParser(description="Prueba por perfiles de las métricas del dashboard")
     ap.add_argument("--url", required=True, help="p. ej. http://localhost:8080")
     ap.add_argument("--enlace", required=True, help="enlace de una clase creada con Clase_Prueba.md")

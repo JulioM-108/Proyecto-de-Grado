@@ -1,4 +1,11 @@
 <!DOCTYPE html>
+<!--
+    Mis Estudiantes: directorio del docente (GET /docente/estudiantes).
+    Lista a sus estudiantes con las clases y el tiempo activo, la última actividad y el estado
+    (en clase activa, clases pausadas o sin clases), según M-04 y RF-08.
+    Acciones: "Asignar" a una clase y eliminar. Eliminar borra las participaciones en las clases del docente;
+    la cuenta solo se elimina si el estudiante no pertenece a otros docentes.
+-->
 <html xmlns:th="http://www.thymeleaf.org" lang="es">
 <head>
     <meta charset="UTF-8">
@@ -29,7 +36,7 @@
             min-height: 100vh;
             letter-spacing: -0.01em;
         }
-        /* Navbar */
+        /* Barra de navegación */
         .navbar-minimal {
             background-color: #FFFFFF;
             border-bottom: 1px solid var(--border-subtle);
@@ -66,7 +73,7 @@
             margin: 0 auto;
             padding: 28px 20px 60px 20px;
         }
-        /* KPI Cards */
+        /* Tarjetas de indicadores */
         .kpi-card {
             background: #FFFFFF;
             border: 1px solid var(--border-subtle);
@@ -111,7 +118,7 @@
             color: var(--text-muted);
             font-weight: 500;
         }
-        /* Search bar */
+        /* Barra de búsqueda */
         .search-bar {
             position: relative;
             max-width: 360px;
@@ -139,7 +146,7 @@
             color: var(--text-muted);
             font-size: 0.92rem;
         }
-        /* Table */
+        /* Tabla del directorio */
         .card-panel {
             background: #FFFFFF;
             border: 1px solid var(--border-subtle);
@@ -273,7 +280,7 @@
             </div>
         </div>
 
-        <!-- Notificación de Estudiante Eliminado -->
+        <!-- Aviso tras eliminar (?estudianteEliminado=true); se muestra igual si solo se borraron sus participaciones con este docente -->
         <div th:if="${param.estudianteEliminado}" class="alert alert-warning alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-trash3-fill text-danger fs-5"></i>
@@ -282,7 +289,7 @@
             </div>
         </div>
 
-        <!-- Notificación de Error al Eliminar Estudiante -->
+        <!-- Aviso de error al eliminar (?errorEliminacion). Actualmente el controlador no redirige con este parámetro -->
         <div th:if="${param.errorEliminacion}" class="alert alert-danger alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
@@ -331,7 +338,7 @@
             <p class="text-muted small mb-0">Listado institucional de alumnos registrados y su vinculación con tus clases de programación.</p>
         </div>
 
-        <!-- KPI Cards -->
+        <!-- Indicadores: total de estudiantes, estudiantes en clase activa y total de participaciones (este último lo recalcula el script) -->
         <div class="row g-3 mb-4">
             <div class="col-md-4">
                 <div class="kpi-card d-flex align-items-center gap-3">
@@ -368,7 +375,7 @@
             </div>
         </div>
 
-        <!-- Barra de Búsqueda -->
+        <!-- Búsqueda en tiempo real y contador de estudiantes visibles (ver script) -->
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
             <div class="search-bar flex-grow-1">
                 <i class="bi bi-search search-icon"></i>
@@ -378,7 +385,7 @@
                   th:text="${directorio.size()} + ' estudiante(s)'">0 estudiantes</span>
         </div>
 
-        <!-- Tabla de Estudiantes -->
+        <!-- Tabla del directorio: estudiante, clases y tiempo activo, última actividad, estado y acciones; en móvil se ve como tarjetas (tabla-movil) -->
         <div class="card-panel">
             <div th:if="${directorio != null and !directorio.isEmpty()}" class="table-responsive">
                 <table class="table table-institutional align-middle mb-0 tabla-movil" id="tablaEstudiantes">
@@ -422,6 +429,7 @@
                             <td data-label="Última actividad">
                                 <span class="small text-nowrap" style="color: var(--text-muted);" th:text="${est.ultimaActividadFormateada}">01/01/2026</span>
                             </td>
+                            <!-- Estado según sus clases con este docente: en clase activa, clases pausadas o sin clases -->
                             <td data-label="Estado" class="text-nowrap">
                                 <span th:if="${est.clasesActivas > 0}" class="badge-active">
                                     <i class="bi bi-check-circle-fill me-1"></i>En clase activa
@@ -433,6 +441,7 @@
                                     <i class="bi bi-dash-circle me-1"></i>Sin clases
                                 </span>
                             </td>
+                            <!-- Acciones: "Asignar" abre el modal de clases y la papelera abre la confirmación de eliminación -->
                             <td class="text-end pe-4 tabla-movil-acciones">
                                 <div class="d-inline-flex align-items-center gap-2 flex-nowrap">
                                     <button type="button" class="btn btn-outline-primary btn-sm rounded-3 py-1 px-3 fw-semibold text-nowrap"
@@ -456,7 +465,7 @@
                 </table>
             </div>
 
-            <!-- Si no hay estudiantes aún en la universidad -->
+            <!-- Estado vacío: el docente aún no tiene estudiantes en su directorio -->
             <div th:unless="${directorio != null and !directorio.isEmpty()}" class="text-center py-5 text-muted">
                 <div style="width: 64px; height: 64px; border-radius: 16px; background: #E8EFF8; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
                     <i class="bi bi-people fs-3" style="color: var(--puj-blue);"></i>
@@ -485,7 +494,7 @@
         <div class="opacity-75" style="font-size: 0.76rem;">Tutoría Inteligente Socrática asistida por IA</div>
     </footer>
 
-    <!-- MODAL: Asignar Estudiante a una Clase -->
+    <!-- MODAL: Asignar Estudiante a una Clase; abrirModalAsignar() rellena el nombre y la acción del formulario -->
     <div class="modal fade" id="modalAsignarClase" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -538,7 +547,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Eliminar Estudiante -->
+    <!-- MODAL: Eliminar Estudiante. El aviso habla de eliminación definitiva, pero la cuenta solo se borra si no pertenece a otros docentes; si pertenece, solo se borran sus participaciones en las clases de este docente -->
     <div class="modal fade" id="modalEliminarEstudiante" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -576,6 +585,7 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Abre el modal Asignar con el nombre del estudiante y apunta el formulario a POST /docente/estudiantes/{id}/asignar-sesion.
         function abrirModalAsignar(estId, estNombre) {
             document.getElementById('modalNombreEstudiante').textContent = estNombre;
             document.getElementById('formAsignarClase').action = '/docente/estudiantes/' + estId + '/asignar-sesion';
@@ -583,6 +593,7 @@
             modal.show();
         }
 
+        // Abre el modal de eliminación con nombre y correo, y apunta el formulario a POST /docente/estudiantes/{id}/eliminar.
         function abrirModalEliminarEstudiante(estId, estNombre, estCorreo) {
             document.getElementById('modalNombreEliminarEstudiante').textContent = estNombre;
             document.getElementById('modalCorreoEliminarEstudiante').textContent = estCorreo;
@@ -591,7 +602,7 @@
             modal.show();
         }
 
-        // Calcular total de participaciones desde la tabla
+        // Al cargar, suma las clases de cada fila (.badge-classes) y sobrescribe el indicador Total Participaciones que envía el servidor.
         document.addEventListener('DOMContentLoaded', function() {
             const badges = document.querySelectorAll('.badge-classes');
             let total = 0;
@@ -599,7 +610,7 @@
             const totalElem = document.getElementById('totalParticipaciones');
             if (totalElem) totalElem.textContent = total;
 
-            // Búsqueda en tiempo real
+            // Búsqueda en tiempo real: oculta las filas cuyo texto completo (no solo nombre y correo) no contiene la consulta.
             const searchInput = document.getElementById('searchInput');
             const filas = document.querySelectorAll('.fila-estudiante');
             const noResultsMsg = document.getElementById('noResultsMsg');
@@ -625,7 +636,7 @@
                         noResultsMsg.classList.add('d-none');
                     }
 
-                    // Actualizar badge de conteo
+                    // Actualizar el contador de estudiantes visibles
                     if (query) {
                         countBadge.textContent = visibles + ' de ' + totalEstudiantes + ' estudiante(s)';
                     } else {

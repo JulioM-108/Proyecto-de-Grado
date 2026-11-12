@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+    Mis Sesiones: vista principal del docente (GET /docente/sesiones).
+    Muestra su perfil con "Editar Perfil", el recuadro de Autenticación 2FA y las tarjetas de sus clases
+    (Métricas, pausar/reanudar, eliminar y copiar el enlace único), además de "Crear Nueva Clase".
+    Requisitos relacionados: RF-05 (creación de clases) y RF-01 (acceso por enlace único).
+-->
 <html xmlns:th="http://www.thymeleaf.org" lang="es">
 <head>
     <meta charset="UTF-8">
@@ -187,7 +193,7 @@
 
     <div class="container-custom">
 
-        <!-- Notificaciones Dinámicas -->
+        <!-- Avisos de resultado según los parámetros de la URL: clase creada (con su código y "Copiar enlace"), clase eliminada, perfil actualizado y cambios del 2FA -->
         <div th:if="${sesionCreada}" class="alert alert-success alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-check-circle-fill text-success fs-5"></i>
@@ -242,10 +248,10 @@
             </div>
         </div>
 
-        <!-- 1. Perfil del Docente & Seguridad 2FA -->
+        <!-- 2. Perfil del docente y recuadro de Autenticación 2FA -->
         <div class="profile-panel">
             <div class="row g-4 align-items-center">
-                <!-- Datos del Profesor -->
+                <!-- Datos del docente y botón "Editar Perfil" (abre #modalEditarPerfil) -->
                 <div class="col-lg-7">
                     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                         <div class="d-flex align-items-center gap-3">
@@ -277,7 +283,7 @@
                     </div>
                 </div>
 
-                <!-- Seguridad 2FA -->
+                <!-- Recuadro 2FA: si está activo, se desactiva con la contraseña; si no, "Configurar 2FA" abre el modal con el QR -->
                 <div class="col-lg-5">
                     <div class="security-chip">
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -318,7 +324,7 @@
             </div>
         </div>
 
-        <!-- 2. Barra de Título y Botón Nueva Sesión -->
+        <!-- 3. Título y botón "Crear Nueva Clase" -->
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
             <div>
                 <h4 class="fw-bold mb-1" style="color: var(--puj-blue-dark);">Mis Sesiones de Clase</h4>
@@ -346,12 +352,12 @@
             </a>
         </div>
 
-        <!-- Cuadrícula de Sesiones -->
+        <!-- 4. Tarjetas de las clases del docente, de la más reciente a la más antigua -->
         <div th:if="${!#lists.isEmpty(sesiones)}" class="row g-3">
             <div th:each="sesion : ${sesiones}" class="col-md-6 col-lg-4">
                 <div class="session-card">
                     <div>
-                        <!-- Header de tarjeta -->
+                        <!-- Estado de la clase (Activa o Pausada) y fecha de creación -->
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span th:if="${sesion.estado}" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small">
                                 <i class="bi bi-circle-fill me-1" style="font-size: 0.45rem;"></i>Activa
@@ -362,14 +368,14 @@
                             <small class="text-muted" th:text="${#temporals.format(sesion.createdAt, 'dd/MM/yyyy')}">01/01/2026</small>
                         </div>
 
-                        <!-- Tema -->
+                        <!-- Tema y contexto CRAFT de la clase, recortado a dos líneas -->
                         <h6 class="fw-bold text-dark mb-2" th:text="${sesion.tema}">Tema de la Sesión</h6>
 
                         <p class="text-muted small mb-3" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.82rem;" th:text="${sesion.craftContexto}">
                             Contexto de la clase...
                         </p>
 
-                        <!-- Código copiable -->
+                        <!-- Código del enlace único; el botón copia la URL completa del chat de la clase -->
                         <div class="code-box mb-3">
                             <span th:text="${sesion.enlaceUnico}">COD123</span>
                             <button type="button" class="btn btn-sm btn-link text-muted p-0" 
@@ -380,7 +386,7 @@
                         </div>
                     </div>
 
-                    <!-- Acciones -->
+                    <!-- Acciones: Métricas, pausar/reanudar (POST que alterna el estado) y eliminar (abre el modal de confirmación) -->
                     <div class="border-top pt-3 d-flex gap-2 align-items-center">
                         <a th:href="@{/docente/sesiones/{id}/metricas(id=${sesion.id})}" class="btn btn-outline-primary btn-sm flex-grow-1 action-btn">
                             <i class="bi bi-graph-up me-1"></i>Métricas
@@ -405,7 +411,7 @@
 
     </div>
 
-    <!-- MODAL: Editar Información Personal -->
+    <!-- MODAL: Editar Perfil (nombre, correo institucional, facultad y nueva contraseña opcional) -->
     <div class="modal fade" id="modalEditarPerfil" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -452,7 +458,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Configurar 2FA -->
+    <!-- MODAL: Configurar 2FA. abrirSetup2Fa() carga el QR y la clave manual; confirmarYActivar2Fa() verifica el código de 6 dígitos -->
     <div class="modal fade" id="modal2FA" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -508,7 +514,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Confirmar Eliminación -->
+    <!-- MODAL: confirmar la eliminación de una clase; confirmarEliminar() rellena el tema y la acción del formulario -->
     <div class="modal fade" id="modalEliminar" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -551,6 +557,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Copia al portapapeles la URL del chat de la clase (origen + /chat/{código}) y muestra el toast.
         function copiarAlPortapapeles(codigo) {
             const urlCompleta = window.location.origin + '/chat/' + codigo;
             navigator.clipboard.writeText(urlCompleta).then(() => {
@@ -558,6 +565,7 @@
             });
         }
 
+        // Copia el enlace de la clase recién creada, tomando el código del aviso de éxito.
         function copiarEnlaceDirecto() {
             const codigoElem = document.getElementById('codigoGeneradoText');
             if (codigoElem) {
@@ -571,6 +579,7 @@
             toast.show();
         }
 
+        // Abre el modal de confirmación con el tema de la clase y apunta su formulario a POST /docente/sesiones/{id}/eliminar.
         function confirmarEliminar(sesionId, tema) {
             document.getElementById('nombreSesionEliminar').innerText = tema;
             document.getElementById('formEliminarSesion').action = '/docente/sesiones/' + sesionId + '/eliminar';
@@ -580,6 +589,8 @@
 
         let modal2FaInstance = null;
 
+        // Reinicia y abre el modal 2FA; pide a GET /docente/api/2fa/setup un secreto nuevo y muestra el QR y la clave manual.
+        // Si la petición falla, reemplaza el spinner por un mensaje de error.
         function abrirSetup2Fa() {
             const modalEl = document.getElementById('modal2FA');
             modal2FaInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -625,6 +636,8 @@
                 });
         }
 
+        // Valida que el código tenga 6 dígitos y lo envía a POST /docente/api/2fa/activar.
+        // Si es correcto, redirige a /docente?2faActivado=true; si no, muestra el error en el modal.
         function confirmarYActivar2Fa() {
             const inputCodigo = document.getElementById('codigo2faInput');
             const errorDiv = document.getElementById('mensaje2faError');
@@ -678,6 +691,7 @@
             });
         }
 
+        // Enter en el campo del código equivale a pulsar "Verificar y Activar".
         document.addEventListener('DOMContentLoaded', () => {
             const input2Fa = document.getElementById('codigo2faInput');
             if (input2Fa) {

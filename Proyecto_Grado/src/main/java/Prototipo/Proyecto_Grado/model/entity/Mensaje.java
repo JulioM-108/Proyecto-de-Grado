@@ -7,14 +7,12 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Entidad JPA mapeada a la tabla "mensaje" de Supabase.
- * Cada fila es un turno de la conversación dentro de una participación.
- * Columnas: id (uuid PK), created_at (timestamptz), emisor (bool), contenido (text),
+ * Entidad JPA mapeada a la tabla mensaje de Supabase.
+ * Cada fila es un mensaje de la conversación (del estudiante o del tutor) dentro de una participación.
+ * Columnas: id (uuid PK), fecha_creacion (timestamptz), emisor (bool), contenido (text),
  *           participacion_id (uuid FK → participacion).
- *
- * emisor:
- *   - true  → el mensaje fue enviado por el ESTUDIANTE
- *   - false → el mensaje fue generado por el TUTOR socrático (Gemini)
+ * Relación: muchos mensajes pertenecen a una {@link Participacion}. El historial ordenado por fecha
+ * forma la Capa 3 del prompt y la base de los informes y métricas.
  */
 @Entity
 @Table(name = "mensaje")
@@ -47,6 +45,7 @@ public class Mensaje {
     @JoinColumn(name = "participacion_id", nullable = false)
     private Participacion participacion;
 
+    /** Asigna la fecha de creación al insertar si no se proporcionó. */
     @PrePersist
     public void prePersist() {
         if (this.createdAt == null) {

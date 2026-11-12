@@ -12,7 +12,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Repositorio JPA para la tabla "mensaje" de Supabase.
+ * Repositorio JPA para la tabla mensaje de Supabase.
+ * Se usa para reconstruir el historial del chat (Capa 3 e informes), obtener los datos de actividad
+ * de las métricas del dashboard y borrar en lote los mensajes de participaciones eliminadas.
  */
 @Repository
 public interface MensajeRepository extends JpaRepository<Mensaje, UUID> {
@@ -24,11 +26,11 @@ public interface MensajeRepository extends JpaRepository<Mensaje, UUID> {
     List<Mensaje> findByParticipacionOrderByCreatedAtAsc(Participacion participacion);
 
     /**
-     * Mensajes de múltiples participaciones en lote, ordenados cronológicamente.
+     * Mensajes de múltiples participaciones en una sola consulta (evita N+1), ordenados cronológicamente.
      */
     List<Mensaje> findByParticipacionInOrderByCreatedAtAsc(List<Participacion> participaciones);
 
-    /** Cuenta total de mensajes en una participación. */
+    /** Cuenta total de mensajes (estudiante y tutor) en una participación; se registra como métrica de código 2. */
     long countByParticipacion(Participacion participacion);
 
     /** Fecha del último mensaje del ESTUDIANTE por participación: filas [participacionId (UUID), fecha (OffsetDateTime)]. */
@@ -43,7 +45,11 @@ public interface MensajeRepository extends JpaRepository<Mensaje, UUID> {
     /** Cuenta los mensajes de un emisor (true = estudiante) en una participación. */
     long countByParticipacionAndEmisor(Participacion participacion, Boolean emisor);
 
-    /** Eliminación en lote de mensajes por lista de participaciones. */
+    /**
+     * Eliminación en lote de mensajes por lista de participaciones, con un DELETE JPQL que no carga entidades.
+     * Se ejecuta antes de borrar las participaciones (FK participacion_id) y requiere una transacción del llamador;
+     * clearAutomatically limpia el contexto de persistencia tras el borrado.
+     */
     @Modifying(clearAutomatically = true)
     @Query("DELETE FROM Mensaje m WHERE m.participacion IN :participaciones")
     void deleteByParticipacionIn(@Param("participaciones") List<Participacion> participaciones);

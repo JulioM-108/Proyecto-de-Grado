@@ -12,6 +12,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+/**
+ * Pruebas unitarias de PromptAssistantService, que propone con IA los campos CRAFT de una clase a partir
+ * de su tema. GeminiService se simula con Mockito: no llama a la API, no levanta Spring ni usa la BD.
+ */
 @ExtendWith(MockitoExtension.class)
 class PromptAssistantServiceTest {
 
@@ -25,6 +29,7 @@ class PromptAssistantServiceTest {
         promptAssistantService = new PromptAssistantService(geminiService, new ObjectMapper());
     }
 
+    /** Extrae los cinco campos CRAFT del JSON de Gemini, aunque llegue envuelto en un bloque de código Markdown. */
     @Test
     void testGenerarDirectricesCraftExitoso() {
         String jsonSimulado = """
@@ -52,6 +57,7 @@ class PromptAssistantServiceTest {
         assertEquals("Empático y riguroso", resultado.getTone());
     }
 
+    /** Si Gemini falla, devuelve valores CRAFT de respaldo (no nulos) en lugar de propagar el error. */
     @Test
     void testGenerarDirectricesCraftFallbackPorError() {
         when(geminiService.generarRespuesta(anyString())).thenThrow(new RuntimeException("API Timeout"));

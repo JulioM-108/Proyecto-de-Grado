@@ -19,6 +19,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+/**
+ * Pruebas unitarias de AuthService.autenticar: política de contraseñas por rol (RNF-02). Los estudiantes
+ * solo ingresan con un hash BCrypt; los docentes también con texto plano, que no se migra a BCrypt.
+ * Los repositorios se simulan con Mockito: no levanta Spring ni usa la base de datos.
+ */
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 

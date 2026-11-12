@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Verificación en dos pasos del docente: solicita el código de 6 dígitos de su aplicación autenticadora. -->
 <html xmlns:th="http://www.thymeleaf.org" lang="es">
 <head>
     <meta charset="UTF-8">
@@ -115,10 +116,12 @@
             <span th:text="${error}">Código de verificación inválido.</span>
         </div>
 
+        <!-- Correo del docente que está ingresando -->
         <div class="bg-light p-2 rounded-3 small text-muted mb-4">
             Docente: <strong class="text-dark" th:text="${correo}">profesor@javerianacali.edu.co</strong>
         </div>
 
+        <!-- Formulario del código de 6 dígitos y enlace para volver al inicio de sesión -->
         <form th:action="@{/login/2fa}" method="post">
             <div class="mb-4">
                 <input type="text" 

@@ -8,9 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * Servicio del Asistente IA para la Configuración de Prompts Pedagógicos (Módulo 3).
- * Utiliza Gemini (GeminiService) para asistir al profesor en la construcción de directrices
- * socráticas estructuradas bajo el framework CRAFT (Context, Role, Audience, Format, Tone).
+ * Asistente IA de la configuración de la clase (RF-05).
+ * A partir del tema, pide a Gemini una propuesta de directrices socráticas bajo el framework CRAFT
+ * (Context, Role, Audience, Format, Tone) que el docente revisa y edita antes de crear la sesión; esos
+ * campos alimentan la Capa 2 del prompt del tutor. Las preguntas guía no se generan aquí: las escribe el docente.
  */
 @Service
 @RequiredArgsConstructor
@@ -22,9 +23,11 @@ public class PromptAssistantService {
 
     /**
      * Genera una propuesta CRAFT socrática a partir del tema de POO suministrado por el docente.
+     * Hace una llamada a Gemini y nunca lanza excepción: si la IA falla o su JSON no es válido,
+     * devuelve la plantilla base.
      *
-     * @param tema Tema o concepto de POO (ej. "Polimorfismo y Clases Abstractas").
-     * @return DTO con los 5 campos CRAFT listos para revisión y edición del profesor.
+     * @param tema Tema o concepto de POO (ej. "Polimorfismo y Clases Abstractas"); si está vacío se usa uno genérico.
+     * @return DTO con el tema y los 5 campos CRAFT; generadoPorIa = false si es la plantilla base.
      */
     public CraftConfigDto generarDirectricesCraft(String tema) {
         String temaLimpio = (tema != null && !tema.isBlank()) ? tema.trim() : "Conceptos Fundamentales de POO";
@@ -54,6 +57,11 @@ public class PromptAssistantService {
         }
     }
 
+    /**
+     * Convierte la respuesta de Gemini en un CraftConfigDto. Tolera delimitadores Markdown y texto alrededor
+     * del objeto JSON; una clave ausente toma un valor por defecto. Si el texto no es JSON (por ejemplo, el
+     * mensaje de error temporal de GeminiService), devuelve la plantilla base.
+     */
     private CraftConfigDto extraerCraftDeJson(String rawText, String tema) {
         if (rawText == null || rawText.isBlank()) {
             return generarPropuestaFallback(tema);
@@ -91,6 +99,10 @@ public class PromptAssistantService {
         }
     }
 
+    /**
+     * Plantilla CRAFT base para cuando la IA no responde. Deja generadoPorIa en false para que el
+     * controlador avise al docente que debe revisarla.
+     */
     private CraftConfigDto generarPropuestaFallback(String tema) {
         return CraftConfigDto.builder()
             .temaActualPoo(tema)

@@ -15,13 +15,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Repositorio JPA para la tabla "profesor_estudiante".
- * Permite gestionar la cartera histórica de alumnos vinculados a un profesor.
+ * Repositorio JPA para la tabla profesor_estudiante.
+ * Gestiona el directorio de alumnos de cada docente, que se conserva aunque el estudiante
+ * sea desvinculado de una sesión.
  */
 @Repository
 public interface ProfesorEstudianteRepository extends JpaRepository<ProfesorEstudiante, UUID> {
 
-    /** Retorna todos los vínculos de un docente cargando el Estudiante eagerly para evitar LazyInitializationException. */
+    /** Vínculos de un docente ordenados por nombre del estudiante, con el Estudiante ya cargado (JOIN FETCH). */
     @Query("SELECT pe FROM ProfesorEstudiante pe JOIN FETCH pe.estudiante WHERE pe.profesor = :profesor ORDER BY pe.estudiante.nombre ASC")
     List<ProfesorEstudiante> findByProfesorWithEstudiante(@Param("profesor") Profesor profesor);
 
@@ -31,7 +32,10 @@ public interface ProfesorEstudianteRepository extends JpaRepository<ProfesorEstu
     /** Busca el vínculo específico entre un docente y un estudiante. */
     Optional<ProfesorEstudiante> findByProfesorAndEstudiante(Profesor profesor, Estudiante estudiante);
 
-    /** Elimina el vínculo entre un docente y un estudiante. */
+    /**
+     * Elimina el vínculo entre un docente y un estudiante con un DELETE JPQL directo.
+     * Abre una transacción si el llamador no tiene una, y hace flush antes y clear después del borrado.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query("DELETE FROM ProfesorEstudiante pe WHERE pe.profesor = :profesor AND pe.estudiante = :estudiante")

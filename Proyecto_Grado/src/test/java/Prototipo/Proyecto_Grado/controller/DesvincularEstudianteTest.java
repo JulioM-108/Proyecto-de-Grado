@@ -14,6 +14,14 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Prueba de integración de DocenteController: desvincular a un estudiante de una sesión (sale de la clase,
+ * pero sigue en la cartera del docente) y eliminarlo de la plataforma (borra su cuenta y participaciones).
+ * Levanta el contexto completo de Spring ({@code @SpringBootTest}) y escribe en la base de datos real de
+ * Supabase: necesita al menos un profesor con una sesión creada. Usa estudiantes temporales
+ * (correos test.desvincular.* y test.eliminar.*) que se borran al final; si una aserción falla antes de la
+ * limpieza, el estudiante temporal queda en la BD y hay que borrarlo a mano.
+ */
 @SpringBootTest
 class DesvincularEstudianteTest {
 
@@ -143,6 +151,7 @@ class DesvincularEstudianteTest {
         List<Sesion> sesiones = sesionRepository.findByProfesorOrderByCreatedAtDesc(profesor);
         Sesion sesion = sesiones.get(0);
 
+        // Mismo escenario que la prueba anterior; aquí la limpieza la hace el propio eliminarEstudiante
         Estudiante testEstudiante = estudianteRepository.save(
                 Estudiante.builder()
                         .nombre("Estudiante Para Eliminar")

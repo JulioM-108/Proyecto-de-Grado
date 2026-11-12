@@ -8,8 +8,11 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Entidad JPA mapeada a la tabla "Profesor" de Supabase.
- * Columnas: id (uuid PK), created_at (timestamptz), nombre (varchar), correo (varchar unique), contraseña (varchar).
+ * Entidad JPA mapeada a la tabla "Profesor" de Supabase (nombre entre comillas en la BD).
+ * Representa al docente que crea las sesiones y consulta informes y métricas.
+ * Columnas: id (uuid PK), fecha_registro (timestamptz), nombre (varchar), "correo_institucional:" (varchar unique),
+ * "Facultad" (varchar), dos_factor_activo (bool), secreto_2fa (varchar), contraseña (varchar).
+ * No declara asociaciones: "Sesion" y profesor_estudiante la referencian por profesor_id.
  */
 @Entity
 @Table(name = "\"Profesor\"")
@@ -31,6 +34,7 @@ public class Profesor {
     @Column(nullable = false, length = 150)
     private String nombre;
 
+    /** El nombre de la columna incluye dos puntos al final ("correo_institucional:"); por eso va entre comillas. */
     @Column(name = "\"correo_institucional:\"", nullable = false, unique = true, length = 150)
     private String correo;
 
@@ -38,7 +42,7 @@ public class Profesor {
     @Column(name = "\"Facultad\"", length = 150)
     private String facultad;
 
-    /** Indicador de si el docente tiene activo el Doble Factor de Autenticación (2FA). */
+    /** true si el docente tiene activa la autenticación de doble factor (2FA por TOTP). */
     @Column(name = "dos_factor_activo")
     private Boolean dosFactorActivo;
 
@@ -47,11 +51,16 @@ public class Profesor {
     @Column(name = "secreto_2fa", length = 64)
     private String secreto2fa;
 
-    /** Contraseña en texto plano o hash (columna con nombre especial). */
+    /**
+     * Contraseña del docente: hash BCrypt o, para cuentas creadas a mano en Supabase, texto plano
+     * (AuthService admite ambos). La columna se llama "contraseña" (con ñ, escrita como escape Unicode).
+     * Se excluye del JSON.
+     */
     @JsonIgnore
     @Column(name = "contrase\u00f1a", nullable = false)
     private String contrasena;
 
+    /** Asigna la fecha de registro al insertar si no se proporcionó. */
     @PrePersist
     public void prePersist() {
         if (this.createdAt == null) {

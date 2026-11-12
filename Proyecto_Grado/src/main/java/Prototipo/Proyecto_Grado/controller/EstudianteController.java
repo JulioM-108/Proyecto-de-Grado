@@ -26,9 +26,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Controlador para el Módulo de Interfaz de Estudiante.
- * Permite visualizar el perfil, ingresar a nuevas clases mediante código/enlace
- * y consultar el historial de clases en las que ha participado.
+ * Controlador del panel del estudiante: perfil, listado de sus clases (con acceso a cada chat por su
+ * enlace), "Feedback Profe" y encuesta SUS+TAM desde el panel.
+ * <p>
+ * Ruta base: {@code /estudiante}. El interceptor de {@code WebMvcConfig} exige rol ESTUDIANTE y cada
+ * endpoint opera solo sobre los datos del estudiante en sesión (RNF-01).
+ * <p>
+ * Requisitos: RF-01, RF-04, RF-09, RNF-01 y RNF-02.
  */
 @Controller
 @RequestMapping("/estudiante")
@@ -40,6 +44,13 @@ public class EstudianteController {
     private final SesionRepository sesionRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * GET {@code /estudiante}: panel del estudiante con su perfil y sus participaciones, de la más reciente
+     * a la más antigua; desde cada una puede retomar el chat (RF-04). Solo lista las participaciones del
+     * estudiante en sesión (RNF-01). Los parámetros opcionales solo activan avisos.
+     *
+     * @return vista {@code estudiante/clases}, o redirección a {@code /login} si no hay estudiante identificable
+     */
     @Transactional(readOnly = true)
     @GetMapping
     public String verPanelEstudiante(
@@ -49,8 +60,8 @@ public class EstudianteController {
         String correo = (String) session.getAttribute("usuarioLogueado");
         String rol = (String) session.getAttribute("rolUsuario");
 
-        // Defense-in-depth: si el estudiante entró por enlace de chat pero falta usuarioLogueado,
-        // sincronizar automáticamente las variables de sesión estándar.
+        // Defensa en profundidad: si solo existe estudianteActivo, se reconstruyen los atributos estándar.
+        // El interceptor ya exige usuarioLogueado y rol ESTUDIANTE, así que en la práctica no se ejecuta.
         if ((correo == null || !"ESTUDIANTE".equalsIgnoreCase(rol))) {
             Estudiante estActivo = (Estudiante) session.getAttribute("estudianteActivo");
             if (estActivo != null) {
@@ -70,6 +81,7 @@ public class EstudianteController {
         }
 
         Estudiante estudiante = estudianteOpt.get();
+        // Refresca la copia en sesión, que usa ChatController para identificar al estudiante
         session.setAttribute("estudianteActivo", estudiante);
 
         List<Participacion> participaciones = participacionRepository
@@ -82,6 +94,13 @@ public class EstudianteController {
         return "estudiante/clases";
     }
 
+    /**
+     * POST {@code /estudiante/perfil/actualizar}: actualiza el nombre y, opcionalmente, la contraseña del
+     * estudiante en sesión (hash BCrypt, RNF-02). El correo no se puede cambiar. Los campos vacíos se ignoran.
+     * Escribe en la BD y sincroniza los atributos de sesión.
+     *
+     * @return redirección a {@code /estudiante?perfilActualizado=true}
+     */
     @PostMapping("/perfil/actualizar")
     public String actualizarPerfil(
             @RequestParam("nombre") String nombre,
@@ -118,6 +137,13 @@ public class EstudianteController {
         return "redirect:/estudiante?perfilActualizado=true";
     }
 
+    /**
+     * POST {@code /estudiante/clases/{participacionId}/feedback}: "Feedback Profe" desde el panel (RF-09):
+     * valoración de 1 a 5 y comentario. Solo guarda si la participación pertenece al estudiante en sesión
+     * (RNF-01); los valores fuera de rango o vacíos se ignoran.
+     *
+     * @return redirección a {@code /estudiante?feedbackEnviado=true}
+     */
     @PostMapping("/clases/{participacionId}/feedback")
     public String guardarFeedbackEstudiante(
             @PathVariable UUID participacionId,
@@ -151,6 +177,14 @@ public class EstudianteController {
         return "redirect:/estudiante?feedbackEnviado=true";
     }
 
+    /**
+     * POST {@code /estudiante/clases/{participacionId}/evaluacion-sus-tam}: encuesta SUS+TAM desde el panel.
+     * Valida la escala Likert de 1 a 5, calcula el puntaje SUS y lo guarda como JSON solo si la participación
+     * pertenece al estudiante en sesión (RNF-01). Enviar la encuesta finaliza la tutoría de esa clase.
+     * Equivale a {@code POST /chat/{enlace}/evaluacion-sus-tam}.
+     *
+     * @return redirección a {@code /estudiante?evaluacionExitosa=true}, o con {@code errorEvaluacion=rangoInvalido}
+     */
     @PostMapping("/clases/{participacionId}/evaluacion-sus-tam")
     public String guardarEvaluacionSusTamEstudiante(
             @PathVariable UUID participacionId,
@@ -219,6 +253,7 @@ public class EstudianteController {
         return "redirect:/estudiante?evaluacionExitosa=true";
     }
 
+    /** Comprueba que todas las respuestas estén presentes y en la escala Likert de 1 a 5. */
     private boolean validarRangoLikert(Integer... valores) {
         for (Integer v : valores) {
             if (v == null || v < 1 || v > 5) {

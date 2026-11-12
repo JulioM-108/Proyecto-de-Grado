@@ -8,6 +8,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
+/**
+ * Prueba de humo de la aplicación: comprueba que el contexto completo de Spring ({@code @SpringBootTest})
+ * arranca y que los repositorios de Profesor y Estudiante consultan sin error las columnas reales.
+ * Prueba de integración: requiere conexión a la base de datos de Supabase (DB_URL, DB_USERNAME y
+ * DB_PASSWORD del archivo .env, que se carga en el bloque estático).
+ */
 @SpringBootTest
 class ProyectoGradoApplicationTests {
 

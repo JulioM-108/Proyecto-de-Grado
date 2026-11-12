@@ -8,9 +8,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
- * Garantiza que las variables de entorno del archivo .env sean cargadas
- * en el entorno del sistema antes de que Spring Boot inicialice el DataSource
- * o cualquier Bean tanto en producción como en la ejecución de tests JUnit.
+ * Garantiza que las variables del archivo .env queden cargadas como propiedades del sistema
+ * antes de que Spring Boot inicialice el DataSource o cualquier bean, tanto en producción
+ * como en los tests JUnit (que no pasan por main).
+ * Se registra en META-INF/spring.factories y delega en ProyectoGradoApplication.cargarVariablesEntorno().
  */
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class EnvLoaderEnvironmentPostProcessor implements EnvironmentPostProcessor {

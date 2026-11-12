@@ -1,12 +1,19 @@
 """
 Prueba de carga del chat socrático: simula N estudiantes que se registran por el enlace de una
 clase y conversan con el tutor al mismo tiempo, con un ritmo parecido al de una persona real.
+Al final resume los códigos HTTP, la latencia (p50 / p95 / máx.) y las rutas completadas.
 
-Uso (crear antes una clase llamada "Prueba de carga" y copiar su enlace; definir PRUEBA_CONTRASENA):
+Requisitos: Python 3 con requests (pip install requests); truststore es opcional.
+Variable de entorno: PRUEBA_CONTRASENA, contraseña con la que se registran los estudiantes virtuales.
+
+Uso (crear antes una clase llamada "Prueba de carga" con el reto CuentaBancaria en C++, al que
+responden los mensajes de BANCO_MENSAJES, y copiar su enlace; definir PRUEBA_CONTRASENA):
     $env:PRUEBA_CONTRASENA = "<contraseña>"      # PowerShell
     python scripts/prueba_carga.py --url https://tutor.tutorsocratic.me --enlace <ENLACE> --estudiantes 2 --mensajes 2
 
-Cada estudiante virtual usa el correo carga.NN@javeriana.edu.co (ver la limpieza en Guia_Pruebas.md).
+Cada estudiante virtual usa el correo carga.NN@javeriana.edu.co; --inicio cambia el primer NN para no
+reutilizar las cuentas de corridas anteriores. Al terminar, borre la clase de prueba desde Mis Sesiones
+y los estudiantes virtuales (correos carga.*) desde la sección Mis Estudiantes.
 Cada mensaje es una llamada real a Gemini: 30 estudiantes x 6 mensajes = 180 llamadas.
 """
 import argparse
@@ -33,7 +40,7 @@ CONTRASENA = os.environ.get("PRUEBA_CONTRASENA") or exit("Define la variable de 
                                                          "con la contraseña de los estudiantes virtuales.")
 TIMEOUT_S = 95  # el navegador corta a los 90 s (AbortController en chat.html)
 
-# Respuestas típicas de un estudiante al reto de CuentaBancaria (Clase_Prueba.md)
+# Respuestas típicas de un estudiante al reto CuentaBancaria en C++ (tema de la clase "Prueba de carga")
 BANCO_MENSAJES = [
     "Hola, no sé por dónde empezar con la clase CuentaBancaria",
     "Creo que la clase es como el molde y la cuenta de Ana es un objeto",
@@ -56,6 +63,7 @@ PATRON_CSRF = [
 
 
 def extraer_csrf(html):
+    """Devuelve el token CSRF del formulario o de la etiqueta meta de la página, o None si no hay."""
     for patron in PATRON_CSRF:
         m = patron.search(html)
         if m:
@@ -64,6 +72,8 @@ def extraer_csrf(html):
 
 
 class Resultados:
+    """Contadores compartidos por los hilos: códigos HTTP, latencias de las respuestas 200,
+    fallos de registro y rutas completadas (protegidos con un lock)."""
     def __init__(self):
         self.lock = threading.Lock()
         self.latencias = []
@@ -79,6 +89,8 @@ class Resultados:
 
 
 def estudiante_virtual(numero, args, res):
+    """Hilo de un estudiante: se registra (o entra, si la cuenta ya existe) como carga.NN y envía sus
+    mensajes con pausas aleatorias. Se detiene al completar la ruta o al recibir 401, 403 o 404."""
     base = args.url.rstrip("/")
     url_chat = f"{base}/chat/{args.enlace}"
     s = requests.Session()
@@ -141,12 +153,14 @@ def estudiante_virtual(numero, args, res):
 
 
 def percentil(valores, p):
+    """Percentil p (0-100) sin interpolar: el valor ordenado en la posición más cercana."""
     orden = sorted(valores)
     k = max(0, min(len(orden) - 1, round(p / 100 * (len(orden) - 1))))
     return orden[k]
 
 
 def main():
+    """Lanza un hilo por estudiante, escalonados a lo largo de --rampa segundos, y muestra el resumen."""
     ap = argparse.ArgumentParser(description="Prueba de carga del chat socrático")
     ap.add_argument("--url", required=True, help="p. ej. https://tutor.tutorsocratic.me")
     ap.add_argument("--enlace", required=True, help="enlace único de la clase (lo que va después de /chat/)")

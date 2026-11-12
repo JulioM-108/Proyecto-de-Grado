@@ -13,6 +13,10 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @Configuration
 public class AsyncConfig {
 
+    /**
+     * Pool fijo de 2 hilos ("informe-N") con cola de 500 tareas; si la cola se llena, el ejecutor rechaza
+     * la tarea con una excepción. Al apagar la aplicación espera hasta 30 s a que terminen los informes en curso.
+     */
     @Bean
     public TaskExecutor informesExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

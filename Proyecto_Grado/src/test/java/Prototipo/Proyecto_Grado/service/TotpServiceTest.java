@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Pruebas unitarias de TotpService, el segundo factor (2FA) del docente: códigos TOTP de 6 dígitos según
+ * RFC 6238, secreto Base32, URI otpauth para la app autenticadora y rechazo de códigos reutilizados.
+ * No usa Spring ni la base de datos.
+ */
 class TotpServiceTest {
 
     private TotpService totpService;

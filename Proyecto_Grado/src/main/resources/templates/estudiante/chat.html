@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Interfaz de Interacción Socrática (RF-02, RF-03, RF-04): conversación del estudiante con el tutor, historial de la tutoría, Feedback Profe (RF-09) y encuesta SUS+TAM. -->
 <html xmlns:th="http://www.thymeleaf.org" lang="es">
 <head>
     <meta charset="UTF-8">
@@ -35,7 +36,7 @@
             overflow: hidden;
             letter-spacing: -0.01em;
         }
-        /* Top Navigation */
+        /* Barra superior */
         .top-navbar {
             background-color: #FFFFFF;
             border-bottom: 1px solid var(--border-subtle);
@@ -72,7 +73,7 @@
             font-weight: 700;
             font-size: 0.8rem;
         }
-        /* Chat Container */
+        /* Área de mensajes con desplazamiento */
         .chat-scroll-area {
             flex: 1;
             overflow-y: auto;
@@ -86,7 +87,7 @@
             flex-direction: column;
             gap: 20px;
         }
-        /* Message rows */
+        /* Filas y burbujas: estudiante a la derecha, tutor a la izquierda */
         .msg-row {
             display: flex;
             width: 100%;
@@ -151,7 +152,7 @@
             padding: 2px 8px;
             font-weight: 600;
         }
-        /* Markdown rendered elements */
+        /* Elementos Markdown de las respuestas del tutor */
         .markdown-render p {
             margin-bottom: 0.75rem;
         }
@@ -198,7 +199,7 @@
             margin: 10px 0;
             font-style: italic;
         }
-        /* Chat Input Bar */
+        /* Barra inferior de entrada */
         .chat-input-bar {
             background-color: #FFFFFF;
             border-top: 1px solid var(--border-subtle);
@@ -239,7 +240,7 @@
             color: #FFFFFF;
             transform: translateY(-1px);
         }
-        /* Welcome card */
+        /* Tarjeta de bienvenida con las preguntas guía */
         .welcome-guide-card {
             background: #FFFFFF;
             border: 1px solid var(--border-subtle);
@@ -262,7 +263,7 @@
 </head>
 <body class="rsp-chat-body">
 
-    <!-- 1. Barra Superior Minimalista -->
+    <!-- 1. Encabezado: marca, tema de la clase, estado, botones Feedback Profe y SUS+TAM, perfil y regreso a Mis Clases -->
     <header class="top-navbar rsp-chat-header d-flex align-items-center justify-content-between">
         <div class="rsp-chat-izq d-flex align-items-center gap-3">
             <a th:href="@{/}" class="text-decoration-none d-flex align-items-center gap-2" style="color: var(--puj-blue-dark);">
@@ -281,14 +282,14 @@
                 <i class="bi bi-check-circle-fill me-1"></i>Sesión finalizada
             </div>
 
-            <!-- Botón Feedback para el profesor (Existente) -->
+            <!-- Botón Feedback Profe: abre el modal de valoración y muestra la nota ya enviada -->
             <button type="button" class="btn btn-outline-warning btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2 text-dark"
                     data-bs-toggle="modal" data-bs-target="#modalFeedbackEstudiante">
                 <i class="bi bi-star-fill text-warning"></i>
                 <span class="d-none d-md-inline" th:text="${participacion != null and participacion.valoracionEstudiante != null ? 'Feedback Profe (' + participacion.valoracionEstudiante + '★)' : 'Feedback Profe'}">Feedback Profe</span>
             </button>
 
-            <!-- Botón Evaluación SUS + TAM para la Investigación (Nuevo) -->
+            <!-- Botón de la encuesta SUS+TAM: cambia de estilo y texto cuando la encuesta ya fue enviada -->
             <button type="button" 
                     id="btnEncuestaSusTam"
                     th:class="${evaluacionCompletada ? 'btn btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2 border' : 'btn btn-sm rounded-3 d-flex align-items-center gap-1 py-1 px-2 shadow-sm text-white'}"
@@ -309,11 +310,11 @@
         </div>
     </header>
 
-    <!-- 2. Área de Mensajes con Scroll -->
+    <!-- 2. Área de mensajes: avisos de estado, bienvenida e historial de la conversación -->
     <main class="chat-scroll-area" id="chatArea">
         <div class="chat-content-limit">
 
-            <!-- Alerta / Banner de Ruta de Preguntas Guía Completada -->
+            <!-- Aviso de ruta de preguntas guía completada (el script inserta el mismo aviso si se completa durante la conversación) -->
             <div th:if="${rutaCompletada or param.completada != null}" id="bannerRutaCompletada"
                  class="card border-0 rounded-4 shadow-sm p-3 mb-3 mx-auto text-start" 
                  style="max-width: 680px; background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border-left: 4px solid #059669 !important;">
@@ -342,7 +343,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
 
-            <!-- Invitación destacada a evaluar cuando se finaliza la sesión -->
+            <!-- Invitación a responder la encuesta SUS+TAM cuando la tutoría finaliza y aún no se ha evaluado -->
             <div th:if="${param.cerrada != null and not evaluacionCompletada}" class="card border-0 rounded-4 shadow-sm p-3 mb-3 mx-auto text-start" style="max-width: 680px; background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%); border-left: 4px solid #7E22CE !important;">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div>
@@ -363,14 +364,14 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
 
-            <!-- Alerta si el motor de IA no respondió (envío sin JavaScript) -->
+            <!-- Aviso de error temporal del tutor cuando el mensaje se envía sin JavaScript -->
             <div th:if="${param.errorIa != null}" class="alert alert-danger alert-dismissible fade show border-0 rounded-3 p-3 mb-3 text-center small shadow-sm" role="alert">
                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
                 El tutor no pudo responder en este momento y tu mensaje no se guardó. Por favor escríbelo de nuevo en unos segundos.
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
 
-            <!-- Alerta si la sesión está pausada -->
+            <!-- Aviso de sesión pausada por el profesor: se puede leer el historial, pero no escribir -->
             <div th:if="${sesion.estado == false or param.pausada != null}" class="alert alert-warning border-0 rounded-3 p-3 mb-3 text-center small shadow-sm">
                 <i class="bi bi-pause-circle-fill fs-5 me-1 text-warning"></i>
                 <strong>Sesión Pausada:</strong> Tu profesor ha pausado temporalmente esta clase. Puedes revisar el historial de tu tutoría, pero no enviar nuevos mensajes.
@@ -407,7 +408,7 @@
                 </div>
             </div>
 
-            <!-- Listado de Mensajes -->
+            <!-- Historial de mensajes guardados de la tutoría -->
             <div th:each="msg : ${mensajes}">
 
                 <!-- Mensaje del Estudiante -->
@@ -434,7 +435,7 @@
                             </div>
                         </div>
 
-                        <!-- Markdown Content parsed by marked.js -->
+                        <!-- Respuesta del tutor en Markdown; el script la convierte en HTML sanitizado -->
                         <div class="markdown-render markdown-content" th:attr="data-raw=${msg.contenido}"></div>
                     </div>
                 </div>
@@ -444,7 +445,7 @@
         </div>
     </main>
 
-    <!-- 3. Barra Inferior de Entrada (Floating style) -->
+    <!-- 3. Formulario de envío: se deshabilita si la sesión está pausada o la tutoría finalizó -->
     <footer class="chat-input-bar">
         <div class="input-box-wrapper">
             <form th:action="@{/chat/{enlace}/mensaje(enlace=${sesion.enlaceUnico})}" method="post" id="chatForm" class="d-flex gap-2 align-items-end">
@@ -465,7 +466,7 @@
         </div>
     </footer>
 
-    <!-- MODAL: Enviar Feedback al Docente -->
+    <!-- MODAL Feedback Profe: valoración de 1 a 5 y comentarios o dudas para el profesor -->
     <div class="modal fade" id="modalFeedbackEstudiante" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -521,7 +522,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Evaluación Científica SUS + TAM (Investigación Tesis) -->
+    <!-- MODAL SUS+TAM: 10 ítems SUS, 6 ítems TAM y comentario opcional; al enviarla finaliza la tutoría -->
     <div class="modal fade" id="modalEvaluacionSusTam" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
             <form class="modal-content border-0 shadow rounded-4 overflow-hidden" 
@@ -570,7 +571,7 @@
                                 <h6 class="fw-bold mb-0 text-dark">Usabilidad de la Plataforma Web (Escala SUS)</h6>
                             </div>
 
-                            <!-- SUS 1 a 10 en loop/bloques -->
+                            <!-- Ítems SUS 1 a 10, escala de 1 a 5 -->
                             <div class="vstack gap-3">
                                 <!-- SUS 1 -->
                                 <div class="p-3 rounded-3 border bg-light-subtle">
@@ -943,11 +944,13 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Scripts: Bootstrap (modales y avisos), DOMPurify (sanitización) y marked (Markdown) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script th:inline="javascript">
+        // Lógica del chat: render de Markdown, envío AJAX de mensajes, manejo de errores e invitación a la encuesta SUS+TAM.
+        // Opciones de marked: saltos de línea simples y sintaxis GFM.
         marked.setOptions({
             breaks: true,
             gfm: true
@@ -965,12 +968,13 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        // Auto-ajuste de altura del textarea y envío dinámico asincrónico (AJAX)
+        // Referencias al formulario de envío y al contenedor donde se insertan los mensajes nuevos
         const textarea = document.getElementById('mensajeInput');
         const form = document.getElementById('chatForm');
         const sendBtn = form ? form.querySelector('.btn-send-message') : null;
         const contentLimit = document.querySelector('.chat-content-limit');
 
+        // Escapa texto plano (vía textContent) para insertarlo en plantillas HTML sin inyectar etiquetas
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -983,6 +987,8 @@
             }
         }
 
+        // Envía el mensaje por POST a /chat/{enlace}/mensaje pidiendo JSON. Pinta la burbuja del estudiante y un
+        // indicador de espera; luego agrega la respuesta del tutor o delega el fallo en manejarErrorEnvio.
         async function enviarMensajeAjax(e) {
             if (e) e.preventDefault();
             const mensajeTexto = textarea.value.trim();
@@ -1107,11 +1113,13 @@
                     manejarErrorEnvio(response.status, mensajeParaEstudiante(response.status, data), mensajeTexto, studentBubbleId);
                 }
             } catch (err) {
+                // Fallo de red (código 0) o tiempo de espera agotado por el AbortController (código -1)
                 console.error("Error en comunicación asincrónica:", err);
                 const indicatorEl = document.getElementById(typingId);
                 if (indicatorEl) indicatorEl.remove();
                 manejarErrorEnvio(err && err.name === 'AbortError' ? -1 : 0, null, mensajeTexto, studentBubbleId);
             } finally {
+                // Reactiva el envío salvo que la ruta esté completada o la entrada haya quedado bloqueada
                 const bloqueado = document.getElementById('bannerRutaCompletada') !== null
                         || (textarea && textarea.disabled);
                 if (sendBtn && !bloqueado) sendBtn.disabled = false;
@@ -1119,12 +1127,8 @@
             }
         }
 
-        /**
-         * Muestra el error dentro del chat y conserva el mensaje del estudiante.
-         * Solo bloquea la entrada cuando el servidor indica que la sesión realmente no admite más mensajes.
-         */
-        // Solo los mensajes que redacta ChatController son para el estudiante. El JSON de error por defecto
-        // de Spring (trae timestamp y path, p. ej. "Internal Server Error" o "Forbidden") nunca se muestra.
+        // Devuelve el texto de error solo si lo redactó ChatController para el estudiante. Descarta el JSON de error
+        // por defecto de Spring (trae timestamp y path, p. ej. "Internal Server Error") y los 5xx distintos de 503.
         function mensajeParaEstudiante(status, data) {
             if (!data || typeof data.error !== 'string') return null;
             if (data.timestamp !== undefined || data.path !== undefined) return null;
@@ -1132,6 +1136,8 @@
             return data.error;
         }
 
+        // Muestra el error dentro del chat: retira la burbuja del estudiante y devuelve su texto al cuadro de entrada.
+        // Solo bloquea la entrada cuando el servidor indica que la sesión no admite más mensajes (403 o pausada).
         function manejarErrorEnvio(status, mensajeServidor, mensajeTexto, studentBubbleId) {
             const burbuja = document.getElementById(studentBubbleId);
             if (burbuja) burbuja.remove();
@@ -1185,6 +1191,8 @@
             }
         }
 
+        // Se ejecuta cuando la respuesta indica ruta completada: bloquea la entrada, inserta el aviso
+        // de ruta completada (si aún no existe) y abre la encuesta SUS+TAM.
         function activarCelebracionRutaCompletada() {
             if (textarea) {
                 textarea.disabled = true;
@@ -1223,6 +1231,8 @@
             abrirModalSusTamSiAplica();
         }
 
+        // Abre el modal SUS+TAM tras una breve pausa si la encuesta no se había enviado al cargar la vista
+        // (el valor lo inyecta Thymeleaf en el renderizado).
         function abrirModalSusTamSiAplica() {
             const yaEvaluada = /*[[${evaluacionCompletada}]]*/ false;
             if (!yaEvaluada) {
@@ -1236,7 +1246,8 @@
             }
         }
 
-        // Invitación automática al SUS/TAM al finalizar la sesión o preguntas guía
+        // Al cargar la vista con la tutoría finalizada y sin encuesta enviada, abre el modal SUS+TAM
+        // una sola vez por pestaña (marca guardada en sessionStorage).
         document.addEventListener('DOMContentLoaded', function () {
             const yaEvaluada = /*[[${evaluacionCompletada}]]*/ false;
             const esCompletada = /*[[${sesionCompletada}]]*/ false;
@@ -1252,6 +1263,8 @@
             }
         });
 
+        // Eventos del cuadro de texto: altura automática (máx. 140 px), Enter envía y Shift+Enter hace salto de línea;
+        // el submit del formulario también se envía por AJAX.
         if (textarea && form) {
             textarea.addEventListener('input', function () {
                 this.style.height = 'auto';

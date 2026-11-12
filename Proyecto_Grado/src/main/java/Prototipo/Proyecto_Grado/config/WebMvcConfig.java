@@ -9,32 +9,35 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Configuración de Spring MVC.
- * 1. Cache-Control defensivo: Inyecta cabeceras 'no-cache, no-store' en todas las páginas dinámicas
- *    para evitar que navegadores guarden copias en caché y solucionando la vulnerabilidad del botón "Atrás" tras logout.
- * 2. Control de Acceso por Roles: Intercepta rutas de docente y estudiante para impedir acceso no autenticado.
+ * Configuración de Spring MVC: registra tres interceptores.
+ * 1. Cache-Control defensivo: añade cabeceras 'no-cache, no-store' a todas las páginas dinámicas para que
+ *    el navegador no guarde copias y el botón "Atrás" no muestre páginas privadas tras cerrar sesión.
+ * 2. Control de acceso por rol (RNF-01): exige sesión con rol DOCENTE en las rutas /docente y con rol
+ *    ESTUDIANTE en las rutas /estudiante, a partir de los atributos usuarioLogueado y rolUsuario.
+ * Las rutas /chat no pasan por estos interceptores; ChatController valida al estudiante en la sesión.
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // Inyecta cabeceras Cache-Control en todas las respuestas dinámicas
+        // Cabeceras anti-caché en todas las respuestas dinámicas (se excluyen los recursos estáticos)
         registry.addInterceptor(new CacheControlInterceptor())
                 .addPathPatterns("/**")
                 .excludePathPatterns("/css/**", "/js/**", "/images/**", "/webjars/**", "/favicon.ico");
 
-        // Seguridad para el módulo docente
+        // Módulo docente: requiere rol DOCENTE (RNF-01)
         registry.addInterceptor(new DocenteAuthInterceptor())
                 .addPathPatterns("/docente", "/docente/**")
                 .excludePathPatterns("/css/**", "/js/**", "/images/**");
 
-        // Seguridad para el módulo estudiante
+        // Módulo estudiante: requiere rol ESTUDIANTE
         registry.addInterceptor(new EstudianteAuthInterceptor())
                 .addPathPatterns("/estudiante", "/estudiante/**")
                 .excludePathPatterns("/css/**", "/js/**", "/images/**");
     }
 
+    /** Desactiva la caché del navegador y de proxies (HTTP/1.1, HTTP/1.0 y Expires) para la respuesta. */
     public static class CacheControlInterceptor implements HandlerInterceptor {
         @Override
         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -45,6 +48,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
         }
     }
 
+    /**
+     * Deja pasar solo a usuarios con sesión de rol DOCENTE. Si no lo está, las rutas /docente/api/...
+     * reciben 401 con un JSON de error y el resto se redirige al login.
+     */
     public static class DocenteAuthInterceptor implements HandlerInterceptor {
         @Override
         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -69,6 +76,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
         }
     }
 
+    /** Deja pasar solo a usuarios con sesión de rol ESTUDIANTE; en otro caso redirige al login. */
     public static class EstudianteAuthInterceptor implements HandlerInterceptor {
         @Override
         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {

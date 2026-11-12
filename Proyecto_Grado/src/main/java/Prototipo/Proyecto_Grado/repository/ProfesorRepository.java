@@ -9,6 +9,7 @@ import java.util.UUID;
 
 /**
  * Repositorio JPA para la tabla "Profesor" de Supabase.
+ * Se usa en el login (incluido el 2FA) y para resolver al docente de la sesión HTTP por su correo.
  */
 @Repository
 public interface ProfesorRepository extends JpaRepository<Profesor, UUID> {

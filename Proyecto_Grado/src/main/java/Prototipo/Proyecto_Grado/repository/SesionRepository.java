@@ -16,11 +16,12 @@ import java.util.UUID;
 
 /**
  * Repositorio JPA para la tabla "Sesion" de Supabase.
+ * Se usa para listar las clases del docente, resolver la clase desde el enlace del chat y guardar la síntesis grupal.
  */
 @Repository
 public interface SesionRepository extends JpaRepository<Sesion, UUID> {
 
-    /** Todas las sesiones creadas por un profesor dado ordenadas cronológicamente. */
+    /** Todas las sesiones creadas por un profesor, de la más reciente a la más antigua. */
     List<Sesion> findByProfesorOrderByCreatedAtDesc(Profesor profesor);
 
     /** Busca una sesión por su enlace único (usado para que estudiantes se unan). */
@@ -32,6 +33,8 @@ public interface SesionRepository extends JpaRepository<Sesion, UUID> {
     /**
      * RF-07: guarda la síntesis grupal sin tocar el resto de columnas de la sesión
      * (evita sobrescribir, p. ej., un CRAFT editado mientras se generaba la síntesis).
+     *
+     * @return número de filas actualizadas (0 si la sesión ya no existe)
      */
     @Transactional
     @Modifying(clearAutomatically = true)

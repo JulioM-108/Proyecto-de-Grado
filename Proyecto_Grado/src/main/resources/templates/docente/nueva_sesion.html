@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!--
+  Panel de Configuración de Prompts con IA: formulario para crear una clase socrática (RF-05).
+  Uso: docente autenticado. Renderizada por DocenteController (GET /docente/sesiones/nueva); se envía a POST /docente/sesiones/crear.
+  Pasos: 1) tema y asistente IA, 2) componentes CRAFT, 3) preguntas guía.
+-->
 <html xmlns:th="http://www.thymeleaf.org" lang="es">
 <head>
     <meta charset="UTF-8">
@@ -138,6 +143,7 @@
             color: #FFFFFF;
             box-shadow: 0 4px 12px rgba(44, 86, 151, 0.2);
         }
+        /* Destello amarillo en los campos que rellena el asistente IA */
         .field-highlight {
             animation: flashHighlight 1.2s ease-out;
         }
@@ -180,7 +186,7 @@
 
         <form th:action="@{/docente/sesiones/crear}" method="post" id="formCrearSesion">
 
-            <!-- PASO 1: Tema y Asistente IA -->
+            <!-- PASO 1: tema de la clase y botón "Sugerir Directrices CRAFT con IA" (si la IA falla, se carga una plantilla base) -->
             <div class="card-panel card-ai">
                 <div class="d-flex align-items-center justify-content-between mb-3">
                     <div class="d-flex align-items-center gap-2">
@@ -214,7 +220,7 @@
                 </div>
             </div>
 
-            <!-- PASO 2: Directrices Pedagógicas CRAFT -->
+            <!-- PASO 2: componentes CRAFT (Context, Role, Audience, Format, Tone); el asistente IA puede rellenarlos -->
             <div class="card-panel">
                 <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
                     <div class="d-flex align-items-center gap-2">
@@ -282,7 +288,7 @@
                 </div>
             </div>
 
-            <!-- PASO 3: Preguntas Guía del Docente -->
+            <!-- PASO 3: preguntas guía del docente, una por línea (el asistente IA no las rellena) -->
             <div class="card-panel">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <div class="d-flex align-items-center gap-2">
@@ -302,7 +308,7 @@
                 </div>
             </div>
 
-            <!-- Acciones Finales -->
+            <!-- Acciones finales: cancelar o "Guardar y Activar Clase" (envía el formulario) -->
             <div class="d-flex align-items-center justify-content-between pt-2">
                 <a th:href="@{/docente/sesiones}" class="btn btn-outline-secondary rounded-3 px-4">
                     Cancelar
@@ -318,6 +324,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // "Sugerir Directrices CRAFT con IA": envía el tema a POST /docente/api/prompt-assistant y rellena
+        // los cinco campos CRAFT. Si la respuesta trae aviso, es la plantilla base y se informa con un alert.
         async function generarDirectricesConIa() {
             const temaInput = document.getElementById('temaInput');
             const btnAsistente = document.getElementById('btnAsistenteIa');
@@ -386,6 +394,7 @@
             }
         }
 
+        // Asigna el valor al campo y reinicia la animación de resaltado (forzando un reflow con offsetWidth).
         function actualizarYResaltar(elementId, valor) {
             const el = document.getElementById(elementId);
             if (el && valor) {

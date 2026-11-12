@@ -20,8 +20,14 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Servicio de analítica docente y síntesis pedagógica con IA.
- * Consolida métricas cuantitativas reales y genera diagnósticos ejecutivos con Gemini.
+ * Analítica del dashboard docente de una clase (sesión) y síntesis pedagógica grupal con IA.
+ * <p>
+ * Calcula, a partir de los mensajes, las métricas de la tabla metrica y los informes individuales
+ * (progreso_md): M-01 / RF-06 (errores recurrentes por concepto), M-02 (turnos por pregunta guía),
+ * M-03 (solicitudes de respuesta directa) y M-04 / RF-08 (frecuencia, duración y riesgo de abandono).
+ * También genera con Gemini y guarda la síntesis grupal (RF-07).
+ * <p>
+ * Respeta RNF-01: al docente le entrega métricas, informes y la síntesis anonimizada, nunca el chat.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,9 +42,11 @@ public class AnalyticsService {
 
     private static final DateTimeFormatter FECHA_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
+    /** Datos que muestra el dashboard docente de una sesión. */
     @Data
     @Builder
     public static class MetricasDashboard {
+        /** Siempre 1: el dashboard es por sesión */
         private long totalSesiones;
         private long totalParticipaciones;
         private long totalMensajes;
@@ -46,15 +54,15 @@ public class AnalyticsService {
         private long totalRespuestasTutor;
         /** Estudiantes que han escrito al menos un mensaje (de totalParticipaciones inscritos) */
         private long estudiantesActivos;
-        /** Promedio de consultas por estudiante, calculado solo entre quienes han escrito (M-02) */
+        /** Promedio de consultas por estudiante, solo entre quienes han escrito (referencia global de M-02) */
         private double promedioTurnosPorEstudiante;
         /** M-03: solicitudes de código o respuesta directa del grupo */
         private long totalSolicitudesDirectas;
         /** M-03: porcentaje de las consultas del grupo que fueron solicitudes de respuesta directa */
         private long tasaSolicitudesDirectas;
-        /** Compatibilidad hacia atrás */
+        /** Mismo valor que totalSolicitudesDirectas; nombre heredado de cuando M-03 se registraba como "RF-10" */
         private long totalIntervencionesAuditorRf10;
-        /** M-01: errores recurrentes con el número y porcentaje de estudiantes (con informe) que los presentan, de mayor a menor */
+        /** M-01 / RF-06 grupal: errores recurrentes con el número y porcentaje de estudiantes (con informe) que los presentan, de mayor a menor */
         private List<FocoDificultad> dificultadesPorConcepto;
         /** Participaciones con informe (progreso_md): base de M-01 */
         private long diagnosticosGenerados;
@@ -64,11 +72,11 @@ public class AnalyticsService {
         private List<PromedioGuia> turnosPorPreguntaGuia;
         /** M-04: tiempo activo promedio en la clase entre quienes escribieron (texto: "18 min") */
         private String tiempoActivoPromedio;
-        /** RF-07: resumen ejecutivo y recomendaciones pedagógicas generadas con Gemini (persistido en la sesión) */
+        /** RF-07: síntesis grupal guardada en Sesion.sintesis_md; vacía si no hay consultas o aún no se generó */
         private String resumenIa;
         /** RF-07: fecha de generación de la síntesis ("dd/MM/yyyy HH:mm"); null si no hay */
         private String resumenIaFecha;
-        /** Listado detallado de estudiantes y avances */
+        /** Una fila por estudiante inscrito con su avance individual */
         private List<ParticipacionDetalleDto> participacionesDetalle;
     }
 
@@ -88,30 +96,41 @@ public class AnalyticsService {
     public static class PromedioGuia {
         int numero;
         Double promedio;
+        /** Estudiantes que la superaron con un tramo individual (base del promedio) */
         long estudiantes;
         /** La pregunta con más turnos promedio del grupo (solo si al menos dos preguntas tienen datos) */
         boolean masDificil;
+        /** Clases CSS de la insignia */
         String clase;
     }
 
     /** M-02 individual: un tramo de la ruta (una pregunta, o varias si el tutor no las marcó por separado). */
     @lombok.Value
     public static class TramoGuia {
+        /** Texto de la insignia ("P2 · 4") */
         String etiqueta;
+        /** Clases CSS de la insignia */
         String clase;
+        /** Texto descriptivo (tooltip) */
         String titulo;
     }
 
+    /**
+     * Fila de un estudiante en el dashboard. Incluye su informe individual (RF-06) pero no los mensajes
+     * del chat (RNF-01).
+     */
     @Data
     @Builder
     public static class ParticipacionDetalleDto {
         private UUID id;
         private String estudianteNombre;
         private String estudianteCorreo;
-        /** Fecha del último mensaje del estudiante ("Sin mensajes" si nunca escribió) */
+        /** Fecha del último mensaje de la conversación, del estudiante o del tutor ("Sin mensajes" si no hay) */
         private String fechaFormateada;
+        /** Mensajes del estudiante y del tutor */
         private long totalMensajes;
         private long consultasEstudiante;
+        /** Informe individual en Markdown generado con Gemini ("" si no tiene) */
         private String progresoMd;
 
         // M-02: avance por pregunta guía
@@ -125,17 +144,21 @@ public class AnalyticsService {
         private String etiquetaSolicitudes;
         private String claseSolicitudes;
 
-        // M-04: frecuencia y duración
+        // M-04 (RF-08): frecuencia, duración y riesgo de abandono
         private String estadoActividad;
         private String estadoActividadColor;
         private String tiempoActivo;
+        /** Clases del docente en las que está inscrito el estudiante, y en cuántas completó la ruta */
         private long clasesConElDocente;
         private long clasesCompletadas;
     }
 
-    /** Preguntas que el estudiante puede hacer por cada pregunta guía antes de considerar que necesita apoyo. */
+    /**
+     * M-02: hasta este número de turnos una pregunta guía se considera fluida; también es el margen
+     * de turnos por hito cuando la sesión no tiene preguntas guía.
+     */
     static final int MARGEN_PREGUNTAS_POR_GUIA = 3;
-    /** Más de este número de turnos en una sola pregunta guía se considera que el estudiante "se trabó". */
+    /** M-02: más de este número de turnos en una sola pregunta guía indica que el estudiante "se trabó" (de 4 a 6 = con esfuerzo). */
     static final int TURNOS_TRABADO_POR_GUIA = 2 * MARGEN_PREGUNTAS_POR_GUIA;
     /** Sin preguntas guía configuradas se asume una ruta equivalente a 3 hitos. */
     static final int HITOS_POR_DEFECTO = 3;
@@ -147,6 +170,7 @@ public class AnalyticsService {
     /** Texto y clases CSS de una insignia del dashboard. */
     record NivelTurnos(String etiqueta, String clase) {}
 
+    // Clases CSS (Bootstrap) de las insignias del dashboard
     private static final String CLASE_EXITO = "bg-success-subtle text-success border border-success-subtle";
     private static final String CLASE_INFO = "bg-info-subtle text-info-emphasis border border-info-subtle";
     private static final String CLASE_ALERTA = "bg-warning-subtle text-warning-emphasis border border-warning-subtle";
@@ -156,8 +180,11 @@ public class AnalyticsService {
 
     /**
      * M-02 sin preguntas guía: clasifica los turnos totales frente a un margen de
-     * {@value #MARGEN_PREGUNTAS_POR_GUIA} preguntas por hito ({@value #HITOS_POR_DEFECTO} hitos).
+     * {@value #MARGEN_PREGUNTAS_POR_GUIA} turnos por hito (un hito por pregunta guía o, si no hay,
+     * {@value #HITOS_POR_DEFECTO}). Hasta la mitad del margen es "Fluido" y hasta el margen, "Ritmo normal".
      * Dentro del margen nunca se marca "Requiere apoyo"; fuera de él, solo si además hay señales.
+     *
+     * @param senalesDeApoyo posible frustración (M-03) o errores en el informe individual
      */
     static NivelTurnos clasificarTurnos(long turnos, int preguntasGuia, boolean senalesDeApoyo) {
         int hitos = preguntasGuia > 0 ? preguntasGuia : HITOS_POR_DEFECTO;
@@ -196,7 +223,11 @@ public class AnalyticsService {
         String etiqueta() { return individual() ? "P" + hasta : "P" + desde + "-P" + hasta; }
     }
 
-    /** M-02: avance de un estudiante en las preguntas guía; turnosApertura &lt; 0 si el tutor no marcó la apertura. */
+    /**
+     * M-02: avance de un estudiante en las preguntas guía. {@code preguntaEnCurso} es 0 si no hay ninguna en
+     * curso; {@code turnosEnCurso} son las consultas aún no asignadas a un tramo ni a la apertura;
+     * turnosApertura &lt; 0 si el tutor no marcó la apertura.
+     */
     record AvanceGuias(List<Tramo> tramos, int preguntaEnCurso, long turnosEnCurso, long turnosApertura) {
         AvanceGuias(List<Tramo> tramos, int preguntaEnCurso, long turnosEnCurso) {
             this(tramos, preguntaEnCurso, turnosEnCurso, -1);
@@ -204,14 +235,19 @@ public class AnalyticsService {
     }
 
     /**
-     * Reconstruye el avance a partir de las métricas código 21 ("P3" o "P2-P4"), la apertura (código 20, si el tutor
-     * marcó GUIA_INICIADA) y las consultas totales.
+     * M-02: reconstruye el avance a partir de las métricas código 21 ("P3" o "P2-P4"), la apertura (código 20, si el
+     * tutor marcó GUIA_INICIADA) y las consultas totales. Las consultas que no cubren los tramos ni la apertura se
+     * atribuyen a la pregunta siguiente a la última superada, salvo que la ruta esté completada.
+     *
+     * @param metricas  métricas de la participación (se ignoran los demás códigos)
+     * @param consultas mensajes enviados por el estudiante
      */
     static AvanceGuias calcularAvance(List<Metrica> metricas, long consultas, int totalGuias, boolean rutaCompletada) {
         List<Tramo> tramos = new ArrayList<>();
         long apertura = -1;
         for (Metrica m : metricas) {
             if (Long.valueOf(ChatService.CODIGO_APERTURA).equals(m.getCodigo())) {
+                // Puede haber varios registros de apertura: se suman partiendo de 0 (el -1 solo indica "sin marcar")
                 apertura = Math.max(0, apertura) + (m.getValorNumerico() != null ? m.getValorNumerico() : 0);
                 continue;
             }
@@ -229,7 +265,7 @@ public class AnalyticsService {
         return new AvanceGuias(tramos, enCurso ? ultima + 1 : 0, enCurso ? Math.max(0, consultas - asignados) : 0, apertura);
     }
 
-    /** Clase de la insignia de una pregunta según los turnos: fluido, con esfuerzo o se trabó. */
+    /** M-02: clase de la insignia de una pregunta según los turnos: fluido (hasta 3), con esfuerzo (4 a 6) o se trabó (más de 6). */
     static String claseTurnosGuia(long turnos) {
         if (turnos <= MARGEN_PREGUNTAS_POR_GUIA) return CLASE_EXITO;
         if (turnos <= TURNOS_TRABADO_POR_GUIA) return CLASE_ALERTA;
@@ -360,7 +396,8 @@ public class AnalyticsService {
     /**
      * M-03: solicitudes de respuesta directa de una participación.
      * Fuente principal: métricas codigo=10 registradas en cada turno (patrón de texto o señal del tutor).
-     * Respaldo para datos históricos sin métrica: el patrón sobre los mensajes del estudiante.
+     * Respaldo para datos históricos sin métrica: el patrón sobre los mensajes del estudiante, que solo
+     * indica si hubo alguna solicitud (devuelve como máximo 1).
      */
     static long contarAlertasAtajo(List<Metrica> metricas, List<Mensaje> mensajes) {
         long registradas = metricas.stream()
@@ -386,6 +423,7 @@ public class AnalyticsService {
         return solicitudes >= 2 && tasaSolicitudes(solicitudes, consultas) >= TASA_FRUSTRACION;
     }
 
+    /** M-03: insignia de la fila del estudiante: "Sin solicitudes", "Puntual" o "Posible frustración", con conteo y tasa. */
     static NivelTurnos clasificarSolicitudes(long solicitudes, long consultas) {
         if (solicitudes == 0) {
             return new NivelTurnos("Sin solicitudes", CLASE_NEUTRA);
@@ -423,7 +461,9 @@ public class AnalyticsService {
     private record ClasesEstudiante(long total, long completadas) {}
 
     /**
-     * Métricas detalladas e interpretadas con IA para una sesión específica.
+     * Calcula las métricas del dashboard docente de una sesión: M-01 a M-04 a nivel grupal y por estudiante
+     * (RF-06, RF-08), y adjunta la síntesis grupal ya guardada (RF-07).
+     * Es de solo lectura: no llama a Gemini ni escribe en la BD.
      */
     @Transactional(readOnly = true)
     public MetricasDashboard obtenerMetricasPorSesion(Sesion sesion) {
@@ -443,6 +483,7 @@ public class AnalyticsService {
         List<ParticipacionDetalleDto> detalleList = new ArrayList<>();
         List<AvanceGuias> avances = new ArrayList<>();
 
+        // Mensajes y métricas de todo el grupo en dos consultas (evita una consulta por estudiante)
         Map<UUID, List<Mensaje>> mensajesPorPart = participaciones.isEmpty() ? Map.of() :
                 mensajeRepository.findByParticipacionInOrderByCreatedAtAsc(participaciones).stream()
                         .collect(Collectors.groupingBy(m -> m.getParticipacion().getId()));
@@ -463,6 +504,7 @@ public class AnalyticsService {
 
         for (Participacion p : participaciones) {
             List<Mensaje> msgs = mensajesPorPart.getOrDefault(p.getId(), List.of());
+            // emisor: true = estudiante, false = tutor
             long cEstudiante = msgs.stream().filter(m -> Boolean.TRUE.equals(m.getEmisor())).count();
             long rTutor = msgs.stream().filter(m -> Boolean.FALSE.equals(m.getEmisor())).count();
 
@@ -510,10 +552,11 @@ public class AnalyticsService {
                 minutosActivosTotales += minutos;
             }
             ClasesEstudiante clases = p.getEstudiante() == null ? null : clasesPorEstudiante.get(p.getEstudiante().getId());
+            // Sin datos del docente se asume solo esta clase
             long clasesTotal = clases != null ? clases.total() : 1;
             long clasesCompletadas = clases != null ? clases.completadas() : (rutaCompletada ? 1 : 0);
 
-            // Fecha del último mensaje (no la de inscripción)
+            // Fecha del último mensaje de la conversación (no la de inscripción)
             java.time.OffsetDateTime ultimaFecha = msgs.isEmpty() ? null : msgs.get(msgs.size() - 1).getCreatedAt();
             String fechaStr = ultimaFecha != null ? ultimaFecha.format(FECHA_FORMATTER) : "Sin mensajes";
             String nombreEst = (p.getEstudiante() != null && p.getEstudiante().getNombre() != null)
@@ -521,7 +564,7 @@ public class AnalyticsService {
             String correoEst = (p.getEstudiante() != null && p.getEstudiante().getCorreo() != null)
                     ? p.getEstudiante().getCorreo() : "";
 
-            // M-04: Actividad (quien terminó la tutoría nunca está "en riesgo")
+            // M-04 (RF-08): actividad; más de 3 días sin actividad = "En riesgo" (quien terminó la tutoría nunca lo está)
             String estadoActividad;
             String estadoActividadColor;
             if (cEstudiante == 0) {
@@ -575,7 +618,7 @@ public class AnalyticsService {
 
         long totalMensajes = totalConsultasEstudiantes + totalRespuestasTutor;
 
-        // Promedio de consultas por estudiante (M-02), solo entre quienes han escrito
+        // Promedio de consultas por estudiante (referencia global de M-02), solo entre quienes han escrito
         double promTurnos = estudiantesActivos == 0 ? 0.0 :
                 Math.round(((double) totalConsultasEstudiantes / estudiantesActivos) * 10.0) / 10.0;
 
@@ -626,8 +669,14 @@ public class AnalyticsService {
      * sobreviva a reinicios y redespliegues. Se invoca con el botón del dashboard y, automáticamente, al terminar
      * "Generar informes pendientes".
      * Fuentes: preguntas guía, métricas de la sesión, el informe individual de cada estudiante que lo tenga
-     * y, para quienes no tienen informe, sus propios mensajes. Los estudiantes se anonimizan ("Estudiante N").
+     * y, para quienes no tienen informe, sus propios mensajes (hasta {@value #MAX_CARACTERES_MENSAJES_POR_ESTUDIANTE}
+     * caracteres). Los estudiantes se anonimizan ("Estudiante N"). Se piden tres secciones: Diagnóstico Grupal,
+     * Focos de Confusión y Atajos, y Recomendaciones para el Aula Presencial.
+     * <p>
+     * Efectos secundarios: una llamada a la API de Gemini y la escritura de sintesis_md y sintesis_fecha en la
+     * sesión (también se actualiza la entidad recibida).
      *
+     * @return la síntesis en Markdown
      * @throws IllegalStateException si no hay interacciones o la IA no pudo generar la síntesis
      *                               (nunca se devuelve ni se guarda un texto prefabricado)
      */
@@ -656,6 +705,7 @@ public class AnalyticsService {
                     .toList();
             if (delEstudiante.isEmpty()) continue;
 
+            // Anonimización: el número sustituye al nombre y al correo, que no se incluyen en el prompt
             numero++;
             activos++;
             consultas += delEstudiante.size();
@@ -736,6 +786,7 @@ public class AnalyticsService {
         }
         sintesis = sintesis.trim();
         java.time.OffsetDateTime ahora = java.time.OffsetDateTime.now();
+        // UPDATE directo de las dos columnas; la entidad en memoria se sincroniza a mano
         sesionRepository.guardarSintesis(sesion.getId(), sintesis, ahora);
         sesion.setSintesisMd(sintesis);
         sesion.setSintesisFecha(ahora);
@@ -745,11 +796,16 @@ public class AnalyticsService {
     /**
      * M-01: Extrae los títulos (sin repetir) de los errores recurrentes que Gemini identificó en el informe
      * de un estudiante, para contar cuántos estudiantes presentan cada error.
+     * Toma las viñetas de la sección "## Errores recurrentes" hasta el siguiente encabezado; de "Título: explicación"
+     * usa el título, y descarta las viñetas que niegan errores o son aclaraciones.
+     *
+     * @return títulos en orden de aparición, con la primera letra en mayúscula; vacío si no hay sección
      */
     static Set<String> extraerErroresRecurrentes(String pMd) {
         Set<String> errores = new LinkedHashSet<>();
         if (pMd == null || !pMd.contains("## Errores recurrentes")) return errores;
         int start = pMd.indexOf("## Errores recurrentes");
+        // 22 = longitud de "## Errores recurrentes"
         int nextSection = pMd.indexOf("## ", start + 22);
         String seccionErrores = (nextSection != -1)
                 ? pMd.substring(start + 22, nextSection).trim()
@@ -761,6 +817,7 @@ public class AnalyticsService {
                 l = l.substring(1).trim();
             }
             l = l.replace("**", "").replace("*", "").trim();
+            // Se omiten líneas vacías, notas entre paréntesis y subencabezados
             if (l.isBlank() || l.startsWith("(") || l.startsWith("#")) continue;
 
             String concepto;
@@ -772,6 +829,7 @@ public class AnalyticsService {
             } else if (niegaErrores(l)) {
                 continue;
             } else if (l.length() > 50) {
+                // Viñeta sin título: se recorta para que sirva como nombre del error
                 concepto = l.substring(0, 50).trim() + "...";
             } else {
                 concepto = l;

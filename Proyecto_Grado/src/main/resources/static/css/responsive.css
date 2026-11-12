@@ -18,8 +18,7 @@ pre, .markdown-content pre {
     overflow-x: auto;
 }
 
-/* Avisos con botón de cerrar: .p-3 (!important) anulaba el espacio reservado para la "X",
-   que quedaba encima del texto */
+/* Avisos con botón de cerrar: reserva el espacio de la "X" aunque el aviso use .p-3 (que lleva !important) */
 .alert-dismissible {
     padding-right: 3rem !important;
 }
@@ -31,6 +30,7 @@ img, video, iframe {
 
 /* ── Barra superior del docente (Mis Sesiones / Mis Estudiantes / Feedback) ── */
 
+/* Tablet y teléfono: la barra pasa a dos filas y las pestañas se desplazan en horizontal */
 @media (max-width: 991.98px) {
     .rsp-nav {
         flex-wrap: wrap;
@@ -79,7 +79,7 @@ img, video, iframe {
     }
 }
 
-/* Barras simples (dashboard, nueva clase, portal del estudiante) */
+/* Barras simples (dashboard, nueva clase, portal del estudiante) en teléfono: menos relleno y textos secundarios ocultos */
 @media (max-width: 575.98px) {
     .navbar-minimal {
         padding: 10px 16px !important;
@@ -149,11 +149,12 @@ img, video, iframe {
         padding-bottom: 10px !important;
         margin-bottom: 4px;
     }
-    /* Celda de acciones: botones a todo el ancho */
+    /* Celda de acciones: botones alineados a la derecha */
     .tabla-movil td.tabla-movil-acciones {
         justify-content: flex-end;
         padding-top: 10px !important;
     }
+    /* El contenedor .table-responsive deja de recortar la tabla apilada */
     .tabla-movil .table-responsive,
     .table-responsive:has(> .tabla-movil) {
         overflow-x: visible;
@@ -204,7 +205,7 @@ img, video, iframe {
     }
 }
 
-/* Teléfono y tablet: el tema de la clase baja a su propia fila */
+/* Teléfono y tablet: la cabecera del chat se reparte en varias filas y se oculta el nombre del estudiante */
 @media (max-width: 991.98px) {
     .rsp-chat-header .btn {
         white-space: nowrap;
@@ -238,7 +239,7 @@ img, video, iframe {
     }
 }
 
-/* Solo teléfono: menos relleno alrededor de los mensajes */
+/* Pantallas menores a 768px: menos relleno alrededor de los mensajes y del cuadro de texto */
 @media (max-width: 767.98px) {
     .chat-scroll-area {
         padding: 16px 10px !important;

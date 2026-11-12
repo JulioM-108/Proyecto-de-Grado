@@ -11,6 +11,11 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Pruebas unitarias de EvaluacionSusTamDTO (encuesta SUS/TAM del estudiante): cálculo e interpretación del
+ * puntaje SUS y serialización a JSON. El SUS suma (x − 1) en los ítems impares y (5 − x) en los pares y
+ * multiplica el total por 2,5, con un resultado de 0 a 100. No usa Spring ni la base de datos.
+ */
 class EvaluacionSusTamTest {
 
     @Test
@@ -43,6 +48,7 @@ class EvaluacionSusTamTest {
     @Test
     @DisplayName("Debe serializar y deserializar correctamente hacia y desde JSON")
     void testJsonRoundtrip() {
+        // La encuesta se guarda como JSON en la columna participacion.evaluacion_sus_tam
         List<Integer> sus = Arrays.asList(5, 2, 4, 1, 5, 2, 4, 1, 5, 1);
         Double score = EvaluacionSusTamDTO.calcularSusScore(sus);
 

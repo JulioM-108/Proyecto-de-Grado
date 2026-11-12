@@ -7,21 +7,32 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Servicio en memoria para mitigar ataques de fuerza bruta y diccionarios en el inicio de sesión.
- * Bloquea temporalmente solicitudes tras 5 intentos fallidos durante una ventana de 10 minutos.
+ * Limitador de intentos de inicio de sesión contra ataques de fuerza bruta y de diccionario (RNF-01).
+ * <p>
+ * Lo usan el login único ({@code LoginController}) y el acceso del estudiante por enlace de clase
+ * ({@code ChatController}), con la clave {@code correo_IP}. Tras 5 intentos fallidos dentro de una ventana
+ * de 10 minutos, la clave queda bloqueada 10 minutos.
+ * <p>
+ * El estado vive en memoria: se pierde al reiniciar la aplicación y no se comparte entre instancias.
  */
 @Service
 public class LoginRateLimiterService {
 
     private static final int MAX_INTENTOS = 5;
+    // Se usa tanto para la ventana de conteo de fallos como para la duración del bloqueo
     private static final long VENTANA_BLOQUEO_SEGUNDOS = 10 * 60; // 10 minutos
 
+    /** Fallos acumulados de una clave; {@code bloqueadoHasta} es null mientras no se alcance el máximo. */
     private record IntentoRegistro(int conteo, Instant primerIntento, Instant bloqueadoHasta) {}
 
     private final Map<String, IntentoRegistro> intentosPorClave = new ConcurrentHashMap<>();
 
     /**
-     * Verifica si la clave dada (correo o IP) se encuentra bloqueada por exceso de intentos.
+     * Indica si la clave ({@code correo_IP}) está bloqueada por exceso de intentos fallidos.
+     * Como efecto secundario, elimina el registro si el bloqueo o la ventana de conteo ya expiraron.
+     *
+     * @param clave clave del intento; se normaliza (trim y minúsculas). Una clave vacía nunca se bloquea
+     * @return true si el bloqueo sigue vigente
      */
     public boolean estaBloqueado(String clave) {
         if (clave == null || clave.isBlank()) return false;
@@ -41,7 +52,7 @@ public class LoginRateLimiterService {
             }
         }
 
-        // Si pasaron más de 10 minutos desde el primer intento fallido, reiniciar
+        // Sin bloqueo: si la ventana de conteo ya venció, se descartan los fallos (solo libera memoria)
         if (ahora.isAfter(reg.primerIntento().plusSeconds(VENTANA_BLOQUEO_SEGUNDOS))) {
             intentosPorClave.remove(key);
             return false;
@@ -51,13 +62,15 @@ public class LoginRateLimiterService {
     }
 
     /**
-     * Registra un intento fallido. Si alcanza el máximo, aplica el bloqueo.
+     * Registra un intento fallido para la clave. Si la ventana de 10 minutos venció, el conteo se reinicia;
+     * al llegar a {@value #MAX_INTENTOS} fallos se bloquea la clave durante 10 minutos.
      */
     public void registrarIntentoFallido(String clave) {
         if (clave == null || clave.isBlank()) return;
         String key = clave.trim().toLowerCase();
         Instant ahora = Instant.now();
 
+        // compute() hace la lectura y la actualización de forma atómica ante peticiones concurrentes
         intentosPorClave.compute(key, (k, reg) -> {
             if (reg == null || ahora.isAfter(reg.primerIntento().plusSeconds(VENTANA_BLOQUEO_SEGUNDOS))) {
                 return new IntentoRegistro(1, ahora, null);
@@ -69,7 +82,7 @@ public class LoginRateLimiterService {
     }
 
     /**
-     * Limpia los intentos tras un login exitoso.
+     * Borra los fallos acumulados de la clave tras un inicio de sesión exitoso.
      */
     public void limpiarIntentos(String clave) {
         if (clave != null) {

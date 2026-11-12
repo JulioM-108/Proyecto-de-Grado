@@ -8,12 +8,13 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 
 /**
- * Configuración del cliente HTTP para consumir la API de Gemini.
+ * Configuración del cliente HTTP para consumir la API de Gemini y del ObjectMapper compartido.
  * Incluye timeouts de conexión y lectura para evitar bloqueos indefinidos durante congestión de red.
  */
 @Configuration
 public class RestClientConfig {
 
+    /** RestClient que usa GeminiService: 10 s para conectar y 35 s de espera máxima de la respuesta. */
     @Bean
     public RestClient restClient() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -24,6 +25,10 @@ public class RestClientConfig {
                 .build();
     }
 
+    /**
+     * ObjectMapper de Jackson 2 (com.fasterxml) que inyecta PromptAssistantService para leer el JSON
+     * de las directrices CRAFT. Se declara a mano porque Spring Boot 4 autoconfigura Jackson 3.
+     */
     @Bean
     public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
         return new com.fasterxml.jackson.databind.ObjectMapper();

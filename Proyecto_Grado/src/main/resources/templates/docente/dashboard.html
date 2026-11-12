@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  Panel de Métricas Docente: analítica socrática de una clase.
+  Uso: docente dueño de la sesión. Renderizada por DocenteController (GET /docente/sesiones/{id}/metricas).
+  Muestra los indicadores M-01 a M-04, la Hoja de Ruta Pedagógica, la Síntesis Pedagógica Consolidada
+  y el seguimiento individual (RF-06, RF-07, RF-08); permite editar CRAFT y preguntas guía y vincular o desvincular alumnos.
+-->
 <html xmlns:th="http://www.thymeleaf.org" lang="es">
 <head>
     <meta charset="UTF-8">
@@ -133,6 +139,7 @@
                 justify-content: flex-end;
             }
         }
+        /* Despliegue de la tarjeta KPI con hover o foco (ver la nota de .kpi-col) */
         .card-kpi:hover,
         .card-kpi:focus-within {
             position: absolute;
@@ -203,7 +210,7 @@
 </head>
 <body>
 
-    <!-- 1. Barra de Navegación -->
+    <!-- Barra de navegación: vuelve al listado "Mis Clases" -->
     <nav class="navbar-minimal d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center gap-3">
             <a th:href="@{/docente/sesiones}" class="text-decoration-none d-flex align-items-center gap-2" style="color: var(--puj-blue-dark);">
@@ -220,6 +227,7 @@
 
     <div class="container-custom">
 
+        <!-- Avisos tras redirección: CRAFT guardado, alumno vinculado o desvinculado -->
         <!-- Notificación de guardado CRAFT -->
         <div th:if="${craftGuardado}" class="alert alert-success alert-dismissible fade show rounded-3 p-3 mb-4 border-0 shadow-sm" role="alert">
             <div class="d-flex align-items-center gap-2">
@@ -247,7 +255,7 @@
             </div>
         </div>
 
-        <!-- Barra de Cabecera de la Clase -->
+        <!-- Cabecera de la clase: tema, estado (Activa/Pausada) y código de acceso con botón para copiar el enlace -->
         <div class="card-header-bar d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
                 <div class="d-flex align-items-center gap-2 mb-1">
@@ -269,9 +277,9 @@
             </div>
         </div>
 
-        <!-- 1. KPIs Numéricos Minimalistas -->
+        <!-- Tarjetas de indicadores (KPI); cada una se despliega con la explicación de la métrica al pasar el mouse o enfocarla -->
         <div class="row g-3 mb-4">
-            <!-- Estudiantes -->
+            <!-- Estudiantes que han escrito al tutor frente a los inscritos -->
             <div class="col-6 col-lg-3 kpi-col">
                 <div class="card-kpi d-flex align-items-center justify-content-between" tabindex="0">
                     <div>
@@ -303,7 +311,7 @@
                 </div>
             </div>
 
-            <!-- Tiempo activo (M-04) -->
+            <!-- Tiempo Activo (M-04): promedio sin contar silencios de más de 10 min -->
             <div class="col-6 col-lg-3 kpi-col">
                 <div class="card-kpi d-flex align-items-center justify-content-between" tabindex="0">
                     <div>
@@ -318,7 +326,7 @@
                 </div>
             </div>
 
-            <!-- Solicitudes de Código Directo (M-03) -->
+            <!-- Alertas de Atajo (M-03): solicitudes de código o respuesta directa -->
             <div class="col-6 col-lg-3 kpi-col">
                 <div class="card-kpi d-flex align-items-center justify-content-between" tabindex="0">
                     <div>
@@ -335,7 +343,7 @@
             </div>
         </div>
 
-        <!-- 2. Hoja de Ruta Pedagógica: Preguntas Guía de la Sesión -->
+        <!-- Hoja de Ruta Pedagógica: preguntas guía con sus turnos promedio (M-02); hasta 3 fluido, de 4 a 6 con esfuerzo, más de 6 el grupo se trabó -->
         <div class="card-panel mb-4">
             <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
                 <div class="d-flex align-items-center gap-2">
@@ -378,7 +386,7 @@
             </div>
         </div>
 
-        <!-- 3. Síntesis Pedagógica Consolidada -->
+        <!-- Síntesis Pedagógica Consolidada (RF-07): el Markdown guardado viaja en un textarea oculto y el script lo pinta en tarjetas -->
         <div class="card-panel mb-4">
             <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2">
@@ -398,13 +406,13 @@
             <div id="contenedorSintesisEstructurada" th:data-consultas="${metricas.totalConsultasEstudiante}">
                 <textarea id="resumenIaTextoRaw" style="display: none;" th:text="${metricas.resumenIa}"></textarea>
                 <div id="resumenIaCards" class="row g-3">
-                    <!-- Renderizado dinámicamente con JavaScript en tarjetas semánticas -->
+                    <!-- Contenido generado por renderizarSintesisPedagogica() -->
                 </div>
             </div>
         </div>
 
         <div class="row g-4 mb-4">
-            <!-- 3. Falencias Conceptuales -->
+            <!-- Focos de Dificultad y Falencias (M-01, RF-06): errores recurrentes extraídos de los informes individuales -->
             <div class="col-lg-6">
                 <div class="card-panel h-100">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mb-3 pb-2 border-bottom">
@@ -451,7 +459,7 @@
                         estudiantes con informe generado (de <strong th:text="${metricas.totalParticipaciones}">0</strong> en la clase).
                     </div>
 
-                    <!-- Flujo 3: informes de quienes escribieron y no completaron la ruta -->
+                    <!-- Informes pendientes: estudiantes que escribieron sin completar la ruta; el botón los genera en segundo plano -->
                     <div id="zonaInformesPendientes" class="mt-2">
                         <div th:if="${informesEnProceso == true}" class="alert alert-info small py-2 px-3 mb-0">
                             <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
@@ -472,7 +480,7 @@
                 </div>
             </div>
 
-            <!-- 4. Directrices CRAFT Activas -->
+            <!-- Directrices CRAFT de la sesión (solo lectura; se editan en el modal de configuración) -->
             <div class="col-lg-6">
                 <div class="card-panel h-100">
                     <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
@@ -524,7 +532,8 @@
             </div>
         </div>
 
-        <!-- 5. Tabla de Participación de Estudiantes (M-02, M-03, M-04) -->
+        <!-- Seguimiento Individual (RF-08): avance y estado por pregunta guía (M-02), solicitudes directas (M-03) y frecuencia y duración (M-04, en riesgo con más de 3 días sin actividad) -->
+        <!-- Acciones por fila: ver o generar el informe individual y desvincular al alumno -->
         <div class="card-panel mb-4">
             <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                 <div>
@@ -617,6 +626,7 @@
                                         <i class="bi bi-person-x"></i>
                                     </button>
                                 </div>
+                                <!-- Informe individual en Markdown (oculto); lo leen y actualizan las funciones del modal de diagnóstico -->
                                 <div th:id="'progreso-data-' + ${part.id}" style="display: none;" th:text="${part.progresoMd}"></div>
                             </td>
                         </tr>
@@ -633,7 +643,7 @@
             </div>
         </div>
 
-        <!-- 6. Retroalimentación de los Estudiantes para esta Clase -->
+        <!-- Retroalimentación de los estudiantes: promedio SUS, valoración en estrellas y comentarios de esta clase -->
         <div class="card-panel">
             <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                 <div>
@@ -692,7 +702,7 @@
 
     </div>
 
-    <!-- MODAL: Ajustar CRAFT y Preguntas Guía -->
+    <!-- MODAL: Configurar Guía. Edita las preguntas guía (una por línea) y los cinco componentes CRAFT; se envía por POST al guardar -->
     <div class="modal fade" id="modalEditarCraft" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -753,7 +763,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Vincular Estudiante a la Clase -->
+    <!-- MODAL: Vincular Estudiante. Asigna a la clase un alumno ya registrado que aún no está inscrito en ella -->
     <div class="modal fade" id="modalVincularEstudiante" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -799,7 +809,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Desvincular Estudiante de la Clase -->
+    <!-- MODAL: Desvincular Estudiante. abrirModalDesvincular() fija el nombre y la acción del formulario -->
     <div class="modal fade" id="modalDesvincularEstudiante" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -832,7 +842,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Diagnóstico Cognitivo Individual -->
+    <!-- MODAL: Informe individual ("Ver Diagnóstico") -->
     <div class="modal fade" id="modalDiagnosticoCognitivo" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -846,7 +856,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4" id="diagnosticoCuerpo">
-                    <!-- Contenido dinámico renderizado por abrirDiagnostico() -->
+                    <!-- Contenido dinámico renderizado por abrirDiagnostico() y generarDiagnosticoBajoDemanda() -->
                 </div>
                 <div class="modal-footer bg-light p-3 border-top">
                     <button type="button" class="btn btn-secondary btn-sm rounded-3 px-3" data-bs-dismiss="modal">Cerrar</button>
@@ -882,6 +892,7 @@
                 .replace(/'/g, '&#39;');
         }
 
+        // Copia al portapapeles la URL de acceso del estudiante (/chat/ + código de la sesión) y muestra el toast.
         function copiarEnlaceClase() {
             const codigo = document.getElementById('codigoSesionSpan').innerText.trim();
             const urlCompleta = window.location.origin + '/chat/' + codigo;
@@ -892,6 +903,7 @@
             });
         }
 
+        // Botón "Ver Diagnóstico" de la fila: lee sus data-* y abre el modal del informe individual.
         function abrirDiagnosticoModal(btn) {
             const partId = btn.getAttribute('data-part-id');
             const nombreEstudiante = btn.getAttribute('data-estudiante-nombre') || 'Estudiante';
@@ -899,6 +911,8 @@
             abrirDiagnostico(partId, nombreEstudiante, consultas);
         }
 
+        // Convierte Markdown básico (párrafos, listas numeradas, viñetas y negritas) en HTML.
+        // Escapa cada línea con escapeHtml antes de aplicar el formato.
         function formatMarkdownContent(text) {
             if (!text) return '';
             let lines = text.split('\n');
@@ -960,6 +974,8 @@
             return resultHtml;
         }
 
+        // Prepara el modal de desvinculación: muestra el nombre y apunta el formulario a
+        // POST /docente/sesiones/{id}/participaciones/{partId}/desvincular antes de abrirlo.
         function abrirModalDesvincular(partId, nombreEstudiante) {
             document.getElementById('modalNombreDesvincular').textContent = nombreEstudiante;
             const sesionId = '[[${sesion.id}]]';
@@ -969,6 +985,7 @@
             modal.show();
         }
 
+        // Divide el informe individual en secciones { titulo, cuerpo } a partir de sus encabezados ## a ####.
         function parsearSeccionesMarkdown(rawText) {
             if (!rawText) return [];
             // Normalizar saltos de línea \r\n a \n
@@ -987,6 +1004,8 @@
             return secciones;
         }
 
+        // Arma el HTML del informe individual: una tarjeta por sección, con color e icono según el título
+        // (dominado, en progreso, errores, recomendaciones). Sin encabezados lo muestra como un solo bloque.
         function construirHtmlDiagnostico(rawText) {
             const secciones = parsearSeccionesMarkdown(rawText);
             if (secciones.length > 0) {
@@ -1050,6 +1069,8 @@
                 <div class="small text-muted mt-1">Reemplaza este informe usando toda la conversación actual del estudiante.</div>
             </div>`;
 
+        // Enlaza la delegación de clics del modal (generar, reintentar o reemplazar el informe)
+        // y recarga el panel al cerrarlo si algún informe cambió.
         document.addEventListener('DOMContentLoaded', function () {
             const cuerpo = document.getElementById('diagnosticoCuerpo');
             if (cuerpo) {
@@ -1073,6 +1094,8 @@
             }
         });
 
+        // Abre el modal del informe individual: sin mensajes muestra un aviso, sin informe ofrece generarlo
+        // y con informe lo pinta (sanitizado con DOMPurify) junto al botón para reemplazarlo.
         function abrirDiagnostico(partId, nombreEstudiante, consultas) {
             diagnosticoActual = { partId: partId, nombre: nombreEstudiante, regenerar: false };
             document.getElementById('diagnosticoSubtitulo').innerText = 'Estudiante: ' + nombreEstudiante;
@@ -1118,6 +1141,9 @@
             }
         }
 
+        // Genera con IA el informe individual (o lo reemplaza si regenerar es true) vía
+        // POST /docente/api/participaciones/{partId}/generar-diagnostico. Actualiza el modal, el dato oculto
+        // y el botón de la fila, y marca el panel para recargarse al cerrar el modal.
         function generarDiagnosticoBajoDemanda(partId, nombreEstudiante, regenerar) {
             regenerar = regenerar === true;
             diagnosticoActual = { partId: partId, nombre: nombreEstudiante, regenerar: regenerar };
@@ -1218,6 +1244,7 @@
             });
         }
 
+        // Abre el modal de edición de CRAFT y preguntas guía.
         function abrirModalEditarCraft() {
             const modalEl = document.getElementById('modalEditarCraft');
             if (modalEl) {
@@ -1226,7 +1253,9 @@
             }
         }
 
-        // Flujo 3: encola en el servidor los informes de quienes escribieron y aún no tienen informe
+        // "Generar informes pendientes": pide al servidor generar en segundo plano los informes de quienes
+        // escribieron y aún no tienen uno (POST /docente/api/sesiones/{id}/generar-informes-pendientes).
+        // Reemplaza la zona de informes pendientes con el mensaje de la respuesta.
         function generarInformesPendientes(boton) {
             const sesionId = boton.getAttribute('data-sesion-id');
             const zona = document.getElementById('zonaInformesPendientes');
@@ -1254,6 +1283,8 @@
             });
         }
 
+        // Genera con IA la Síntesis Pedagógica Consolidada (POST /docente/api/sesiones/{id}/generar-sintesis),
+        // guarda el texto en el textarea oculto y vuelve a pintar las tarjetas; si falla, ofrece reintentar.
         function generarSintesisConsolidada() {
             const sesionId = "[[${sesion.id}]]";
             const targetContainer = document.getElementById('resumenIaCards');
@@ -1328,7 +1359,8 @@
             });
         }
 
-        // Extractor inteligente de secciones pedagógicas desde Markdown
+        // Separa la síntesis en Diagnóstico Grupal, Focos (dificultad, confusión o atajos) y Recomendaciones
+        // según sus encabezados. Devuelve null si no encuentra al menos los dos primeros.
         function extraerSeccionesSintesis(rawText) {
             if (!rawText) return null;
 
@@ -1373,7 +1405,8 @@
             return null;
         }
 
-        // Renderizado semántico de la Síntesis Pedagógica Consolidada
+        // Pinta la Síntesis Pedagógica Consolidada en tres tarjetas (o en un bloque si no tiene secciones).
+        // Sin síntesis guardada oculta "Actualizar Síntesis" y, si hay consultas, ofrece generarla.
         function renderizarSintesisPedagogica() {
             const rawEl = document.getElementById('resumenIaTextoRaw');
             const targetContainer = document.getElementById('resumenIaCards');
@@ -1469,6 +1502,7 @@
             }
         }
 
+        // Al cargar la página se pinta la síntesis guardada.
         document.addEventListener('DOMContentLoaded', () => {
             renderizarSintesisPedagogica();
         });

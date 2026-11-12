@@ -11,10 +11,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Pruebas unitarias para validar las defensas de seguridad y control de caché:
- * - Cache-Control defensivo (solución al botón "Atrás" tras logout)
- * - Interceptores de autenticación por roles
- * - Validación de dominios institucionales Javerianos
+ * Pruebas unitarias de las defensas de seguridad (RNF-01 y RNF-02) y del control de caché:
+ * - Cache-Control defensivo (evita que el botón "Atrás" muestre páginas privadas tras el logout).
+ * - Interceptores de autenticación por rol: acceso restringido a /docente y /estudiante (RNF-01).
+ * - Validación de dominios institucionales javerianos.
+ * - Verificación de contraseñas con BCrypt por rol (RNF-02).
+ * Instancian los interceptores de WebMvcConfig y AuthService directamente, con peticiones simuladas:
+ * no levantan el contexto de Spring ni usan la base de datos.
  */
 class SecurityAndInterceptorTest {
 

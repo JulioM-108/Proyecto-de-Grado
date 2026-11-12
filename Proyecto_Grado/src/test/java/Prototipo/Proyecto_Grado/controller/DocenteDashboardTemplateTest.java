@@ -20,6 +20,12 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Prueba de integración de la plantilla Thymeleaf docente/dashboard.html: la procesa con una sesión y unas
+ * métricas simuladas y comprueba que se muestran los KPI, las métricas M-01 a M-04 y los modales.
+ * Levanta el contexto completo de Spring ({@code @SpringBootTest}) para obtener el TemplateEngine; no
+ * consulta la base de datos, pero el arranque necesita las variables DB_* del archivo .env.
+ */
 @SpringBootTest
 class DocenteDashboardTemplateTest {
 
@@ -110,7 +116,7 @@ class DocenteDashboardTemplateTest {
         assertTrue(htmlProcesado.contains("Frecuencia y Duración <span class=\"text-nowrap\">(M-04)</span>"));
         org.junit.jupiter.api.Assertions.assertFalse(htmlProcesado.contains("Evolución (M-03)"));
         org.junit.jupiter.api.Assertions.assertFalse(htmlProcesado.contains("M-05"));
-        // KPI de estudiantes: activos de inscritos; CRAFT vacío muestra el valor real que usa el tutor
+        // KPI de estudiantes: activos frente a inscritos; el resumen CRAFT muestra los valores configurados en la sesión
         assertTrue(htmlProcesado.contains("Han escrito al tutor · de 3 inscritos"));
         assertTrue(htmlProcesado.contains("Contexto educativo de POO"));
         assertTrue(htmlProcesado.contains("Preguntas y analogías"));

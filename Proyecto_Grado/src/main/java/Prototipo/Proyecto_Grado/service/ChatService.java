@@ -41,16 +41,22 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Servicio central del Módulo de Tutoría Socrática.
- * Coordina la arquitectura de 3 capas de prompts, el llamado a Gemini
- * y la persistencia en las tablas participacion → mensaje y metrica.
+ * Servicio central de la tutoría socrática (RF-02, RF-03, RF-04).
+ * Ensambla el prompt en 3 capas (reglas fijas, CRAFT y preguntas guía de la clase, historial de la sesión),
+ * invoca a Gemini, retira de la respuesta las meta-etiquetas ocultas y persiste cada turno en las tablas
+ * participacion, mensaje y metrica. Registra las métricas M-02 (turnos por pregunta guía) y M-03 (solicitudes
+ * de respuesta directa), valida en servidor el cierre de la ruta y genera en segundo plano los informes
+ * individuales (progreso_md) de los que salen M-01, RF-06 y la síntesis grupal (RF-07).
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ChatService {
 
-    /** Meta-etiqueta con la que el tutor certifica que el estudiante superó la última Pregunta Guía. */
+    /**
+     * Meta-etiqueta con la que el tutor certifica que el estudiante superó la última Pregunta Guía.
+     * Solo cierra la ruta si pasa la validación del servidor (ver validarCierreDeRuta).
+     */
     public static final String ETIQUETA_RUTA_COMPLETADA = "<!-- RUTA_COMPLETADA -->";
 
     /** Meta-etiqueta con la que el tutor señala una solicitud de código/solución directa (M-03). */
@@ -81,7 +87,10 @@ public class ChatService {
     public static final String CRAFT_DEFECTO_FORMATO = "Preguntas orientadoras y analogías concisas";
     public static final String CRAFT_DEFECTO_TONO = "Amable, empático y reflexivo";
 
-    /** Turnos mínimos del estudiante antes de aceptar el cierre de la ruta, aunque haya pocas preguntas guía. */
+    /**
+     * Turnos mínimos del estudiante antes de aceptar el cierre de la ruta, aunque haya pocas preguntas guía.
+     * El mínimo efectivo es max(este valor, número de preguntas guía).
+     */
     static final int MIN_TURNOS_CIERRE_RUTA = 4;
 
     // ─── Detección de atajos cognitivos (M-03) ───────────────────────────────
@@ -106,6 +115,7 @@ public class ChatService {
             + "simplemente|de una vez|de una|una vez|completo|completa|entero|entera|final|correcto|correcta|"
             + "resuelto|resuelta|hecho|hecha|porfa|por favor|tu|mejor|ahora)";
 
+    /** Lo que se pide entregar: código, solución, respuesta, ejercicio, etc. */
     private static final String OBJETOS_SOLUCION =
             "(?:codigo|codigos|solucion|soluciones|respuesta|respuestas|programa|algoritmo|ejercicio|tarea|"
             + "implementacion|taller|resolucion)";
@@ -118,6 +128,10 @@ public class ChatService {
             + "damelo|hazmelo|hacemelo|pasamelo|escribemelo|resuelvemelo|hazlo tu|hacelo vos|resuelvelo|"
             + "cual es (?:el |la )?(?:codigo|solucion|respuesta)|como (?:es|seria) (?:el |la )?(?:codigo|solucion)";
 
+    /**
+     * Patrón M-03: verbo de petición (o modal + infinitivo), hasta 4 palabras de relleno y un objeto de
+     * solución ("dame ya el código"), o bien una de las frases completas de atajo.
+     */
     static final Pattern PATRON_ATAJO_DIRECTO = Pattern.compile(
             "\\b(?:(?:" + VERBOS_PETICION + ")|" + INFINITIVOS_CON_MODAL + ")"
             + "(?:\\s+" + RELLENO + "){0,4}\\s+" + OBJETOS_SOLUCION + "\\b"
@@ -126,14 +140,14 @@ public class ChatService {
 
     /**
      * Indica si el mensaje del estudiante solicita explícitamente el código, la solución
-     * o la respuesta directa (alerta de atajo cognitivo, métrica M-03).
+     * o la respuesta directa (alerta de atajo cognitivo, métrica M-03). Complementa la etiqueta
+     * ATAJO_DETECTADO del tutor; AnalyticsService también lo usa sobre mensajes ya guardados.
      */
     public static boolean esSolicitudAtajo(String mensaje) {
         if (mensaje == null || mensaje.isBlank()) return false;
         return PATRON_ATAJO_DIRECTO.matcher(normalizarTexto(mensaje)).find();
     }
 
-    /** Minúsculas, sin tildes/diéresis/ñ y con la puntuación reemplazada por espacios. */
     /** Comentarios HTML (completos o sin cerrar) y nombres de las etiquetas ocultas que solo puede emitir el tutor. */
     private static final Pattern PATRON_COMENTARIO_HTML = Pattern.compile("(?s)<!--.*?(?:-->|$)");
     private static final Pattern PATRON_NOMBRE_ETIQUETA = Pattern.compile(
@@ -142,6 +156,7 @@ public class ChatService {
     /**
      * Prepara el mensaje del estudiante: quita comentarios HTML y nombres de etiquetas ocultas para que no pueda
      * inducir al tutor a repetirlas y falsear su avance (M-02) o el cierre de la ruta, y lo recorta a 2500 caracteres.
+     * Si tras la limpieza queda vacío, se sustituye por "…" para no enviar una consulta vacía.
      */
     static String limpiarMensajeEstudiante(String mensajeTexto) {
         if (mensajeTexto == null) return null;
@@ -152,6 +167,10 @@ public class ChatService {
         return limpio.length() > 2500 ? limpio.substring(0, 2500) : limpio;
     }
 
+    /**
+     * Minúsculas, sin tildes/diéresis/ñ y con la puntuación reemplazada por espacios.
+     * Base de la detección M-03; AnalyticsService la reutiliza para comparar títulos de error (M-01).
+     */
     static String normalizarTexto(String texto) {
         String sinTildes = Normalizer.normalize(texto.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "");
@@ -175,6 +194,11 @@ public class ChatService {
     // ─── Capa 1: cargada dinámicamente desde resources ───────────────────────
     private String capa1ReglasSistema;
 
+    /**
+     * Carga al arrancar las reglas socráticas fijas (Capa 1) desde prompts/capa1_socratico.md.
+     *
+     * @throws IllegalStateException si el recurso no existe; impide arrancar sin las reglas del tutor
+     */
     @PostConstruct
     public void cargarCapa1() {
         try {
@@ -190,11 +214,15 @@ public class ChatService {
 
     // ─── Procesar mensaje del estudiante ─────────────────────────────────────
 
+    /** Resultado de la fase de lectura: prompt compilado y estado previo necesario para validar el turno. */
     private record PromptContext(String promptFinal, UUID participacionId,
                                  int totalPreguntasGuia, long turnosPreviosEstudiante,
                                  HitosRegistrados hitos) {}
 
-    /** Avance ya registrado en M-02: última pregunta guía superada y turnos ya asignados a preguntas. */
+    /**
+     * Avance ya registrado en M-02: última pregunta guía superada, turnos ya asignados (apertura incluida)
+     * y si la apertura (código 20) ya se registró.
+     */
     record HitosRegistrados(int ultimaSuperada, long turnosAsignados, boolean aperturaRegistrada) {
         static final HitosRegistrados NINGUNO = new HitosRegistrados(0, 0, false);
 
@@ -204,17 +232,22 @@ public class ChatService {
     }
 
     /**
-     * Procesa una consulta del estudiante y genera la respuesta socrática.
+     * Procesa una consulta del estudiante y genera la respuesta socrática (RF-02, RF-03).
      * Flujo desacoplado:
-     * 1. Transacción corta de lectura: compila el prompt de 3 capas.
+     * 1. Transacción corta de lectura: compila el prompt de 3 capas y lee el avance previo (turnos, hitos M-02).
      * 2. Sin transacción: llamada HTTP externa a Gemini (evita agotar el pool HikariCP).
      *    Si ningún modelo responde, no se persiste nada y el estudiante puede reintentar.
-     * 3. Transacción corta: guarda el mensaje del estudiante, la respuesta del tutor y las métricas.
+     * 3. Transacción corta: guarda el mensaje del estudiante, la respuesta del tutor sin meta-etiquetas,
+     *    las métricas (códigos 2, 10, 20 y 21) y, si se validó, el cierre de la ruta.
+     * Al completar la ruta encola en segundo plano el informe individual del estudiante.
      *
      * @param correoEstudiante correo institucional del estudiante
      * @param enlaceSesion     enlace único de la sesión (identifica la Sesion activa)
      * @param mensajeTexto     texto enviado por el estudiante
      * @param craftDocente     configuración CRAFT del docente (puede ser null para usar la de la Sesion)
+     * @return respuesta del tutor; con errorIa = true si la IA no respondió, o sesionCompletada = true si cerró la ruta
+     * @throws IllegalArgumentException si no existen el estudiante o la sesión
+     * @throws IllegalStateException    si el estudiante no tiene participación en la sesión
      */
     public MensajeDto procesarMensajeEstudiante(String correoEstudiante,
                                                 String enlaceSesion,
@@ -289,6 +322,7 @@ public class ChatService {
         boolean atajoDetectado = esSolicitudAtajo(mensajeLimpio) || etiquetaAtajo;
         // M-02: la apertura (saludo y diagnóstico) se registra aparte para no inflar los turnos de P1
         long turnosApertura = turnosApertura(contexto.hitos(), etiquetaInicio, contexto.totalPreguntasGuia(), turnosEstudiante);
+        // Si la apertura se registra en este turno, sus turnos se dan por asignados antes de calcular P1
         HitosRegistrados hitosPrevios = turnosApertura > 0
                 ? new HitosRegistrados(0, contexto.hitos().turnosAsignados() + turnosApertura, true)
                 : contexto.hitos();
@@ -308,6 +342,8 @@ public class ChatService {
                     .createdAt(recibidoEn)
                     .build());
 
+            // Código 2: total de mensajes de la conversación (registro de actividad; ninguna métrica lo usa).
+            // Se cuenta antes de guardar la respuesta del tutor, así que no la incluye.
             long totalMensajes = mensajeRepository.countByParticipacion(participacion);
             registrarMetrica(participacion, 2L, participacion.getSesion().getTema(), totalMensajes);
 
@@ -392,7 +428,8 @@ public class ChatService {
     /**
      * Turnos de la apertura que se registran en este turno: solo la primera vez que el tutor marca GUIA_INICIADA,
      * antes de superar cualquier pregunta. Incluye el turno actual (el mensaje del estudiante que precede a la
-     * Pregunta Guía #1). Devuelve 0 si no corresponde; sin la marca, P1 incluye la apertura, como antes.
+     * Pregunta Guía #1). Devuelve 0 si no corresponde; si el tutor nunca marca GUIA_INICIADA, los turnos de la
+     * apertura quedan contados en P1.
      */
     static long turnosApertura(HitosRegistrados previos, boolean etiquetaInicio, int totalPreguntasGuia, long turnosEstudiante) {
         if (!etiquetaInicio || totalPreguntasGuia <= 0 || previos.aperturaRegistrada() || previos.ultimaSuperada() > 0) {
@@ -444,8 +481,9 @@ public class ChatService {
     // ─── Flujo 3: informes automáticos ───────────────────────────────────────
 
     /**
-     * Encola la generación del informe (progreso_md) de una participación que completó la ruta. Lo regenera
-     * aunque ya exista uno, porque pudo generarse a mitad de la conversación con "Generar informes pendientes".
+     * Encola en informesExecutor (2 hilos, cola de 500) la generación del informe (progreso_md) de una
+     * participación que completó la ruta. Lo regenera aunque ya exista uno, porque pudo generarse a mitad de
+     * la conversación con "Generar informes pendientes".
      * Si Gemini falla o la cola está llena no pasa nada: el turno del estudiante ya quedó guardado y el docente
      * sigue teniendo "Generar informes pendientes" y el botón individual.
      */
@@ -457,6 +495,10 @@ public class ChatService {
         }
     }
 
+    /**
+     * Ejecuta generarDiagnostico dentro de una tarea en segundo plano: registra el fallo en el log en lugar
+     * de propagarlo, para que un informe fallido no detenga el resto de la tanda.
+     */
     private void generarInformeSeguro(UUID participacionId, boolean regenerar) {
         try {
             generarDiagnostico(participacionId, regenerar);
@@ -466,8 +508,10 @@ public class ChatService {
     }
 
     /**
-     * Genera, uno por uno y en segundo plano, los informes de los estudiantes de la sesión que escribieron
-     * al tutor y aún no tienen informe.
+     * "Generar informes pendientes": genera en segundo plano los informes de los estudiantes de la sesión que
+     * escribieron al tutor y aún no tienen informe válido. Todos van en una sola tarea secuencial (uno por uno,
+     * para no saturar Gemini) que al terminar actualiza la síntesis grupal (RF-07).
+     * La sesión queda marcada en sesionesGenerandoInformes hasta que la tarea termina o falla al encolarse.
      *
      * @return cuántos informes quedaron en cola; -1 si ya hay una generación en curso para esta sesión
      */
@@ -531,7 +575,7 @@ public class ChatService {
      * Validación en servidor de la meta-etiqueta RUTA_COMPLETADA: el cierre definitivo de la
      * tutoría no puede depender solo del criterio del modelo. Se rechaza si respondió el modelo
      * auxiliar (menos fiable con reglas condicionales), si la sesión no tiene preguntas guía
-     * o si el estudiante no ha tenido turnos suficientes para recorrerlas.
+     * o si el estudiante no lleva al menos max(4, número de preguntas guía) mensajes.
      */
     private boolean validarCierreDeRuta(UUID participacionId, boolean modeloAuxiliar,
                                         int totalPreguntasGuia, long turnosEstudiante) {
@@ -553,7 +597,7 @@ public class ChatService {
     }
 
     /**
-     * Instrucción del informe individual (progreso_md). Para que M-01 agrupe el mismo error de distintos
+     * Instrucción del informe individual (progreso_md, base de RF-06). Para que M-01 agrupe el mismo error de distintos
      * estudiantes, se piden títulos cortos y estandarizados en "Errores recurrentes", nombrados con los conceptos
      * de las preguntas guía de la clase (que se incluyen como referencia).
      */
@@ -596,24 +640,28 @@ public class ChatService {
         return (int) preguntasGuia.lines().filter(l -> !l.isBlank()).count();
     }
 
-    // ─── Flujo 3: Cierre de Sesión y Síntesis Pedagógica ─────────────────────
+    // ─── Flujo 3: informe individual (progreso_md) ───────────────────────────
 
     /**
-     * Genera el diagnóstico pedagógico de una participación. Solo se invoca manualmente desde el
-     * dashboard docente. Llama a Gemini con el historial completo y persiste el Markdown de 4 secciones
-     * en participacion.progreso_md. La llamada a Gemini se ejecuta fuera de transacción.
-     * Generar el diagnóstico NO cierra la tutoría del estudiante (ver Participacion#isTutoriaFinalizada).
-     *
-     * @return el diagnóstico Markdown guardado (o el que ya existía)
-     * @throws IllegalStateException si el motor de IA no pudo responder; en ese caso no se guarda nada
+     * Equivale a generarDiagnostico(participacionId, false): devuelve el informe existente o genera uno nuevo.
+     * Ningún controlador lo invoca actualmente; el dashboard llama directamente a generarDiagnostico.
      */
     public String cerrarSesionYGenerarProgreso(UUID participacionId) {
         return generarDiagnostico(participacionId, false);
     }
 
     /**
+     * Genera el informe pedagógico (diagnóstico) de una participación y lo persiste en participacion.progreso_md
+     * como Markdown de 4 secciones. Se invoca desde el botón individual del dashboard docente y desde las tareas
+     * en segundo plano (cierre de la ruta y "Generar informes pendientes").
+     * Fases: lectura del historial (transacción corta), llamada a Gemini fuera de transacción y guardado
+     * (transacción corta). Generar el informe NO cierra la tutoría (ver Participacion#isTutoriaFinalizada).
+     *
      * @param regenerar true para volver a generar el diagnóstico con el historial actual aunque ya exista uno
      *                  (lo reemplaza); false para reutilizar el existente sin llamar a Gemini.
+     * @return el diagnóstico Markdown guardado (o el que ya existía)
+     * @throws IllegalStateException    si el motor de IA no pudo responder; en ese caso no se guarda nada
+     * @throws IllegalArgumentException si la participación no existe
      */
     public String generarDiagnostico(UUID participacionId, boolean regenerar) {
         String progresoExistente = transactionTemplate.execute(status -> {
@@ -664,7 +712,10 @@ public class ChatService {
     // ─── Historial ────────────────────────────────────────────────────────────
 
     /**
-     * Recupera el historial de mensajes de la participación activa de un estudiante en una sesión.
+     * Recupera el historial de mensajes de la participación más reciente de un estudiante en una sesión,
+     * para que pueda retomar la tutoría (RF-04). Las respuestas del tutor ya se guardaron sin meta-etiquetas.
+     *
+     * @return mensajes en orden cronológico; lista vacía si no existen el estudiante, la sesión o la participación
      */
     @Transactional(readOnly = true)
     public List<MensajeDto> obtenerHistorial(String correoEstudiante, String enlaceSesion) {
@@ -694,7 +745,7 @@ public class ChatService {
     // ─── Helpers privados ─────────────────────────────────────────────────────
 
     /**
-     * Construye la Capa 3 del prompt con el historial COMPLETO de la sesión actual (misma participación),
+     * Construye la Capa 3 del prompt con el historial COMPLETO de la sesión actual (misma participación, RF-04),
      * para que el tutor retome todo lo trabajado si el estudiante sale y vuelve a entrar.
      * No incluye progreso_md: es el diagnóstico del docente y no debe inyectarse a mitad de la tutoría.
      */
@@ -713,9 +764,10 @@ public class ChatService {
     }
 
     /**
-     * Construye la Capa 2 del prompt usando la configuración CRAFT.
-     * Prioridad: craftDocente (parámetro) > campos CRAFT almacenados en la Sesion.
-     * Incluye preguntas guía si están definidas.
+     * Construye la Capa 2 del prompt con la configuración CRAFT de la clase (RF-05).
+     * Prioridad: craftDocente (parámetro) > campos CRAFT almacenados en la Sesion; los campos vacíos
+     * toman los valores CRAFT_DEFECTO_*. Si hay preguntas guía, las agrega numeradas junto con el
+     * recordatorio de las etiquetas.
      */
     private String construirCapaDocente(Sesion sesion, CraftConfigDto craft) {
         String contexto  = craft != null ? craft.getContext()   : sesion.getCraftContexto();
@@ -780,8 +832,9 @@ public class ChatService {
     }
 
     /**
-     * Crea una nueva Participacion (vínculo estudiante ↔ sesión).
-     * Público para que ChatController pueda invocarlo al registrar un estudiante.
+     * Crea una nueva Participacion (vínculo estudiante ↔ sesión) con progreso_md vacío y, si no existe,
+     * el vínculo profesor ↔ estudiante. Lo invocan ChatController, cuando el estudiante entra por el enlace
+     * único (RF-01), y DocenteController, cuando el docente vincula o asigna un estudiante a una sesión.
      */
     public Participacion crearParticipacion(Estudiante estudiante, Sesion sesion) {
         Participacion nueva = Participacion.builder()

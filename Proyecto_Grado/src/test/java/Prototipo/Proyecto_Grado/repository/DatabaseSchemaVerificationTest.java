@@ -11,6 +11,13 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Prueba de integración del esquema de Supabase y de los repositorios JPA: lista las tablas y columnas del
+ * esquema public y ejecuta las consultas de cada repositorio contra los datos reales.
+ * Levanta el contexto completo de Spring ({@code @SpringBootTest}) y requiere conexión a Supabase.
+ * Funciona como diagnóstico: imprime los resultados por consola (incluidos nombres y correos de los
+ * registros) y solo falla si una consulta lanza una excepción.
+ */
 @SpringBootTest
 public class DatabaseSchemaVerificationTest {
 
@@ -42,9 +49,10 @@ public class DatabaseSchemaVerificationTest {
     @Autowired
     private ProfesorEstudianteRepository profesorEstudianteRepository;
 
+    /** Imprime el esquema real (tablas y columnas) para compararlo con las entidades JPA. */
     @Test
     void verificarTablasYColumnasEnSupabase() {
-        // Asegurar que la columna evaluacion_sus_tam exista en Supabase
+        // Asegurar que la columna evaluacion_sus_tam exista en Supabase (DDL idempotente sobre la BD real)
         jdbcTemplate.execute("ALTER TABLE participacion ADD COLUMN IF NOT EXISTS evaluacion_sus_tam TEXT;");
 
         System.out.println("=== 1. TABLAS EXISTENTES EN SCHEMA PUBLIC ===");
@@ -65,6 +73,11 @@ public class DatabaseSchemaVerificationTest {
         }
     }
 
+    /**
+     * Ejecuta cada consulta derivada de los repositorios con un registro existente, para detectar columnas o
+     * consultas desalineadas con el esquema. Es transaccional para poder recorrer las relaciones lazy; al
+     * terminar, la transacción de la prueba se revierte.
+     */
     @Test
     @org.springframework.transaction.annotation.Transactional
     void verificarConteoYRepositorios() {

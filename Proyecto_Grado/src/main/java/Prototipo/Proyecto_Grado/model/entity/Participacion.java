@@ -7,12 +7,14 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Entidad JPA mapeada a la tabla "participacion" de Supabase.
- * Representa la participación de un estudiante en una sesión del tutor.
- * Columnas: id (uuid PK), created_at (timestamptz), progreso_md (text),
- *           estudiante_id (uuid FK → Estudiante), sesion_id (uuid FK → Sesion).
- *
- * progreso_md acumula el resumen cualitativo del avance del estudiante (Capa 3 del prompt).
+ * Entidad JPA mapeada a la tabla participacion de Supabase.
+ * Vínculo entre un estudiante y una sesión (clase): agrupa su conversación con el tutor, sus métricas,
+ * el informe individual, el feedback que deja al docente y la encuesta SUS+TAM.
+ * Columnas: id (uuid PK), fecha_creacion (timestamptz), progreso_md (text), feedback_estudiante (text),
+ *           valoracion_estudiante (int), evaluacion_sus_tam (text), ruta_completada (bool),
+ *           estudiante_id (uuid FK → "Estudiante"), sesion_id (uuid FK → "Sesion").
+ * Relaciones: muchas participaciones por {@link Estudiante} y por {@link Sesion}; mensaje y metrica
+ * la referencian por participacion_id.
  */
 @Entity
 @Table(name = "participacion")
@@ -31,7 +33,10 @@ public class Participacion {
     @Column(name = "fecha_creacion", columnDefinition = "timestamptz")
     private OffsetDateTime createdAt;
 
-    /** Resumen Markdown del progreso acumulado del estudiante en esta sesión (Capa 3 del prompt). */
+    /**
+     * Informe individual en Markdown de 4 secciones generado con Gemini para el docente. Cadena vacía
+     * mientras no exista. No se inyecta en el prompt del tutor.
+     */
     @Column(name = "progreso_md", columnDefinition = "TEXT")
     @Builder.Default
     private String progresoMd = "";
@@ -44,7 +49,10 @@ public class Participacion {
     @Column(name = "valoracion_estudiante")
     private Integer valoracionEstudiante;
 
-    /** Evaluación psicométrica y pedagógica de la plataforma (SUS + TAM en formato JSON) */
+    /**
+     * Encuesta SUS + TAM serializada como JSON (ver {@link Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO}).
+     * null mientras el estudiante no la envíe; al enviarla, la tutoría queda finalizada.
+     */
     @Column(name = "evaluacion_sus_tam", columnDefinition = "TEXT")
     private String evaluacionSusTam;
 
@@ -65,6 +73,7 @@ public class Participacion {
     @JoinColumn(name = "sesion_id", nullable = false)
     private Sesion sesion;
 
+    /** Valores por defecto al insertar: fecha de creación, progreso_md vacío y ruta no completada. */
     @PrePersist
     public void prePersist() {
         if (this.createdAt == null) {
@@ -92,12 +101,12 @@ public class Participacion {
         return this.createdAt;
     }
 
-    /** Retorna el DTO parseado de la evaluación SUS + TAM o null si no se ha diligenciado */
+    /** Retorna el DTO parseado de la evaluación SUS + TAM, o null si no se ha diligenciado o el JSON no es válido. */
     public Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO getEvaluacionSusTamDTO() {
         return Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO.fromJson(this.evaluacionSusTam);
     }
 
-    /** Retorna el puntaje SUS oficial (0 a 100) o null si no se ha evaluado */
+    /** Retorna el puntaje SUS guardado en el JSON (0 a 100), o null si no se ha evaluado. */
     public Double getSusScore() {
         Prototipo.Proyecto_Grado.model.dto.EvaluacionSusTamDTO dto = getEvaluacionSusTamDTO();
         return dto != null ? dto.getSusScore() : null;

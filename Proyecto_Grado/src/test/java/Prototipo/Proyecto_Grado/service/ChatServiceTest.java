@@ -22,6 +22,16 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Pruebas unitarias de ChatService, el servicio del chat socrático: arma las tres capas del prompt, procesa
+ * cada turno del estudiante y registra las métricas M-02 (códigos 20 y 21) y M-03 (código 10).
+ * Verifica la validación del cierre de la ruta: la etiqueta RUTA_COMPLETADA solo se acepta si la clase tiene
+ * preguntas guía, si el estudiante lleva al menos max(4, número de preguntas guía) mensajes y si respondió el
+ * modelo principal. Cubre además la limpieza de etiquetas ocultas en los mensajes del estudiante y la
+ * generación en segundo plano de los informes y de la síntesis grupal (RF-07).
+ * Los repositorios, GeminiService y el executor de informes se simulan con Mockito: no levanta Spring ni usa
+ * la base de datos.
+ */
 @ExtendWith(MockitoExtension.class)
 class ChatServiceTest {
 
@@ -49,6 +59,7 @@ class ChatServiceTest {
     @BeforeEach
     void setUp() {
         Estudiante estudiante = Estudiante.builder().id(UUID.randomUUID()).nombre("Ana").correo(CORREO).build();
+        // Clase con 2 preguntas guía: el cierre de la ruta exige max(4, 2) = 4 mensajes del estudiante
         Sesion sesion = Sesion.builder()
                 .id(UUID.randomUUID())
                 .tema("Encapsulamiento")
@@ -62,6 +73,7 @@ class ChatServiceTest {
                 .sesion(sesion)
                 .build();
 
+        // El TransactionTemplate simulado ejecuta el callback en línea, sin transacción real
         lenient().when(transactionTemplate.execute(any())).thenAnswer(inv ->
                 inv.<TransactionCallback<?>>getArgument(0).doInTransaction(null));
         lenient().when(estudianteRepository.findByCorreoIgnoreCase(CORREO)).thenReturn(Optional.of(estudiante));
@@ -72,10 +84,12 @@ class ChatServiceTest {
         lenient().when(mensajeRepository.findByParticipacionOrderByCreatedAtAsc(participacion)).thenReturn(List.of());
     }
 
+    /** Mensajes del estudiante ya guardados antes del turno que se procesa (ese turno es el número turnos + 1). */
     private void conTurnosPrevios(long turnos) {
         when(mensajeRepository.countByParticipacionAndEmisor(participacion, true)).thenReturn(turnos);
     }
 
+    /** Simula la respuesta de Gemini: texto, si la dio el modelo auxiliar y si fue un error temporal. */
     private void conRespuestaGemini(String texto, boolean auxiliar, boolean error) {
         when(geminiService.generarRespuestaDetallada(anyString()))
                 .thenReturn(new GeminiService.RespuestaGemini(texto, auxiliar, error));
@@ -278,6 +292,8 @@ class ChatServiceTest {
     @Test
     @DisplayName("M-02: solo se aceptan marcas que avanzan, dentro del total y del modelo principal; los saltos se agrupan")
     void calculoDeHitos() {
+        // HitosRegistrados(última superada, turnos ya asignados);
+        // calcularHitosNuevos(previos, guía marcada, modelo auxiliar, total de guías, turnos del estudiante, ruta completada)
         ChatService.HitosRegistrados previos = new ChatService.HitosRegistrados(1, 3);
         // Avanza a la 2: turnos desde el último hito
         assertEquals(List.of(new ChatService.HitoNuevo("P2", 4)), ChatService.calcularHitosNuevos(previos, 2, false, 8, 7, false));

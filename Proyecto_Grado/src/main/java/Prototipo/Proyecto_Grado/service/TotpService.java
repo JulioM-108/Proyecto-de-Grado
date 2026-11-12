@@ -10,7 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 
 /**
- * Servicio para generación y validación de códigos TOTP (RFC 6238).
+ * Doble factor (2FA) opcional del docente con códigos TOTP (RFC 6238): HMAC-SHA1, 6 dígitos y
+ * ventanas de 30 s. Genera el secreto, la URI otpauth:// y su QR (con ZXing, en el servidor) y valida
+ * los códigos durante la activación del 2FA y en el segundo paso del login (RNF-01).
  * Compatible con Google Authenticator, Microsoft Authenticator y Authy.
  */
 @Service
@@ -22,6 +24,7 @@ public class TotpService {
     private static final int DIGITS = 6;
     private final SecureRandom random = new SecureRandom();
 
+    /** Anti-replay: última ventana TOTP aceptada por cada secreto (en memoria; se pierde al reiniciar). */
     private final java.util.Map<String, Long> ultimoWindowUsado = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
@@ -36,10 +39,15 @@ public class TotpService {
     }
 
     /**
-     * Construye la URI estándar otpauth:// para escanear en apps autenticadoras.
+     * Construye la URI estándar otpauth:// (formato Key URI) que codifica el QR para las apps autenticadoras.
+     *
+     * @param correo  cuenta que muestra la app junto al emisor
+     * @param secreto secreto Base32 del docente
      */
     public String generarOtpAuthUri(String correo, String secreto) {
         String issuer = "Javeriana Cali ITS";
+        // URLEncoder codifica los espacios como "+", que las apps no interpretan; se usa %20. La "@" del correo
+        // se deja sin codificar para que la cuenta se lea bien en la app.
         String encodedIssuer = URLEncoder.encode(issuer, StandardCharsets.UTF_8).replace("+", "%20");
         String encodedAccount = URLEncoder.encode(correo, StandardCharsets.UTF_8).replace("+", "%20").replace("%40", "@");
         return String.format("otpauth://totp/%s:%s?secret=%s&issuer=%s&algorithm=SHA1&digits=6&period=30",
@@ -47,8 +55,10 @@ public class TotpService {
     }
 
     /**
-     * Genera la imagen QR de forma local y autónoma con ZXing en Base64.
-     * Evita la fuga de secretos 2FA a servidores externos de internet.
+     * Genera en el servidor, con ZXing, el QR de la URI otpauth:// como PNG en Base64.
+     * Así el secreto 2FA no se envía a servicios externos de generación de QR.
+     *
+     * @return data URI ({@code data:image/png;base64,...}) lista para un {@code <img>}, o null si falla
      */
     public String generarQrBase64(String otpAuthUri, int width, int height) {
         try {
@@ -67,10 +77,13 @@ public class TotpService {
     }
 
     /**
-     * Valida si el código de 6 dígitos ingresado es válido para el secreto dado.
+     * Valida el código de 6 dígitos ingresado para el secreto dado (se ignoran los espacios).
      * Evalúa la ventana actual T, así como T-1 y T+1 (tolerancia a desfase de reloj).
      * Utiliza MessageDigest.isEqual para mitigar ataques de temporización (timing attacks).
-     * Registra la ventana consumida para mitigar ataques de repetición (replay attack).
+     * Registra la ventana consumida para mitigar ataques de repetición (replay attack): un código
+     * de una ventana igual o anterior a la última aceptada para ese secreto se rechaza.
+     *
+     * @return true si el código coincide con alguna ventana no consumida
      */
     public boolean validarCodigo(String secreto, String codigoIngresado) {
         if (secreto == null || codigoIngresado == null) return false;
@@ -80,7 +93,7 @@ public class TotpService {
         long currentWindow = System.currentTimeMillis() / 1000L / TIME_STEP_SECONDS;
         Long lastUsedWindow = ultimoWindowUsado.get(secreto);
 
-        // Limpieza periódica de ventanas antiguas para proteger el heap
+        // Limpieza de ventanas de más de 10 pasos (5 min) cuando el mapa crece, para proteger el heap
         if (ultimoWindowUsado.size() > 5000) {
             ultimoWindowUsado.entrySet().removeIf(e -> (currentWindow - e.getValue()) > 10);
         }
@@ -106,8 +119,16 @@ public class TotpService {
         return false;
     }
 
+    /**
+     * Calcula el código TOTP de una ventana concreta: HOTP (RFC 4226) con el número de ventana como contador.
+     * Visibilidad de paquete para las pruebas.
+     *
+     * @param window número de ventana de 30 s desde la época Unix
+     * @return código de {@value #DIGITS} dígitos con ceros a la izquierda
+     */
     String generarCodigoParaVentana(String secreto, long window) throws Exception {
         byte[] key = decodeBase32(secreto);
+        // Contador de 8 bytes en big-endian, como exige RFC 4226
         byte[] data = new byte[8];
         for (int i = 7; i >= 0; i--) {
             data[i] = (byte) (window & 0xFF);
@@ -118,6 +139,7 @@ public class TotpService {
         mac.init(new SecretKeySpec(key, "HmacSHA1"));
         byte[] hash = mac.doFinal(data);
 
+        // Truncamiento dinámico (RFC 4226, sección 5.3): 31 bits a partir del offset que indica el último byte
         int offset = hash[hash.length - 1] & 0x0F;
         int binary = ((hash[offset] & 0x7F) << 24)
                 | ((hash[offset + 1] & 0xFF) << 16)
@@ -128,6 +150,7 @@ public class TotpService {
         return String.format("%06d", otp);
     }
 
+    /** Decodifica Base32 (RFC 4648, sin relleno); ignora mayúsculas/minúsculas y caracteres fuera del alfabeto. */
     private byte[] decodeBase32(String base32) {
         String clean = base32.toUpperCase().replaceAll("[^A-Z2-7]", "");
         int numBytes = clean.length() * 5 / 8;

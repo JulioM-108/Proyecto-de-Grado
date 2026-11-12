@@ -21,6 +21,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+/**
+ * Pruebas unitarias de AnalyticsService, que calcula las métricas del dashboard docente:
+ * M-01 (errores recurrentes de los informes), M-02 (turnos por pregunta guía, códigos 20 y 21),
+ * M-03 (solicitudes directas, código 10), M-04 (tiempo activo) y la síntesis grupal con IA (RF-07).
+ * Incluye también la detección de solicitudes directas de ChatService.esSolicitudAtajo.
+ * Los repositorios y GeminiService se simulan con Mockito: no levanta Spring ni usa la base de datos.
+ */
 @ExtendWith(MockitoExtension.class)
 class AnalyticsServiceTest {
 
@@ -125,6 +132,7 @@ class AnalyticsServiceTest {
         assertFalse(prompt.getValue().contains("Ana Pérez"), "Los estudiantes se anonimizan");
     }
 
+    /** Métrica M-02 (código 21) con los turnos de una pregunta guía ("P2") o de un tramo agrupado ("P2-P4"). */
     private static Metrica hito(String concepto, long turnos) {
         return Metrica.builder().codigo(ChatService.CODIGO_TURNOS_POR_GUIA).concepto(concepto).valorNumerico(turnos).build();
     }
@@ -132,6 +140,7 @@ class AnalyticsServiceTest {
     @Test
     @DisplayName("M-02: avance por pregunta guía y estados (avanzando, se trabó, requiere apoyo, ruta completada)")
     void testAvancePorPreguntaGuia() {
+        // calcularAvance(hitos, consultas, preguntas guía, ruta completada); el último argumento de clasificarAvance indica señales de apoyo
         // P1 2 turnos, P2 9 turnos (se trabó), va en P3 con 1 turno
         AnalyticsService.AvanceGuias avance = AnalyticsService.calcularAvance(
                 List.of(hito("P1", 2), hito("P2", 9)), 12, 8, false);
@@ -255,6 +264,10 @@ class AnalyticsServiceTest {
         assertFalse(AnalyticsService.niegaErrores("Confunde el manejo de errores con excepciones"));
     }
 
+    /**
+     * M-01: un error real cuya explicación contiene "no … errores" se conserva; solo se descarta la viñeta
+     * cuya explicación empieza negando que hubo errores.
+     */
     @Test
     void testErroresConNegacionEnLaExplicacionSeConservan() {
         String informe = """

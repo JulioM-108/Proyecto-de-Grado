@@ -36,7 +36,15 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Controlador para el Módulo de Administración de Clases y Configuración de Prompts (Docente).
+ * Controlador del módulo docente: administración de clases, configuración CRAFT asistida,
+ * informes individuales, síntesis grupal, métricas, directorio de estudiantes, feedback recibido y 2FA.
+ * <p>
+ * Ruta base: {@code /docente}. Los endpoints de vista devuelven plantillas Thymeleaf y los de
+ * {@code /docente/api/...} devuelven JSON. Además del interceptor de rol de {@code WebMvcConfig},
+ * cada endpoint resuelve al docente desde la sesión y comprueba que la clase o la participación
+ * le pertenezca (RNF-01). El docente no accede al chat de los estudiantes, solo a informes y métricas.
+ * <p>
+ * Requisitos: RF-01, RF-05, RF-06, RF-07, RF-08, RF-10, RNF-01 y RNF-02.
  */
 @Controller
 @RequestMapping("/docente")
@@ -58,11 +66,20 @@ public class DocenteController {
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
 
+    // Alfabeto del enlace único sin caracteres ambiguos (I, O, 0, 1) para facilitar su lectura y dictado
     private static final String CARACTERES_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private final SecureRandom random = new SecureRandom();
 
     // ─── 1. Listado de Sesiones / Hub de Administración ───────────────────────
 
+    /**
+     * GET {@code /docente}, {@code /docente/} y {@code /docente/sesiones}: hub del docente con sus clases,
+     * de la más reciente a la más antigua.
+     * Los parámetros opcionales solo activan los avisos de las acciones previas (clase creada o eliminada,
+     * perfil actualizado, 2FA activado o desactivado, contraseña incorrecta al desactivar el 2FA).
+     *
+     * @return vista {@code docente/sesiones}, o redirección a {@code /login} si no hay docente en sesión
+     */
     @GetMapping({"", "/", "/sesiones"})
     public String listarSesiones(
             @RequestParam(value = "creada", required = false) Boolean creada,
@@ -95,6 +112,14 @@ public class DocenteController {
 
     // ─── 2. Actualización de Información Personal del Docente ─────────────────
 
+    /**
+     * POST {@code /docente/perfil/actualizar}: actualiza nombre, correo, facultad y, opcionalmente,
+     * la contraseña del docente autenticado (hash BCrypt, RNF-02). Los campos vacíos se ignoran.
+     * El correo solo se acepta si es de un dominio institucional y, al cambiar, se sincroniza en la
+     * sesión porque es la clave con la que se resuelve al docente.
+     *
+     * @return redirección a {@code /docente/sesiones?perfilActualizado=true}
+     */
     @PostMapping("/perfil/actualizar")
     public String actualizarPerfil(
             @RequestParam("nombre") String nombre,
@@ -135,6 +160,13 @@ public class DocenteController {
 
     // ─── 3. Formulario de Creación con Asistente IA de Prompts ───────────────
 
+    /**
+     * GET {@code /docente/sesiones/nueva}: panel de configuración asistida para crear una clase (RF-05).
+     * Precarga el tema si llega por parámetro; el resto de campos CRAFT y las preguntas guía se
+     * completan a mano o con "Sugerir Directrices CRAFT con IA".
+     *
+     * @return vista {@code docente/nueva_sesion}
+     */
     @GetMapping("/sesiones/nueva")
     public String formularioNuevaSesion(
             @RequestParam(value = "tema", required = false) String tema,
@@ -161,6 +193,13 @@ public class DocenteController {
     /** aviso != null cuando la IA no respondió y se devolvió la plantilla base (no es una propuesta de la IA). */
     public record PromptAssistantResponse(boolean success, CraftConfigDto craft, String error, String aviso) {}
 
+    /**
+     * POST {@code /docente/api/prompt-assistant} (JSON): botón "Sugerir Directrices CRAFT con IA" (RF-05).
+     * Llama a Gemini mediante {@link PromptAssistantService} para proponer los campos CRAFT a partir del tema.
+     * No persiste nada: la propuesta se carga en el formulario para que el docente la revise.
+     *
+     * @return 200 con la propuesta (y {@code aviso} si es la plantilla base); 401 si no hay docente en sesión
+     */
     @PostMapping("/api/prompt-assistant")
     @ResponseBody
     public ResponseEntity<PromptAssistantResponse> invocarAsistentePrompt(
@@ -184,8 +223,14 @@ public class DocenteController {
         }
     }
 
-    // ─── 4. Guardar y Activar Nueva Sesión ────────────────────────────────────
+    // ─── 5. Guardar y Activar Nueva Sesión ────────────────────────────────────
 
+    /**
+     * POST {@code /docente/sesiones/crear}: crea la clase con su configuración CRAFT y preguntas guía,
+     * le asigna un enlace único de 6 caracteres y la deja activa (RF-01, RF-05). Escribe en la BD.
+     *
+     * @return redirección a {@code /docente/sesiones?creada=true&codigo=...} para mostrar el enlace generado
+     */
     @PostMapping("/sesiones/crear")
     public String crearSesion(
             @RequestParam("tema") String tema,
@@ -200,7 +245,7 @@ public class DocenteController {
         Profesor profesor = obtenerProfesorActual(session);
         if (profesor == null) return "redirect:/login";
 
-        // Generar código alfanumérico único para privacidad del estudiante
+        // Código aleatorio y no secuencial: el enlace no permite adivinar otras clases
         String codigoUnico = generarCodigoAlfanumericoUnico();
 
         Sesion nuevaSesion = Sesion.builder()
@@ -222,8 +267,15 @@ public class DocenteController {
         return "redirect:/docente/sesiones?creada=true&codigo=" + codigoUnico;
     }
 
-    // ─── 5. Cambiar Estado de la Sesión (Activar / Pausar) ────────────────────
+    // ─── 6. Cambiar Estado de la Sesión (Activar / Pausar) ────────────────────
 
+    /**
+     * POST {@code /docente/sesiones/{id}/estado}: alterna la clase entre activa y pausada.
+     * Con la clase pausada el estudiante ve su chat pero no puede escribir.
+     * Solo actúa si la clase pertenece al docente (RNF-01); si no, redirige sin cambios.
+     *
+     * @return redirección a {@code /docente/sesiones}
+     */
     @PostMapping("/sesiones/{id}/estado")
     public String alternarEstadoSesion(@PathVariable UUID id, HttpSession session) {
         Profesor profesor = obtenerProfesorActual(session);
@@ -241,10 +293,19 @@ public class DocenteController {
         return "redirect:/docente/sesiones";
     }
 
-    // ─── 5.1 Diagnóstico Pedagógico Bajo Demanda (Lazy Synthesis) ─────────────
+    // ─── 7. Informe Individual Bajo Demanda ──────────────────────────────────
 
     public record GenerarDiagnosticoResponse(boolean success, String progresoMd, String error) {}
 
+    /**
+     * POST {@code /docente/api/participaciones/{participacionId}/generar-diagnostico} (JSON): informe
+     * individual del estudiante con sus focos de dificultad (RF-06, M-01).
+     * Verifica que la participación sea de una clase del docente (RNF-01). Si ya existe un informe válido
+     * y {@code regenerar} es false, lo devuelve sin llamar a Gemini; si no, lo genera con Gemini a partir
+     * de la conversación y lo guarda en {@code progreso_md}.
+     *
+     * @return 200 con el Markdown o con el error a mostrar; 401 sin docente en sesión; 403 si la participación no es suya
+     */
     @PostMapping("/api/participaciones/{participacionId}/generar-diagnostico")
     @ResponseBody
     public ResponseEntity<GenerarDiagnosticoResponse> generarDiagnosticoBajoDemanda(
@@ -264,7 +325,6 @@ public class DocenteController {
                     .body(new GenerarDiagnosticoResponse(false, null, "Participación no encontrada o no pertenece a sus clases."));
         }
 
-        // Si ya cuenta con diagnóstico válido y no se pidió uno nuevo, retornarlo sin llamar a Gemini
         if (!regenerar && GeminiService.esTextoGeneradoValido(part.getProgresoMd())) {
             return ResponseEntity.ok(new GenerarDiagnosticoResponse(true, part.getProgresoMd(), null));
         }
@@ -276,10 +336,10 @@ public class DocenteController {
 
         // El diagnóstico se genera sin cerrar la tutoría: el estudiante puede seguir conversando.
         try {
-            // regenerar = true reemplaza el diagnóstico anterior con uno basado en la conversación actual
             String md = chatService.generarDiagnostico(participacionId, regenerar);
             return ResponseEntity.ok(new GenerarDiagnosticoResponse(true, md, null));
         } catch (IllegalStateException e) {
+            // Gemini no devolvió un texto válido; no se guardó nada y el docente puede reintentar
             log.warn("Diagnóstico no generado para participación {}: {}", participacionId, e.getMessage());
             return ResponseEntity.ok(new GenerarDiagnosticoResponse(false, null, "El motor de IA reportó saturación temporal. Por favor presiona Reintentar en unos segundos."));
         } catch (Exception e) {
@@ -288,13 +348,18 @@ public class DocenteController {
         }
     }
 
-    // ─── 5.1b Informes Pendientes del Grupo (Flujo 3) ─────────────────────────
+    // ─── 8. Informes Pendientes del Grupo ────────────────────────────────────
 
     public record GenerarInformesPendientesResponse(boolean success, int pendientes, String mensaje) {}
 
     /**
-     * Genera en segundo plano los informes de quienes escribieron al tutor y aún no tienen informe
-     * (los que completan la ruta ya lo reciben automáticamente).
+     * POST {@code /docente/api/sesiones/{sesionId}/generar-informes-pendientes} (JSON): encola en segundo
+     * plano, con Gemini, los informes individuales (RF-06) de quienes escribieron al tutor y aún no tienen
+     * informe (los que completan la ruta ya lo reciben automáticamente). Verifica que la clase sea del docente (RNF-01).
+     * La respuesta es inmediata; los informes se guardan en la BD a medida que se generan.
+     *
+     * @return 200 con el número de informes encolados y un mensaje (el tiempo estimado asume unos 15 s por informe);
+     *         401 sin docente en sesión; 403 si la clase no es suya
      */
     @PostMapping("/api/sesiones/{sesionId}/generar-informes-pendientes")
     @ResponseBody
@@ -316,6 +381,7 @@ public class DocenteController {
 
         try {
             int pendientes = chatService.generarInformesPendientes(sesion);
+            // -1: ya hay una generación en curso para esta clase (evita encolar dos veces)
             if (pendientes < 0) {
                 return ResponseEntity.ok(new GenerarInformesPendientesResponse(false, 0,
                         "Ya se están generando los informes de esta clase. Recarga la página en unos minutos."));
@@ -334,10 +400,17 @@ public class DocenteController {
         }
     }
 
-    // ─── 5.2 Síntesis Pedagógica Consolidada Grupal Bajo Demanda ──────────────
+    // ─── 9. Síntesis Pedagógica Consolidada Grupal Bajo Demanda ──────────────
 
     public record GenerarSintesisGrupalResponse(boolean success, String sintesis, String error) {}
 
+    /**
+     * POST {@code /docente/api/sesiones/{sesionId}/generar-sintesis} (JSON): síntesis pedagógica
+     * consolidada de la clase (RF-07), generada con Gemini y guardada en la BD por {@link AnalyticsService}.
+     * Verifica que la clase sea del docente (RNF-01).
+     *
+     * @return 200 con la síntesis o con el error a mostrar; 401 sin docente en sesión; 403 si la clase no es suya
+     */
     @PostMapping("/api/sesiones/{sesionId}/generar-sintesis")
     @ResponseBody
     public ResponseEntity<GenerarSintesisGrupalResponse> generarSintesisGrupal(
@@ -368,8 +441,14 @@ public class DocenteController {
         }
     }
 
-    // ─── 6. Eliminar Sesión de Clase (con limpieza en cascada) ─────────────────
+    // ─── 10. Eliminar Sesión de Clase (con limpieza en cascada) ────────────────
 
+    /**
+     * POST {@code /docente/sesiones/{id}/eliminar}: elimina la clase y, en cascada, los mensajes, las
+     * métricas y las participaciones asociadas, en una sola transacción. Solo actúa si la clase es del docente (RNF-01).
+     *
+     * @return redirección a {@code /docente/sesiones?eliminada=true}, o a {@code /docente/sesiones} si no se eliminó
+     */
     @Transactional
     @PostMapping("/sesiones/{id}/eliminar")
     public String eliminarSesion(@PathVariable UUID id, HttpSession session) {
@@ -380,6 +459,7 @@ public class DocenteController {
 
         if (sesion != null && sesion.getProfesor().getId().equals(profesor.getId())) {
             List<Participacion> participaciones = participacionRepository.findBySesion(sesion);
+            // Se borran primero los hijos (mensajes y métricas) para no violar las claves foráneas
             if (!participaciones.isEmpty()) {
                 mensajeRepository.deleteByParticipacionIn(participaciones);
                 metricaRepository.deleteByParticipacionIn(participaciones);
@@ -393,8 +473,16 @@ public class DocenteController {
         return "redirect:/docente/sesiones";
     }
 
-    // ─── 6. Métricas y Analítica por Sesión ───────────────────────────────────
+    // ─── 11. Dashboard de la Clase: Métricas, Estudiantes y CRAFT ──────────────
 
+    /**
+     * GET {@code /docente/sesiones/{id}/metricas}: dashboard de una clase. Reúne las métricas e informes
+     * (RF-06, RF-08; M-01 a M-04), los estudiantes del directorio que aún no están en la clase, el feedback
+     * recibido con su valoración promedio (RF-10), las evaluaciones SUS+TAM y las preguntas guía.
+     * Verifica que la clase sea del docente (RNF-01). Solo lectura.
+     *
+     * @return vista {@code docente/dashboard}, o redirección a {@code /docente/sesiones} si la clase no es suya
+     */
     @GetMapping("/sesiones/{id}/metricas")
     public String verMetricasSesion(
             @PathVariable UUID id,
@@ -410,7 +498,7 @@ public class DocenteController {
         Sesion sesion = sesionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sesión no encontrada"));
 
-        // Verificación IDOR: garantizar que la sesión pertenezca al docente en sesión
+        // Verificación IDOR (RNF-01): la clase debe pertenecer al docente autenticado
         if (!sesion.getProfesor().getId().equals(profesor.getId())) {
             log.warn("Acceso denegado: el docente {} intentó acceder a la sesión {}", profesor.getCorreo(), id);
             return "redirect:/docente/sesiones?error=No+autorizado";
@@ -418,7 +506,7 @@ public class DocenteController {
 
         AnalyticsService.MetricasDashboard metricas = analyticsService.obtenerMetricasPorSesion(sesion);
 
-        // Estudiantes de la cartera del docente que aún no forman parte de esta clase
+        // Estudiantes del directorio del docente que aún no forman parte de esta clase (para vincularlos)
         List<ProfesorEstudiante> vinculosDocente = profesorEstudianteRepository.findByProfesorWithEstudiante(profesor);
         List<Participacion> participacionesSesion = participacionRepository.findBySesion(sesion);
         Set<UUID> idsEstudiantesEnSesion = participacionesSesion.stream()
@@ -432,7 +520,7 @@ public class DocenteController {
                 .sorted(Comparator.comparing(e -> e.getNombre() != null ? e.getNombre() : ""))
                 .collect(Collectors.toList());
 
-        // Feedbacks y valoraciones de los estudiantes en esta sesión
+        // RF-10: "Feedback Profe" (comentario y/o valoración de 1 a 5) recibido en esta clase
         List<Participacion> feedbacksSesion = participacionesSesion.stream()
                 .filter(p -> p.getFeedbackEstudiante() != null || p.getValoracionEstudiante() != null)
                 .collect(Collectors.toList());
@@ -443,7 +531,7 @@ public class DocenteController {
                 .average()
                 .orElse(0.0);
 
-        // Evaluaciones psicométricas SUS + TAM de los estudiantes en esta sesión
+        // Encuestas SUS+TAM enviadas en esta clase
         List<Participacion> evaluacionesSesion = participacionesSesion.stream()
                 .filter(p -> p.getEvaluacionSusTam() != null)
                 .collect(Collectors.toList());
@@ -455,6 +543,7 @@ public class DocenteController {
                 .average()
                 .orElse(0.0);
 
+        // Las preguntas guía se guardan como texto con una pregunta por línea
         List<String> preguntasGuiaList = new ArrayList<>();
         if (sesion.getPreguntasGuia() != null && !sesion.getPreguntasGuia().isBlank()) {
             preguntasGuiaList = Arrays.stream(sesion.getPreguntasGuia().split("\n"))
@@ -483,6 +572,13 @@ public class DocenteController {
         return "docente/dashboard";
     }
 
+    /**
+     * POST {@code /docente/sesiones/{id}/estudiantes/vincular}: vincula manualmente un estudiante a la
+     * clase creando su participación (RF-01), si aún no la tiene. Solo actúa si la clase es del docente (RNF-01).
+     * Escribe en la BD.
+     *
+     * @return redirección al dashboard de la clase con {@code estudianteVinculado=true}
+     */
     @PostMapping("/sesiones/{id}/estudiantes/vincular")
     public String vincularEstudianteASesion(
             @PathVariable UUID id,
@@ -509,6 +605,13 @@ public class DocenteController {
         return "redirect:/docente/sesiones/" + id + "/metricas?estudianteVinculado=true";
     }
 
+    /**
+     * POST {@code /docente/sesiones/{id}/participaciones/{participacionId}/desvincular}: retira a un estudiante
+     * de la clase borrando su participación con sus mensajes y métricas. El estudiante sigue en el directorio
+     * del docente. Verifica que la clase sea del docente y que la participación pertenezca a esa clase (RNF-01).
+     *
+     * @return redirección al dashboard de la clase ({@code estudianteDesvinculado=true} si se borró)
+     */
     @Transactional
     @PostMapping("/sesiones/{id}/participaciones/{participacionId}/desvincular")
     public String desvincularEstudianteDeSesion(
@@ -544,6 +647,12 @@ public class DocenteController {
         return "redirect:/docente/sesiones/" + id + "/metricas";
     }
 
+    /**
+     * POST {@code /docente/sesiones/{id}/craft}: actualiza las directrices CRAFT y las preguntas guía de una
+     * clase existente (RF-05). Solo se sobrescriben los campos enviados y solo si la clase es del docente (RNF-01).
+     *
+     * @return redirección al dashboard de la clase con {@code craftGuardado=true}
+     */
     @PostMapping("/sesiones/{id}/craft")
     public String actualizarCraftSesion(
             @PathVariable UUID id,
@@ -575,12 +684,19 @@ public class DocenteController {
         return "redirect:/docente/sesiones/" + id + "/metricas?craftGuardado=true";
     }
 
-    // ─── 8. Doble Factor de Autenticación (2FA / TOTP) ───────────────────────
+    // ─── 12. Doble Factor de Autenticación (2FA / TOTP) ──────────────────────
 
     public record Setup2FaResponse(boolean success, String secreto, String qrUri, String qrUrl) {}
     public record Activar2FaRequest(String codigo) {}
     public record Activar2FaResponse(boolean success, String error) {}
 
+    /**
+     * GET {@code /docente/api/2fa/setup} (JSON): primer paso para activar el 2FA TOTP opcional.
+     * Genera un secreto Base32, lo guarda temporalmente en la sesión HTTP (no en la BD) y devuelve
+     * el secreto, la URI {@code otpauth://} y el QR en Base64 para la app autenticadora.
+     *
+     * @return 200 con los datos del QR; 401 sin docente en sesión
+     */
     @GetMapping("/api/2fa/setup")
     @ResponseBody
     public ResponseEntity<Setup2FaResponse> generarSetup2Fa(HttpSession session) {
@@ -595,6 +711,7 @@ public class DocenteController {
 
         String qrUri = totpService.generarOtpAuthUri(profesor.getCorreo(), secreto);
         String qrUrl = totpService.generarQrBase64(qrUri, 200, 200);
+        // Sin QR el docente aún puede ingresar el secreto a mano en la app autenticadora
         if (qrUrl == null) {
             qrUrl = "";
         }
@@ -602,6 +719,12 @@ public class DocenteController {
         return ResponseEntity.ok(new Setup2FaResponse(true, secreto, qrUri, qrUrl));
     }
 
+    /**
+     * POST {@code /docente/api/2fa/activar} (JSON): confirma el 2FA validando un código TOTP contra el
+     * secreto temporal de la sesión. Si es válido, persiste el secreto en el docente y activa el 2FA.
+     *
+     * @return 200 con {@code success} y, si falla, el motivo; 401 sin docente en sesión
+     */
     @PostMapping("/api/2fa/activar")
     @ResponseBody
     public ResponseEntity<Activar2FaResponse> activar2Fa(
@@ -634,6 +757,12 @@ public class DocenteController {
         return ResponseEntity.ok(new Activar2FaResponse(true, null));
     }
 
+    /**
+     * POST {@code /docente/2fa/desactivar}: desactiva el 2FA y borra el secreto. Exige la contraseña
+     * actual del docente para que una sesión abierta por terceros no pueda quitar el segundo factor.
+     *
+     * @return redirección a {@code /docente?2faDesactivado=true}, o a {@code /docente?error2fa=contrasenaIncorrecta}
+     */
     @PostMapping("/2fa/desactivar")
     public String desactivar2Fa(@RequestParam("contrasena") String contrasena, HttpSession session) {
         Profesor profesor = obtenerProfesorActual(session);
@@ -651,22 +780,31 @@ public class DocenteController {
         return "redirect:/docente?2faDesactivado=true";
     }
 
-    // Redirección de compatibilidad para el dashboard global
-    // ─── 9. Directorio General de Estudiantes ───────────────────────────────
+    // ─── 13. Directorio General de Estudiantes ──────────────────────────────
 
+    /** Fila del directorio del docente con los indicadores de RF-08 de un estudiante. */
     public record EstudianteDirectorioDto(
             UUID id,
             String nombre,
             String correo,
             long totalClases,
             long clasesActivas,
+            /** M-04: fecha del último mensaje del estudiante en las clases de este docente */
             String ultimaActividadFormateada,
-            /** M-04: clases con la ruta completada */
+            /** Clases en las que completó la ruta de preguntas guía */
             long clasesCompletadas,
             /** M-04: tiempo activo promedio por clase en la que escribió */
             String tiempoActivoPromedio
     ) {}
 
+    /**
+     * GET {@code /docente/estudiantes}: directorio de los estudiantes vinculados al docente, con clases
+     * totales y activas, clases completadas, última actividad y tiempo activo promedio (RF-08, M-04).
+     * Solo incluye estudiantes del directorio del docente y sus participaciones en clases propias (RNF-01).
+     * Solo lectura.
+     *
+     * @return vista {@code docente/estudiantes}
+     */
     @Transactional(readOnly = true)
     @GetMapping("/estudiantes")
     public String listarEstudiantes(
@@ -675,7 +813,8 @@ public class DocenteController {
         Profesor profesor = obtenerProfesorActual(session);
         if (profesor == null) return "redirect:/login";
 
-        // Consultar estudiantes de la cartera permanente del docente autenticado
+        // El directorio sale de los vínculos docente-estudiante, no de las participaciones:
+        // incluye también a estudiantes que ya no están en ninguna clase
         List<ProfesorEstudiante> vinculosDocente = profesorEstudianteRepository.findByProfesorWithEstudiante(profesor);
         List<Participacion> participaciones = participacionRepository.findByProfesorWithEstudianteAndSesion(profesor);
         List<Sesion> sesiones = sesionRepository.findByProfesorOrderByCreatedAtDesc(profesor);
@@ -684,7 +823,7 @@ public class DocenteController {
                 .filter(p -> p.getEstudiante() != null)
                 .collect(Collectors.groupingBy(p -> p.getEstudiante().getId(), LinkedHashMap::new, Collectors.toList()));
 
-        // Fecha del último mensaje del estudiante en cada participación (una sola consulta agrupada)
+        // M-04: fecha del último mensaje del estudiante en cada participación (una sola consulta agrupada)
         Map<UUID, java.time.OffsetDateTime> ultimoMensajePorParticipacion = new HashMap<>();
         if (!participaciones.isEmpty()) {
             for (Object[] fila : mensajeRepository.findUltimoMensajeEstudiantePorParticipacion(participaciones)) {
@@ -768,6 +907,13 @@ public class DocenteController {
         return "docente/estudiantes";
     }
 
+    /**
+     * POST {@code /docente/estudiantes/{estudianteId}/asignar-sesion}: desde el directorio, asigna un
+     * estudiante a una clase creando su participación (RF-01), si aún no la tiene.
+     * Solo actúa si la clase es del docente (RNF-01). Escribe en la BD.
+     *
+     * @return redirección a {@code /docente/estudiantes} ({@code estudianteAsignado=true} si la clase es válida)
+     */
     @PostMapping("/estudiantes/{estudianteId}/asignar-sesion")
     public String asignarEstudianteASesion(
             @PathVariable UUID estudianteId,
@@ -792,6 +938,14 @@ public class DocenteController {
         return "redirect:/docente/estudiantes";
     }
 
+    /**
+     * POST {@code /docente/estudiantes/{estudianteId}/eliminar}: elimina al estudiante del ámbito del docente.
+     * Borra sus participaciones (con mensajes y métricas) en las clases de este docente y lo retira de su
+     * directorio. La cuenta solo se elimina de la plataforma si el estudiante no pertenece a otros docentes.
+     * Exige que el estudiante pertenezca al docente (RNF-01). Todo ocurre en una transacción.
+     *
+     * @return redirección a {@code /docente/estudiantes} ({@code estudianteEliminado=true} si se eliminó)
+     */
     @Transactional
     @PostMapping("/estudiantes/{estudianteId}/eliminar")
     public String eliminarEstudiante(
@@ -814,7 +968,7 @@ public class DocenteController {
                     .filter(p -> p.getSesion() != null && p.getSesion().getProfesor() != null && p.getSesion().getProfesor().getId().equals(profesor.getId()))
                     .collect(Collectors.toList());
 
-            // Autorización: solo puede eliminar a estudiantes de su cartera o con participaciones en sus sesiones
+            // Autorización: solo puede eliminar a estudiantes de su directorio o con participaciones en sus clases
             boolean perteneceAEsteDocente = !participacionesConDocente.isEmpty()
                     || todosVinculos.stream().anyMatch(pe -> pe.getProfesor() != null && pe.getProfesor().getId().equals(profesor.getId()));
             if (!perteneceAEsteDocente) {
@@ -823,7 +977,8 @@ public class DocenteController {
                 return "redirect:/docente/estudiantes";
             }
 
-            // La cuenta solo se borra de la plataforma si no pertenece a otro docente (cartera o participaciones)
+            // Se calcula antes de borrar: la cuenta solo se elimina si no pertenece a otro docente
+            // (por su directorio o por participaciones en clases ajenas)
             boolean perteneceAOtroDocente = todasParticipaciones.size() > participacionesConDocente.size()
                     || todosVinculos.stream()
                     .anyMatch(pe -> pe.getProfesor() != null && !pe.getProfesor().getId().equals(profesor.getId()));
@@ -835,7 +990,7 @@ public class DocenteController {
                 participacionRepository.flush();
             }
 
-            // Eliminar de la cartera de este docente los vínculos gestionados en sesión
+            // Retira al estudiante del directorio de este docente
             List<ProfesorEstudiante> vinculosAEliminar = todosVinculos.stream()
                     .filter(pe -> pe.getProfesor() != null && pe.getProfesor().getId().equals(profesor.getId()))
                     .collect(Collectors.toList());
@@ -854,7 +1009,7 @@ public class DocenteController {
                 return "redirect:/docente/estudiantes?estudianteEliminado=true";
             }
 
-            // Si solo pertenecía a este docente, eliminar cuenta de la plataforma
+            // Solo pertenecía a este docente: se elimina la cuenta de la plataforma
             estudianteRepository.delete(estudiante);
             estudianteRepository.flush();
             log.info("Docente {} eliminó al estudiante {} ({}) de la plataforma",
@@ -865,8 +1020,9 @@ public class DocenteController {
         return "redirect:/docente/estudiantes";
     }
 
-    // ─── 10. Módulo de Feedback Consolidado de Estudiantes ────────────────────
+    // ─── 14. Módulo de Feedback Consolidado de Estudiantes ────────────────────
 
+    /** Elemento de "Feedback Recibido": "Feedback Profe" y encuesta SUS+TAM de una participación. */
     public record FeedbackItemDto(
             UUID participacionId,
             String nombreEstudiante,
@@ -880,6 +1036,13 @@ public class DocenteController {
             EvaluacionSusTamDTO evaluacionSusTam
     ) {}
 
+    /**
+     * GET {@code /docente/feedback}: sección "Feedback Recibido" (RF-10). Lista la valoración de 1 a 5,
+     * el comentario y la encuesta SUS+TAM de cada participación en las clases del docente (RNF-01),
+     * con promedios globales. El parámetro opcional {@code sesionId} filtra por una clase. Solo lectura.
+     *
+     * @return vista {@code docente/feedback}
+     */
     @Transactional(readOnly = true)
     @GetMapping("/feedback")
     public String verFeedbackGlobal(
@@ -914,6 +1077,7 @@ public class DocenteController {
                 })
                 .collect(Collectors.toList());
 
+        // valoracion = 0 indica "sin valoración" y no cuenta en el promedio
         double promedioGlobal = items.stream()
                 .filter(f -> f.valoracion() > 0)
                 .mapToInt(FeedbackItemDto::valoracion)
@@ -941,6 +1105,7 @@ public class DocenteController {
         return "docente/feedback";
     }
 
+    /** GET {@code /docente/dashboard}: redirección de compatibilidad hacia el hub {@code /docente/sesiones}. */
     @GetMapping("/dashboard")
     public String dashboardGlobal() {
         return "redirect:/docente/sesiones";
@@ -948,6 +1113,7 @@ public class DocenteController {
 
     // ─── Métodos Auxiliares ───────────────────────────────────────────────────
 
+    /** Resuelve el docente autenticado desde la sesión HTTP; null si no hay sesión o el rol no es DOCENTE. */
     private Profesor obtenerProfesorActual(HttpSession session) {
         if (session == null) return null;
         String rol = (String) session.getAttribute("rolUsuario");
@@ -958,6 +1124,7 @@ public class DocenteController {
         return null;
     }
 
+    /** Genera un enlace único de 6 caracteres con {@link SecureRandom}, reintentando si ya existe en la BD. */
     private String generarCodigoAlfanumericoUnico() {
         String codigo;
         do {

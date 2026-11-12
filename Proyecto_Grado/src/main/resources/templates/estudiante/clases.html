@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Módulo de Interfaz de Estudiante: perfil y lista de clases con su estado, Retomar Tutoría, Feedback Profe (RF-09) y encuesta SUS+TAM. -->
 <html xmlns:th="http://www.thymeleaf.org" lang="es">
 <head>
     <meta charset="UTF-8">
@@ -157,7 +158,7 @@
 </head>
 <body>
 
-    <!-- 1. Barra de Navegación -->
+    <!-- 1. Barra de navegación: marca, correo del estudiante y cierre de sesión -->
     <nav class="navbar-minimal d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-mortarboard-fill text-warning fs-4"></i>
@@ -172,7 +173,7 @@
         </div>
     </nav>
 
-    <!-- 2. Contenedor Principal -->
+    <!-- 2. Contenido principal: avisos, perfil y lista de clases -->
     <main class="container-custom">
 
         <!-- Mensaje de Error si aplica -->
@@ -181,7 +182,7 @@
             <span th:text="${error}">Error al buscar la sesión.</span>
         </div>
 
-        <!-- Mensaje de Éxito / Actualización -->
+        <!-- Mensaje de perfil actualizado -->
         <div th:if="${perfilActualizado}" class="alert alert-success rounded-3 py-2 px-3 small mb-4 d-flex align-items-center gap-2" role="alert">
             <i class="bi bi-check-circle-fill"></i>
             <span>Información personal actualizada correctamente.</span>
@@ -200,7 +201,7 @@
             <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
         </div>
 
-        <!-- Perfil del Estudiante -->
+        <!-- Perfil del estudiante con acceso al modal Editar Perfil -->
         <div class="card-profile d-flex flex-wrap align-items-center justify-content-between gap-3">
             <div class="d-flex align-items-center gap-3">
                 <div class="avatar-circle">
@@ -245,7 +246,7 @@
                 </p>
             </div>
 
-            <!-- Listado de Clases -->
+            <!-- Lista de clases: una tarjeta por clase con código, estado, fecha, tema y acciones -->
             <div th:unless="${#lists.isEmpty(participaciones)}">
                 <div th:each="part : ${participaciones}" class="card-class d-flex flex-wrap align-items-center justify-content-between gap-3">
                     <div>
@@ -266,6 +267,7 @@
                         <h6 class="fw-bold mb-1" style="color: var(--puj-blue-dark);" th:text="${part.sesion.tema}">Tema de la Clase</h6>
                         <p class="text-muted small mb-0" th:text="${part.sesion.craftContexto}">Contexto CRAFT</p>
                     </div>
+                    <!-- Acciones: Feedback Profe, encuesta SUS+TAM (muestra el puntaje SUS una vez enviada) y Retomar Tutoría -->
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <button type="button" class="btn btn-outline-warning btn-sm rounded-3 px-3 py-1 text-dark"
                                 data-bs-toggle="modal" th:data-bs-target="'#modalFeedbackClase' + ${part.id}">
@@ -293,7 +295,7 @@
 
     </main>
 
-    <!-- MODAL: Editar Información Personal del Estudiante -->
+    <!-- MODAL Editar Perfil: nombre y nueva contraseña opcional; el correo institucional no se puede modificar -->
     <div class="modal fade" id="modalEditarPerfilEstudiante" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -335,7 +337,7 @@
         </div>
     </div>
 
-    <!-- MODALES DE FEEDBACK POR CLASE -->
+    <!-- MODALES Feedback Profe, uno por clase: valoración de 1 a 5 y comentarios o dudas para el profesor -->
     <div th:each="part : ${participaciones}" class="modal fade" th:id="'modalFeedbackClase' + ${part.id}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -385,7 +387,7 @@
         </div>
     </div>
 
-    <!-- MODALES DE EVALUACIÓN SUS+TAM POR CLASE -->
+    <!-- MODALES SUS+TAM, uno por clase: 10 ítems SUS, 6 ítems TAM y comentario opcional -->
     <div th:each="part : ${participaciones}" class="modal fade" th:id="'modalSusTamClase' + ${part.id}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-height: 90vh;">
             <form class="modal-content border-0 shadow rounded-4 overflow-hidden" 

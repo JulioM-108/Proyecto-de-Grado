@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Registro o ingreso del estudiante desde el enlace de la clase (RF-01): pestañas "Ya tengo cuenta" y "Soy nuevo estudiante", solo con correo institucional. -->
 <html xmlns:th="http://www.thymeleaf.org" lang="es">
 <head>
     <meta charset="UTF-8">
@@ -154,6 +155,7 @@
 
 <div class="registro-wrapper">
 
+    <!-- Encabezado institucional -->
     <div class="text-center mb-3">
         <span class="session-badge">
             <i class="bi bi-mortarboard-fill"></i> Pontificia Universidad Javeriana Cali
@@ -162,6 +164,7 @@
         <p class="text-muted small">Acceso directo a la sesión de aprendizaje</p>
     </div>
 
+    <!-- Tarjeta de acceso: tema de la clase, avisos y formularios -->
     <div class="card-registro">
 
         <div class="mb-3 text-center pb-2 border-bottom">
@@ -175,7 +178,7 @@
             <span th:text="${error}">Error de autenticación.</span>
         </div>
 
-        <!-- Selector de pestañas: Ya tengo cuenta vs. Soy nuevo estudiante -->
+        <!-- Selector de pestañas "Ya tengo cuenta" / "Soy nuevo estudiante"; la pestaña activa la define el servidor -->
         <ul class="nav nav-pills nav-fill nav-pills-custom mb-3" id="pills-tab" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="pills-login-tab" data-bs-toggle="pill" data-bs-target="#pills-login" 
@@ -197,7 +200,7 @@
 
         <div class="tab-content" id="pills-tabContent">
 
-            <!-- TAB 1: YA TENGO CUENTA (INICIAR SESIÓN) -->
+            <!-- TAB 1: YA TENGO CUENTA (INICIAR SESIÓN): correo institucional y contraseña -->
             <div class="tab-pane fade" id="pills-login" role="tabpanel" aria-labelledby="pills-login-tab"
                  th:classappend="${modoActivo != 'registro'} ? ' show active' : ''">
 
@@ -242,7 +245,7 @@
                 </form>
             </div>
 
-            <!-- TAB 2: SOY NUEVO ESTUDIANTE (REGISTRO) -->
+            <!-- TAB 2: SOY NUEVO ESTUDIANTE (REGISTRO): nombre, correo institucional y contraseña -->
             <div class="tab-pane fade" id="pills-registro" role="tabpanel" aria-labelledby="pills-registro-tab"
                  th:classappend="${modoActivo == 'registro'} ? ' show active' : ''">
 

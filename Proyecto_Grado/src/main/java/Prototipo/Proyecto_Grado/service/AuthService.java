@@ -13,8 +13,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Servicio de autenticación que valida usuarios contra las tablas "Estudiante" y "Profesor"
- * en Supabase. Ambas tablas tienen la columna "contrase\u00f1a" (varchar) para la contraseña.
+ * Autenticación del login único con rol estudiante o docente, contra las tablas "Estudiante" y
+ * "Profesor" de Supabase. Ambas tablas tienen la columna "contrase\u00f1a" (varchar) para la contraseña.
+ * <p>
+ * Solo admite correos @javerianacali.edu.co y @javeriana.edu.co, y verifica contraseñas cifradas con
+ * BCrypt (RNF-02). El bloqueo por intentos fallidos ({@link LoginRateLimiterService}) y el segundo
+ * factor del docente ({@link TotpService}) se aplican desde los controladores.
  */
 @Service
 @RequiredArgsConstructor
@@ -25,17 +29,26 @@ public class AuthService {
     private final ProfesorRepository profesorRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /** Usuario validado que el controlador guarda en la sesión HTTP; {@code rol} es "DOCENTE" o "ESTUDIANTE". */
     public record UsuarioAutenticado(UUID id, String nombre, String correo, String rol) {}
 
     /**
-     * Autentica las credenciales de un usuario contra la tabla correspondiente en Supabase.
-     *
-     * @param correo   correo institucional del usuario
-     * @param password contraseña ingresada en texto plano
-     * @param rol      "DOCENTE" o "ESTUDIANTE"
+     * Hash BCrypt sin usuario asociado: se compara contra él cuando el correo no existe, para que la
+     * respuesta tarde lo mismo que con un usuario real y no revele qué correos están registrados.
      */
     private static final String DUMMY_BCRYPT_HASH = "$2a$10$w8.5R32y9m3U3rM7.Y1uQeIeS9P9G.bJ4o3a4t9E8p0g2Z7o5r1K.";
 
+    /**
+     * Autentica las credenciales de un usuario contra la tabla correspondiente en Supabase.
+     * Ante cualquier fallo de credenciales devuelve el mismo mensaje genérico, sin indicar si
+     * el correo existe.
+     *
+     * @param correo   correo institucional del usuario
+     * @param password contraseña ingresada en texto plano
+     * @param rol      "DOCENTE"; cualquier otro valor se trata como "ESTUDIANTE"
+     * @return el usuario autenticado con su rol
+     * @throws IllegalArgumentException si el dominio no es institucional o las credenciales no son válidas
+     */
     public UsuarioAutenticado autenticar(String correo, String password, String rol) {
         validarDominioJaveriano(correo);
         String emailLimpio = correo.trim().toLowerCase();
@@ -70,7 +83,8 @@ public class AuthService {
     }
 
     /**
-     * Comprueba si el correo pertenece al dominio oficial de la Javeriana.
+     * Comprueba si el correo pertenece a un dominio institucional admitido
+     * (@javerianacali.edu.co o @javeriana.edu.co), sin distinguir mayúsculas.
      */
     public boolean esDominioJaveriano(String correo) {
         if (correo == null || correo.isBlank()) {
@@ -81,7 +95,9 @@ public class AuthService {
     }
 
     /**
-     * Exige que el correo pertenezca al dominio oficial de la Javeriana.
+     * Exige que el correo pertenezca a un dominio institucional admitido.
+     *
+     * @throws IllegalArgumentException si el correo es nulo, vacío o de otro dominio
      */
     public void validarDominioJaveriano(String correo) {
         if (!esDominioJaveriano(correo)) {
@@ -115,6 +131,7 @@ public class AuthService {
     /**
      * Verificación para docentes: el docente de prueba se crea manualmente en Supabase, por lo que
      * se admite contraseña en texto plano (sin migrarla). Si ya es un hash BCrypt, se verifica como tal.
+     * La comparación en texto plano usa MessageDigest.isEqual (tiempo constante).
      */
     public boolean verificarPasswordDocente(String passwordIngresada, String passwordAlmacenada) {
         if (passwordIngresada == null || passwordAlmacenada == null) {
@@ -128,6 +145,7 @@ public class AuthService {
                 passwordAlmacenada.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
+    /** Compara con BCrypt; un hash mal formado se registra en el log y cuenta como contraseña incorrecta. */
     private boolean coincideBcrypt(String passwordIngresada, String hash) {
         try {
             return passwordEncoder.matches(passwordIngresada, hash);
