@@ -55,8 +55,6 @@ Prototipo de plataforma web de tutoría inteligente que acompaña a estudiantes 
 - **Retomar la tutoría** en el punto en que se dejó, porque el historial se conserva (RF-04).
 - **Feedback Profe** (RF-09) y **encuesta SUS+TAM** para evaluar la plataforma.
 
-> El detalle de cada pantalla está en la [Guía de Gestión Pedagógica para el Docente](Entregables/Guia_Gestion_Pedagogica_Docente.pdf).
-
 ---
 
 ## Arquitectura
@@ -130,23 +128,22 @@ El modelo marca los eventos de la tutoría con comentarios HTML ocultos. El serv
 ## Estructura del repositorio
 
 ```
-├── Proyecto_Grado/                  # Aplicación Spring Boot
-│   ├── src/main/java/Prototipo/Proyecto_Grado/
-│   │   ├── controller/              # Peticiones del docente, del estudiante y del login
-│   │   ├── service/                 # Tutor socrático, Gemini, métricas, autenticación y 2FA
-│   │   ├── repository/              # Repositorios Spring Data JPA (uno por entidad)
-│   │   ├── model/entity/            # Entidades JPA (tablas de la Figura 3.8 de la tesis)
-│   │   ├── model/dto/               # Objetos de transporte (capas del prompt, CRAFT, SUS+TAM)
-│   │   └── config/                  # Seguridad, cliente HTTP, ejecutor asíncrono, interceptores y .env
-│   ├── src/main/resources/
-│   │   ├── templates/               # Vistas Thymeleaf: docente/, estudiante/, Login/ e index.html
-│   │   ├── static/css/              # Estilos responsivos
-│   │   ├── prompts/capa1_socratico.md   # Capa 1 del prompt (reglas fijas del tutor socrático)
-│   │   └── application.properties
-│   ├── src/test/java/               # Pruebas unitarias y de integración
-│   ├── Dockerfile · docker-compose.yml · .env.example
-│   └── pom.xml
-└── Entregables/                     # Guía del docente y prompt de prueba
+└── Proyecto_Grado/                  # Aplicación Spring Boot
+    ├── src/main/java/Prototipo/Proyecto_Grado/
+    │   ├── controller/              # Peticiones del docente, del estudiante y del login
+    │   ├── service/                 # Tutor socrático, Gemini, métricas, autenticación y 2FA
+    │   ├── repository/              # Repositorios Spring Data JPA (uno por entidad)
+    │   ├── model/entity/            # Entidades JPA (tablas de la Figura 3.8 de la tesis)
+    │   ├── model/dto/               # Objetos de transporte (capas del prompt, CRAFT, SUS+TAM)
+    │   └── config/                  # Seguridad, cliente HTTP, ejecutor asíncrono, interceptores y .env
+    ├── src/main/resources/
+    │   ├── templates/               # Vistas Thymeleaf: docente/, estudiante/, Login/ e index.html
+    │   ├── static/css/              # Estilos responsivos
+    │   ├── prompts/capa1_socratico.md   # Capa 1 del prompt (reglas fijas del tutor socrático)
+    │   └── application.properties
+    ├── src/test/java/               # Pruebas unitarias y de integración
+    ├── Dockerfile · docker-compose.yml · .env.example
+    └── pom.xml
 ```
 
 > Las reglas fijas del tutor (Capa 1 del prompt) están en `Proyecto_Grado/src/main/resources/prompts/capa1_socratico.md`.
@@ -233,8 +230,6 @@ cd Proyecto_Grado
 
 | Documento | Ubicación |
 |---|---|
-| Guía de Gestión Pedagógica para el Docente | [`Entregables/Guia_Gestion_Pedagogica_Docente.pdf`](Entregables/Guia_Gestion_Pedagogica_Docente.pdf) |
-| Prompt de prueba utilizado en la evaluación (clase «Herencia») | [`Entregables/Prompt_de_Prueba_Clase_Herencia.pdf`](Entregables/Prompt_de_Prueba_Clase_Herencia.pdf) |
 | Capa 1 del prompt (reglas del tutor) | [`capa1_socratico.md`](Proyecto_Grado/src/main/resources/prompts/capa1_socratico.md) |
 
 ---
